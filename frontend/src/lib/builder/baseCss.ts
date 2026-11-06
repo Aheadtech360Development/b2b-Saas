@@ -132,6 +132,7 @@ export const BASE_CSS = `
 .bsite :where(.b-imglink img){width:100%;height:100%;object-fit:cover}
 .bsite :where(.b-video){position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#000}
 .bsite :where(.b-video iframe){position:absolute;inset:0;width:100%;height:100%;border:0}
+.bsite :where(.b-video video){position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 .bsite :where(.b-icon){display:inline-flex;color:var(--b-primary,#14161B);text-decoration:none}
 
 .bsite :where(.b-faq details){border-bottom:1px solid var(--b-border,#e6e6e6)}

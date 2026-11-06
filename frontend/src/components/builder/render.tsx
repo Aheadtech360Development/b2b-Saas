@@ -36,6 +36,7 @@ import { ContactForm } from "./islands/ContactForm";
 import { ProductPoints, ReferFriend, RewardsProgram } from "./islands/Loyalty";
 import { SearchBox, SearchIcon } from "./islands/SearchBox";
 import { splitDescription } from "@/lib/builder/descSections";
+import { isVideoFile, videoEmbed } from "@/lib/videoUrl";
 import BulkOrderPicker, { type BulkVariant } from "@/components/storefront/BulkOrderPicker";
 
 export interface RenderCtx {
@@ -128,15 +129,6 @@ function children(node: BuilderNode, ctx: RenderCtx): ReactNode {
     return ctx.edit ? <div className="b-drop" data-drop={node.id}>Drop elements here</div> : null;
   }
   return kids.map((child) => <Node key={child.id} node={child} ctx={ctx} />);
-}
-
-function videoEmbed(url: string): string {
-  const u = url.trim();
-  let m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,15})/.exec(u);
-  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
-  m = /vimeo\.com\/(?:video\/)?(\d{5,12})/.exec(u);
-  if (m) return `https://player.vimeo.com/video/${m[1]}`;
-  return "";
 }
 
 function ProductCards({ id, cards, ctx, empty }: { id: string; cards: ProductCard[] | undefined; ctx: RenderCtx; empty: string }) {
@@ -380,7 +372,19 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     }
     case "video": {
       const embed = videoEmbed(str(p.url));
-      if (!embed) return ctx.edit ? <div data-b={id} className="b-empty">Paste a YouTube or Vimeo link in the panel on the right.</div> : null;
+      if (!embed) {
+        // A video from the media library (or any https video file): the
+        // browser's own player.
+        const file = isVideoFile(str(p.url)) ? safeSrc(p.url) : "";
+        if (file) {
+          return (
+            <div data-b={id} className="b-video" data-file="">
+              <video src={file} controls playsInline preload="metadata" style={ctx.edit ? { pointerEvents: "none" } : undefined} />
+            </div>
+          );
+        }
+        return ctx.edit ? <div data-b={id} className="b-empty">Choose a video from your library, or paste a YouTube or Vimeo link, in the panel on the right.</div> : null;
+      }
       return (
         <div data-b={id} className="b-video">
           <iframe src={embed} title="Video" loading="lazy" allowFullScreen

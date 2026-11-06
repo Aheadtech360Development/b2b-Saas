@@ -1,16 +1,21 @@
 "use client";
 
-/** Media library: pictures uploaded once, used anywhere (products, the website, banners). */
+/** Media library: pictures and videos uploaded once, used anywhere (products,
+ *  the website, banners). A video goes from the browser straight to the media
+ *  storage (mediaService.uploadVideo), never through our server. */
 import { ask, tell } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { isVideoItem } from "@/lib/videoUrl";
 import { mediaService, type MediaItem } from "@/services/media.service";
 
 export default function MediaLibraryPage() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [configured, setConfigured] = useState(true);
+  const [videos, setVideos] = useState(false);
+  const [videoMaxMb, setVideoMaxMb] = useState(100);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -20,6 +25,8 @@ export default function MediaLibraryPage() {
     try {
       const res = await mediaService.list();
       setConfigured(res.configured);
+      setVideos(!!res.videos);
+      if (res.video_max_mb) setVideoMaxMb(res.video_max_mb);
       setItems(res.items || []);
     } catch {
       setError("The media library could not be loaded.");
@@ -33,26 +40,39 @@ export default function MediaLibraryPage() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    setUploading(true);
+    setUploading("Uploading…");
     setError(null);
-    try {
-      for (const f of files) await mediaService.upload(f);
-      await load();
-    } catch {
-      setError("The upload did not go through. Check that media storage is set up.");
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
+    const problems: string[] = [];
+    for (const f of files) {
+      try {
+        if (f.type.startsWith("video/")) {
+          if (f.size > videoMaxMb * 1024 * 1024) {
+            problems.push(`${f.name}: videos can be up to ${videoMaxMb} MB.`);
+            continue;
+          }
+          await mediaService.uploadVideo(f, (p) => setUploading(`Uploading ${f.name}: ${p}%`));
+        } else {
+          setUploading(`Uploading ${f.name}…`);
+          await mediaService.upload(f);
+        }
+      } catch (err) {
+        problems.push(`${f.name}: ${err instanceof Error && err.message ? err.message : "the upload did not go through."}`);
+      }
     }
+    if (problems.length) setError(problems.join(" "));
+    setUploading(null);
+    if (fileRef.current) fileRef.current.value = "";
+    await load();
   }
 
   async function copyUrl(url: string, id: string) {
     try { await navigator.clipboard.writeText(url); setCopied(id); setTimeout(() => setCopied(null), 1500); } catch {}
   }
 
-  async function remove(id: string) {
-    if (!await ask("Delete this picture? Anywhere it is used, it stops showing.", { ok: "Delete", danger: true })) return;
-    try { await mediaService.remove(id); setItems((p) => p.filter((x) => x.file_id !== id)); } catch { tell("It could not be deleted."); }
+  async function remove(m: MediaItem) {
+    const what = isVideoItem(m) ? "video" : "picture";
+    if (!await ask(`Delete this ${what}? Anywhere it is used, it stops showing.`, { ok: "Delete", danger: true })) return;
+    try { await mediaService.remove(m.file_id); setItems((p) => p.filter((x) => x.file_id !== m.file_id)); } catch { tell("It could not be deleted."); }
   }
 
   return (
@@ -61,12 +81,16 @@ export default function MediaLibraryPage() {
         <div>
           <div className="pc-eyebrow">Storefront</div>
           <h1 className="pc-h1">Media library</h1>
-          <p className="pc-sub-line">Upload pictures here, then copy the link to use anywhere: products, the website, banners.</p>
+          <p className="pc-sub-line">
+            {videos
+              ? `Upload pictures and videos (up to ${videoMaxMb} MB) here, then copy the link to use anywhere: products, the website, banners.`
+              : "Upload pictures here, then copy the link to use anywhere: products, the website, banners."}
+          </p>
         </div>
         <div>
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} hidden />
-          <button type="button" className="pc-btn" data-kind="primary" onClick={() => fileRef.current?.click()} disabled={uploading || !configured}>
-            {uploading ? "Uploading…" : "Upload pictures"}
+          <input ref={fileRef} type="file" accept={videos ? "image/*,video/*" : "image/*"} multiple onChange={handleUpload} hidden />
+          <button type="button" className="pc-btn" data-kind="primary" onClick={() => fileRef.current?.click()} disabled={!!uploading || !configured}>
+            {uploading ?? (videos ? "Upload pictures or videos" : "Upload pictures")}
           </button>
         </div>
       </div>
@@ -81,14 +105,22 @@ export default function MediaLibraryPage() {
       {loading ? (
         <div className="pc-card pc-empty">Loading…</div>
       ) : items.length === 0 ? (
-        <div className="pc-card pc-empty">No pictures yet. Press <b>Upload pictures</b> to add the first one.</div>
+        <div className="pc-card pc-empty">Nothing here yet. Press <b>{videos ? "Upload pictures or videos" : "Upload pictures"}</b> to add the first one.</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
           {items.map((m) => (
-            <div key={m.file_id} className="pc-card" data-media-item>
-              <div style={{ aspectRatio: "1 / 1", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderBottom: "1px solid var(--pc-line)" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div key={m.file_id} className="pc-card" data-media-item data-video={isVideoItem(m) ? "" : undefined}>
+              <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderBottom: "1px solid var(--pc-line)" }}>
+                {isVideoItem(m) ? (
+                  <>
+                    <video src={m.url} preload="metadata" muted playsInline controls aria-label={m.name}
+                           style={{ width: "100%", height: "100%", objectFit: "cover", background: "#0B0F17" }} />
+                    <span className="pc-pill" style={{ position: "absolute", top: 8, left: 8, pointerEvents: "none" }}>Video</span>
+                  </>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                )}
               </div>
               <div style={{ padding: "10px 12px" }}>
                 <div title={m.name} style={{ fontSize: "13px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
@@ -96,7 +128,7 @@ export default function MediaLibraryPage() {
                   <button type="button" className="pc-btn" style={{ flex: 1, height: "34px", fontSize: "13px" }} onClick={() => copyUrl(m.url, m.file_id)}>
                     {copied === m.file_id ? "Copied" : "Copy link"}
                   </button>
-                  <button type="button" className="pc-btn" aria-label={`Delete ${m.name}`} style={{ height: "34px", padding: "0 10px", color: "var(--pc-red)" }} onClick={() => remove(m.file_id)}>
+                  <button type="button" className="pc-btn" aria-label={`Delete ${m.name}`} style={{ height: "34px", padding: "0 10px", color: "var(--pc-red)" }} onClick={() => remove(m)}>
                     <X size={15} strokeWidth={2.4} />
                   </button>
                 </div>

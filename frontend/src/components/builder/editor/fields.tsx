@@ -8,10 +8,12 @@ import { askText } from "@/lib/dialog";
  * it or choosing one already in the brand's media library.
  */
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bold, Film, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import type { Field } from "@/lib/builder/registry";
 import type { PickCollection, PickMenu, PickProduct } from "@/services/builder.service";
+import { mediaService } from "@/services/media.service";
 import { cleanHtml, safeSrc } from "@/lib/builder/sanitize";
+import { isVideoFile, videoEmbed } from "@/lib/videoUrl";
 import { useAuthStore } from "@/stores/auth.store";
 import { TextInput, Toggle } from "./ui";
 
@@ -23,7 +25,8 @@ export interface EditorEnv {
   rememberProducts: (rows: PickProduct[]) => void;
   globals: { id: string; name: string }[];
   uploadImage: (file: File) => Promise<string>;
-  openMedia: (onPick: (url: string) => void) => void;
+  /** The media library, showing pictures (the default) or videos. */
+  openMedia: (onPick: (url: string) => void, kind?: "image" | "video") => void;
   themeColors: Record<string, string>;
   /** Open a menu's links for editing — add, rename, reorder, remove. */
   editMenu: (menuId: string) => void;
@@ -65,6 +68,54 @@ export function ImageField({ value, onChange, env }: { value: string; onChange: 
       }} />
       <TextInput value={str(value)} onChange={onChange} placeholder="…or paste an https:// address" ariaLabel="Picture address" />
       {value && !src && <div className="sbe-help" style={{ color: "#B42318" }}>Use an https:// address, or upload the picture.</div>}
+      {error && <div className="sbe-help" style={{ color: "#B42318" }}>{error}</div>}
+    </div>
+  );
+}
+
+/**
+ * A video: one from the brand's media library, a new upload (which goes into
+ * the library too), or a YouTube, Vimeo or video link pasted in.
+ */
+export function VideoField({ value, onChange, env }: { value: string; onChange: (v: string) => void; env: EditorEnv }) {
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const url = str(value).trim();
+  const file = isVideoFile(url);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {file ? (
+        <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: "1px solid #E3E6EC", background: "#000" }}>
+          <video src={url} controls preload="metadata" playsInline style={{ display: "block", width: "100%", maxHeight: 160 }} />
+          <button type="button" className="sbe-icon sm" aria-label="Remove the video" onClick={() => onChange("")}
+                  style={{ position: "absolute", top: 6, right: 6, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }}>
+            <X size={14} />
+          </button>
+        </div>
+      ) : null}
+      <div className="sbe-row">
+        <button type="button" className="sbe-btn sm" onClick={() => env.openMedia(onChange, "video")}><Film size={14} /> Library</button>
+        <button type="button" className="sbe-btn sm" disabled={progress !== null} onClick={() => fileRef.current?.click()}>
+          {progress !== null ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {progress !== null ? `Uploading ${progress}%` : "Upload"}
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="video/*" hidden onChange={async (e) => {
+        const picked = e.target.files?.[0];
+        e.target.value = "";
+        if (!picked) return;
+        setProgress(0); setError("");
+        try {
+          const up = await mediaService.uploadVideo(picked, setProgress);
+          onChange(up.url);
+        } catch (err) {
+          setError(err instanceof Error && err.message ? err.message : "That upload did not work. Try again.");
+        } finally { setProgress(null); }
+      }} />
+      <TextInput value={str(value)} onChange={onChange} placeholder="…or paste a YouTube, Vimeo or video link" ariaLabel="Video address" />
+      {url && !file && !videoEmbed(url) && (
+        <div className="sbe-help" style={{ color: "#B42318" }}>Use a YouTube or Vimeo link, an https:// video address, or a video from your library.</div>
+      )}
       {error && <div className="sbe-help" style={{ color: "#B42318" }}>{error}</div>}
     </div>
   );
@@ -276,6 +327,8 @@ export function FieldControl({ field, value, onChange, env }: {
       );
     case "image":
       return <ImageField value={str(value)} onChange={onChange} env={env} />;
+    case "video":
+      return <VideoField value={str(value)} onChange={onChange} env={env} />;
     case "richtext":
       return <RichText value={str(value)} onChange={onChange} />;
     case "html":

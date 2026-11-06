@@ -10,15 +10,24 @@ Docs: https://docs.imagekit.io/api-reference/upload-file-api/server-side-file-up
 from __future__ import annotations
 
 import base64
+import re
+import time
 import uuid
 from typing import Any
 
 import httpx
+from jose import jwt
 
 from app.core.config import settings
 
 _UPLOAD_URL = "https://upload.imagekit.io/api/v1/files/upload"
+# Secure client-side upload (V2): the browser sends the file itself, with a
+# token signed here that pins every upload parameter.
+_UPLOAD_V2_URL = "https://upload.imagekit.io/api/v2/files/upload"
 _LIST_URL = "https://api.imagekit.io/v1/files"
+# ImageKit refuses a token that lives longer than an hour; a big video on a
+# slow line takes a while, so it gets all of it.
+_TOKEN_SECONDS = 3600
 
 
 def is_configured() -> bool:
@@ -63,6 +72,39 @@ async def upload_bytes(
     }
 
 
+def can_take_videos() -> bool:
+    """Videos go from the browser straight to ImageKit, which needs the public key too."""
+    return is_configured() and bool(settings.IMAGEKIT_PUBLIC_KEY)
+
+
+def safe_file_name(name: str, fallback: str = "video.mp4") -> str:
+    """A name ImageKit keeps as it is: letters, digits, dot, dash, underscore."""
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", (name or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1])
+    base = re.sub(r"-{2,}", "-", base).strip(".-_")[:100]
+    return base if "." in base and not base.startswith(".") else fallback
+
+
+def video_upload_token(tenant_id: str | uuid.UUID, file_name: str, max_bytes: int,
+                       now: int | None = None) -> dict[str, Any]:
+    """Permission for one browser upload of one video into the tenant's folder.
+
+    The token is signed with the private key and carries every upload
+    parameter, so ImageKit refuses the upload if the browser changes any of
+    them: another brand's folder, a bigger file, something that is not a
+    video. It can be used once.
+    """
+    fields = {
+        "fileName": safe_file_name(file_name),
+        "folder": _folder_for(tenant_id),
+        "useUniqueFileName": "true",
+        "checks": f'"file.size" <= {int(max_bytes)} AND "file.mime" : "video"',
+    }
+    iat = int(now if now is not None else time.time())
+    token = jwt.encode({**fields, "iat": iat, "exp": iat + _TOKEN_SECONDS}, settings.IMAGEKIT_PRIVATE_KEY,
+                       algorithm="HS256", headers={"kid": settings.IMAGEKIT_PUBLIC_KEY})
+    return {"upload_url": _UPLOAD_V2_URL, "token": token, "fields": fields}
+
+
 async def list_files(tenant_id: str | uuid.UUID | None, limit: int = 100) -> list[dict[str, Any]]:
     """List files in the tenant's folder (most recent first)."""
     params = {
@@ -82,6 +124,9 @@ async def list_files(tenant_id: str | uuid.UUID | None, limit: int = 100) -> lis
             "name": it.get("name"),
             "size": it.get("size"),
             "file_type": it.get("fileType"),
+            # "video/mp4" for a video: the library shows it as one, and the
+            # picture pickers leave it out.
+            "mime": it.get("mime"),
             "created_at": it.get("createdAt"),
         }
         for it in items

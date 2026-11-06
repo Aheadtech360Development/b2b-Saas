@@ -9,6 +9,7 @@
  * Multiple mode (`multiple`): tap several images, then "Add N images".
  */
 import { useEffect, useRef, useState } from "react";
+import { isVideoItem } from "@/lib/videoUrl";
 import { mediaService, type MediaItem } from "@/services/media.service";
 
 export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
@@ -29,7 +30,8 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
   function load() {
     setLoading(true);
     mediaService.list()
-      .then((r) => { setItems(r.items || []); setConfigured(r.configured); })
+      // Pictures only: a video picked as a product's picture would show as a broken image.
+      .then((r) => { setItems((r.items || []).filter((m) => !isVideoItem(m))); setConfigured(r.configured); })
       .catch(() => setError("Couldn't load your media library."))
       .finally(() => setLoading(false));
   }

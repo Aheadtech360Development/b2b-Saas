@@ -17,7 +17,7 @@ import type { BuilderNode, TemplateType } from "./types";
 
 export type FieldKind =
   | "text" | "textarea" | "number" | "select" | "toggle" | "color" | "url" | "image"
-  | "menu" | "products" | "collection" | "collections" | "global" | "items" | "html" | "css" | "js" | "richtext";
+  | "menu" | "products" | "collection" | "collections" | "global" | "items" | "html" | "css" | "js" | "richtext" | "video";
 
 export interface Field {
   key: string;
@@ -198,8 +198,9 @@ export const REGISTRY: ComponentDef[] = [
   },
   {
     type: "video", label: "Video", category: "content", icon: "Video",
-    blurb: "A YouTube or Vimeo video.",
-    fields: [{ key: "url", label: "Video address", kind: "url", help: "Paste a YouTube or Vimeo link." }],
+    blurb: "A video from your media library, or a YouTube or Vimeo video.",
+    fields: [{ key: "url", label: "Video", kind: "video",
+               help: "Choose one of your videos, upload a new one, or paste a YouTube, Vimeo or video link." }],
     styles: ["size", "spacing", "border"],
     create: () => node("video", { url: "" }, { borderRadius: "12px" }),
   },

@@ -25,6 +25,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ApiClientError, apiClient } from "@/lib/api-client";
 import { say } from "@/lib/toast";
+import { isVideoFile, isVideoItem } from "@/lib/videoUrl";
 import type { Breakpoint, BuilderNode, SiteDoc, SitePayload, TemplateType } from "@/lib/builder/types";
 import {
   duplicateNode, findNode, insertNode, moveNode, newId, nudge, parentOf, removeNode, updateNode, withFreshIds, type Position,
@@ -89,7 +90,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   const [sampleProducts, setSampleProducts] = useState<PickProduct[]>([]);
   const [uploaded, setUploaded] = useState<UploadedFont[]>([]);
   const [dialog, setDialog] = useState<null | "publish" | "versions">(null);
-  const [media, setMedia] = useState<null | ((url: string) => void)>(null);
+  const [media, setMedia] = useState<null | { pick: (url: string) => void; kind: "image" | "video" }>(null);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const targetBtn = useRef<HTMLButtonElement>(null);
@@ -526,7 +527,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     rememberProducts: (rows: PickProduct[]) => rows.forEach((r) => productCache.current.set(r.id, r)),
     globals: Object.entries(doc?.globals ?? {}).map(([id, g]) => ({ id, name: g.name })),
     uploadImage: async (file: File) => (await builderService.uploadImage(file)).url,
-    openMedia: (onPick: (url: string) => void) => setMedia(() => onPick),
+    openMedia: (onPick: (url: string) => void, kind: "image" | "video" = "image") => setMedia({ pick: onPick, kind }),
     themeColors: Object.fromEntries(Object.entries(doc?.settings?.colors ?? {}).filter(([, v]) => /^#[0-9a-f]{3,8}$/i.test(v))),
     editMenu: (menuId: string) => setMenuDialog({ mode: "edit", id: menuId }),
     newMenu: (onMade?: (menuId: string) => void, name?: string) => setMenuDialog({ mode: "new", onMade, name }),
@@ -839,7 +840,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       {dialog === "versions" && (
         <VersionsDialog state={state} onClose={() => setDialog(null)} onChanged={(s) => setState(s)} />
       )}
-      {media && <MediaDialog onClose={() => setMedia(null)} onPick={(url) => { media(url); setMedia(null); }} />}
+      {media && <MediaDialog kind={media.kind} onClose={() => setMedia(null)} onPick={(url) => { media.pick(url); setMedia(null); }} />}
       <ToastContainer />
     </div>
   );
@@ -1048,24 +1049,42 @@ function VersionsDialog({ state, onClose, onChanged }: { state: BuilderState; on
   );
 }
 
-function MediaDialog({ onClose, onPick }: { onClose: () => void; onPick: (url: string) => void }) {
-  const [items, setItems] = useState<{ file_id: string; url: string; thumbnail_url?: string; name?: string }[] | null>(null);
+type LibraryItem = { file_id: string; url: string; thumbnail_url?: string; name?: string; mime?: string | null };
+
+/** The brand's media library: its pictures, or (for a Video block) its videos. */
+function MediaDialog({ kind, onClose, onPick }: { kind: "image" | "video"; onClose: () => void; onPick: (url: string) => void }) {
+  const [items, setItems] = useState<LibraryItem[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    apiClient.get<{ configured: boolean; items: { file_id: string; url: string; thumbnail_url?: string; name?: string }[] }>("/api/v1/admin/media")
+    apiClient.get<{ configured: boolean; items: LibraryItem[] }>("/api/v1/admin/media")
       .then((r) => { if (!r.configured) setError("Media storage is not set up on this platform."); setItems(r.items ?? []); })
       .catch((err) => { setItems([]); setError(message(err, "The media library could not be loaded.")); });
   }, []);
+  const shown = (items ?? []).filter((i) => kind === "video"
+    ? isVideoItem(i) && isVideoFile(i.url)
+    : /^https:\/\//.test(i.url) && /\.(png|jpe?g|gif|webp|avif|svg)(\?|$)/i.test(i.url));
   return (
-    <Modal title="Media library" onClose={onClose} wide>
+    <Modal title={kind === "video" ? "Your videos" : "Media library"} onClose={onClose} wide>
       {error && <div className="sbe-note bad">{error}</div>}
       {items === null && <div className="sbe-status"><Loader2 size={15} className="animate-spin" /> Loading…</div>}
-      {items && !items.length && !error && <div className="sbe-empty">No pictures yet. Upload one from the panel.</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
-        {(items ?? []).filter((i) => /^https:\/\//.test(i.url) && /\.(png|jpe?g|gif|webp|avif|svg)(\?|$)/i.test(i.url)).map((i) => (
+      {items && !shown.length && !error && (
+        <div className="sbe-empty">
+          {kind === "video" ? "No videos yet. Upload one from the panel, or in Media library." : "No pictures yet. Upload one from the panel."}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: kind === "video" ? "repeat(auto-fill, minmax(180px, 1fr))" : "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
+        {shown.map((i) => (
           <button key={i.file_id} type="button" onClick={() => onPick(i.url)} title={i.name}
-                  style={{ border: "1px solid #E3E6EC", borderRadius: 10, padding: 4, background: "#fff", cursor: "pointer" }}>
-            <img src={i.thumbnail_url || i.url} alt={i.name ?? ""} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 7, display: "block" }} />
+                  style={{ border: "1px solid #E3E6EC", borderRadius: 10, padding: 4, background: "#fff", cursor: "pointer", textAlign: "left" }}>
+            {kind === "video" ? (
+              <>
+                <video src={i.url} preload="metadata" muted playsInline
+                       style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", borderRadius: 7, display: "block", background: "#000", pointerEvents: "none" }} />
+                <span style={{ display: "block", padding: "6px 4px 2px", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
+              </>
+            ) : (
+              <img src={i.thumbnail_url || i.url} alt={i.name ?? ""} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 7, display: "block" }} />
+            )}
           </button>
         ))}
       </div>

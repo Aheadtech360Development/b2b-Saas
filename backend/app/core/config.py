@@ -284,6 +284,10 @@ class Settings(BaseSettings):
     IMAGEKIT_URL_ENDPOINT: str = ""   # e.g. https://ik.imagekit.io/xxxxxx
     IMAGEKIT_PUBLIC_KEY: str = ""     # public_...
     IMAGEKIT_PRIVATE_KEY: str = ""    # private_...  (secret — .env only)
+    # The largest video a brand may put in its media library. ImageKit's own
+    # cap per video is its plan's (Free 100 MB, Lite 300 MB, Pro 2 GB): raise
+    # this with the plan, never above it.
+    MEDIA_VIDEO_MAX_MB: int = 100
 
     # Background removal for the print builders (workers/image-tools, on
     # Cloudflare). The platform pays for this, so there is one key, not one per
