@@ -27,6 +27,7 @@ import { OrderShipments } from "@/components/admin/OrderShipments";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
+import { decorationWords } from "@/components/shared/ConfigurationDetail";
 
 interface Pill { key: string; label: string; tone: string }
 interface Step { key: string; label: string; state: "done" | "current" | "todo" | "stopped" }
@@ -47,7 +48,12 @@ interface OrderItem {
   line_total: string;
   configuration?: LineConfiguration | null;
   gang_sheet?: GangSheetProduction | null;
+  /** A line of a t-shirt design: the design, where it stands, its picture. */
+  tshirt_design?: { id: string; reference: string; name?: string; status: string; preview_url?: string | null } | null;
 }
+
+/** A t-shirt design's own page: T-shirt designer → Designs, opened on it. */
+const designHref = (id: string) => `/admin/tshirt-designer?tab=designs&design=${encodeURIComponent(id)}`;
 
 interface ShippingAddress {
   full_name?: string; address_line1?: string; address_line2?: string;
@@ -314,10 +320,11 @@ export default function AdminOrderDetailPage() {
   const hasLiveRate = !!o.shipping_rate_id;
   const hasLabel = !!(o.tracking_number && o.label_url);
   const waitingJob = o.items.find((i) => i.gang_sheet && ["in_review", "submitted"].includes(i.gang_sheet.status))?.gang_sheet ?? null;
+  const waitingDesign = o.items.find((i) => i.tshirt_design && ["in_review", "submitted"].includes(i.tshirt_design.status))?.tshirt_design ?? null;
   // A print job the shop has not approved, or one sent back to the customer.
   // Sending the order out before that is almost always a slip, so it is asked about first.
   const artOpen = ["in_review", "revision"].includes(progress?.artwork.key ?? "");
-  const artHref = waitingJob ? `/admin/production/${waitingJob.id}` : "/admin/production";
+  const artHref = waitingJob ? `/admin/production/${waitingJob.id}` : waitingDesign ? designHref(waitingDesign.id) : "/admin/production";
   // A job approved or on the press: printing it is the next step, on Production.
   const printingJob = o.items.find((i) => i.gang_sheet && ["approved", "production"].includes(i.gang_sheet.status))?.gang_sheet ?? null;
   const printHref = printingJob ? `/admin/production/${printingJob.id}` : "/admin/production";
@@ -658,7 +665,7 @@ export default function AdminOrderDetailPage() {
                   <button type="button" className="pc-btn" data-kind="primary" disabled={!variant || !!busy} onClick={addItem}>{busy === "additem" ? "Adding…" : "Add"}</button>
                 </div>
                 <p className="pc-sub-line" style={{ marginTop: "8px" }}>Adding or removing a line changes the order&apos;s total. Send the invoice again afterwards if the customer still has to pay.</p>
-                {o.items.some((i) => i.gang_sheet) && (
+                {o.items.some((i) => i.gang_sheet || i.tshirt_design) && (
                   <p className="pc-sub-line" style={{ marginTop: "4px" }}>A line with a print job can&apos;t be removed here. Reject the job in Production, or cancel the order.</p>
                 )}
               </div>
@@ -673,6 +680,7 @@ export default function AdminOrderDetailPage() {
                   {o.items.length === 0 && <tr><td colSpan={editing ? 6 : 5} className="pc-empty">This order has no lines.</td></tr>}
                   {o.items.map((item) => {
                     const sheet = item.gang_sheet ?? null;
+                    const design = item.tshirt_design ?? null;
                     const file = item.configuration?.artwork ?? null;
                     // What a supplier's stock covered of this line; the rest came off the shop's shelves.
                     const shares = (o.supplier_shares ?? []).filter((s) => s.order_item_id === item.id);
@@ -680,17 +688,23 @@ export default function AdminOrderDetailPage() {
                     const options = [item.color, item.size].filter(Boolean).join(" / ")
                       || (item.configuration?.breakdown ?? []).map((b) => `${b.option}: ${b.value}`).join(" · ")
                       || (sheet ? `${sheet.width_in} x ${sheet.height_in} in` : "");
-                    const job = sheet ? JOB_WORDS[sheet.status] ?? [sheet.status.replace(/_/g, " "), ""] : null;
+                    const status = sheet?.status ?? design?.status ?? null;
+                    const job = status ? JOB_WORDS[status] ?? [status.replace(/_/g, " "), ""] : null;
+                    const printed = item.configuration?.tshirt_design?.sides;
                     return [
                       <tr key={item.id} data-line={item.sku}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{item.product_name}</div>
                           <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{item.sku} · {money(item.unit_price)} each</div>
+                          {printed && printed.length > 0 && (
+                            <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{decorationWords(item.configuration?.tshirt_design?.method, printed)}</div>
+                          )}
                           {shares.length > 0 && (
                             <div className="pc-sub-line" style={{ fontSize: "12.5px" }} data-shares>
                               {[
                                 ...(ownPart > 0 ? [`${ownPart} from your stock`] : []),
-                                ...shares.map((s) => `${s.qty} from ${s.label}${s.unit_cost != null ? ` at ${money(s.unit_cost)} each` : ""}${s.supplier === "sanmar" ? " (order these from SanMar yourself)" : ""}`),
+                                // A design's blanks are printed here first, so they are never sent to ship.
+                                ...shares.map((s) => `${s.qty} from ${s.label}${s.unit_cost != null ? ` at ${money(s.unit_cost)} each` : ""}${design ? " (order these blanks yourself, to print on)" : s.supplier === "sanmar" ? " (order these from SanMar yourself)" : ""}`),
                               ].join(" · ")}
                             </div>
                           )}
@@ -698,11 +712,15 @@ export default function AdminOrderDetailPage() {
                         <td style={{ color: "var(--pc-ink-2)" }}>{options || <span style={{ color: "var(--pc-faint)" }}>None</span>}</td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            {sheet?.preview_url && (
+                            {(sheet?.preview_url || design?.preview_url) && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={sheet.preview_url} alt="" className="pc-thumb" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                              <img src={(sheet?.preview_url || design?.preview_url)!} alt="" className="pc-thumb" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                             )}
-                            {job ? <span className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none" }}>{job[0]}</span>
+                            {design && job ? (
+                              <Link href={designHref(design.id)} className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none", textDecoration: "none" }} title={`Open design ${design.reference}`} data-design-pill>
+                                {job[0]}
+                              </Link>
+                            ) : job ? <span className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none" }}>{job[0]}</span>
                               : file ? <a href={file.url} target="_blank" rel="noopener noreferrer" className="pc-pill" data-tone="blue" style={{ textTransform: "none", textDecoration: "none" }} title={file.file_name}>File attached</a>
                               : <span className="pc-pill" style={{ textTransform: "none" }}>No file needed</span>}
                           </div>
@@ -712,7 +730,7 @@ export default function AdminOrderDetailPage() {
                         {editing && (
                           <td className="pc-num">
                             {/* A line with a print job stays: taking the line off would leave its job in Production with no line to belong to. */}
-                            {sheet ? <span role="img" aria-label="Has a print job" title="Has a print job, so it can't be removed here" data-line-kept style={{ display: "inline-flex", padding: "6px", color: "var(--pc-faint)" }}><Lock size={15} strokeWidth={2.2} /></span>
+                            {sheet || design ? <span role="img" aria-label="Has a print job" title="Has a print job, so it can't be removed here" data-line-kept style={{ display: "inline-flex", padding: "6px", color: "var(--pc-faint)" }}><Lock size={15} strokeWidth={2.2} /></span>
                               : <button type="button" className="pc-x" style={{ color: "var(--pc-red)" }} aria-label={`Remove ${item.product_name}`} disabled={!!busy} onClick={() => removeItem(item)}><X size={17} strokeWidth={2.2} /></button>}
                           </td>
                         )}

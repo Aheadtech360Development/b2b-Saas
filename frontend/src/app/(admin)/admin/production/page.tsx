@@ -18,9 +18,10 @@ import { X } from "lucide-react";
 import { askText, tell } from "@/lib/dialog";
 import { gangSheetsService, type GangSheetStatus } from "@/services/gangSheets.service";
 import {
-  cutoffNote, cutoffWords, jobSummary, paymentPill, productionService,
+  cutoffNote, cutoffWords, jobHref, jobSummary, paymentPill, productionService,
   type JobColumn, type ProductionBoard, type ProductionJob,
 } from "@/services/production.service";
+import { tshirtDesignsService } from "@/services/tshirtDesigns.service";
 
 const COLUMNS: { key: JobColumn; title: string; empty: string }[] = [
   { key: "review", title: "Artwork review", empty: "Ordered jobs land here for a look at the artwork." },
@@ -81,7 +82,9 @@ function Production() {
   async function move(job: ProductionJob, to: GangSheetStatus, done: string) {
     setBusy(job.id);
     try {
-      await gangSheetsService.adminSetStatus(job.id, to);
+      // A design moves by the t-shirt designer's own route, which emails its buyer the same way.
+      if (job.kind === "tshirt_design") await tshirtDesignsService.adminSetStatus(job.id, to);
+      else await gangSheetsService.adminSetStatus(job.id, to);
       await load();
       setFlash({ text: done });
     } catch (e) {
@@ -128,8 +131,8 @@ function Production() {
     const n = job.next;
     if (!n) return null;
     const cls = "pc-btn";
-    if (n.key === "review") return <Link href={`/admin/production/${job.id}`} className={cls} data-kind="primary" data-job-action>{n.label}</Link>;
-    if (n.key === "open") return <Link href={`/admin/production/${job.id}`} className={cls} data-job-action>{compact ? "Open" : "Open the job"}</Link>;
+    if (n.key === "review") return <Link href={jobHref(job)} className={cls} data-kind="primary" data-job-action>{n.label}</Link>;
+    if (n.key === "open") return <Link href={jobHref(job)} className={cls} data-job-action>{compact ? "Open" : "Open the job"}</Link>;
     if (n.key === "order") {
       return job.order_id
         ? <Link href={`/admin/orders/${job.order_id}`} className={cls} data-kind="primary" data-job-action>{job.pickup ? "Open order" : "Ship the order"}</Link>
@@ -138,7 +141,7 @@ function Production() {
     const to = n.to as GangSheetStatus;
     const done = n.key === "start"
       ? `${job.reference} is printing. The customer has been told it is in production.`
-      : `${job.reference} is ready to ship.${job.order_number ? ` Order ${job.order_number} goes to its ship queue once every sheet on it is ready.` : ""}`;
+      : `${job.reference} is ready to ship.${job.order_number ? ` Order ${job.order_number} goes to its ship queue once every print job on it is ready.` : ""}`;
     return (
       <button type="button" className={cls} data-kind="primary" disabled={!!busy} onClick={() => move(job, to, done)} data-job-action>
         {busy === job.id ? "Working…" : n.label}
@@ -151,7 +154,7 @@ function Production() {
     return (
       <div key={job.id} className="pc-job" data-job={job.reference} data-busy={busy === job.id ? "" : undefined}>
         <div className="pc-job-top">
-          <Link href={`/admin/production/${job.id}`} className="pc-job-ref">{job.reference}</Link>
+          <Link href={jobHref(job)} className="pc-job-ref">{job.reference}</Link>
           <span className="pc-pill" data-tone={pay.tone || undefined} title={job.payment_method === "cod" ? "Cash on delivery: paid when it is handed over" : undefined}>{pay.label}</span>
         </div>
         <div className="pc-job-who">{job.customer}</div>
@@ -246,7 +249,7 @@ function Production() {
                     const pay = paymentPill(job);
                     return (
                       <tr key={job.id} data-job={job.reference}>
-                        <td><Link href={`/admin/production/${job.id}`} className="pc-link">{job.reference}</Link></td>
+                        <td><Link href={jobHref(job)} className="pc-link">{job.reference}</Link></td>
                         <td>{job.customer}</td>
                         <td style={{ color: "var(--pc-ink-2, var(--pc-ink))" }}>{jobSummary(job)}</td>
                         <td><span className="pc-pill" data-tone={stage[1] || undefined}>{stage[0]}</span></td>

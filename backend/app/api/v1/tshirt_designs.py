@@ -17,7 +17,10 @@ in the shop's folder, with a row each in tshirt_design_outputs.
 The designer draws the shop's own products (those switched on for it), and a
 design is recorded at the price worked out here from them and the shop's
 decoration prices (services/tshirt_designer); the figure the designer sends is
-not taken. It is a quote the shop answers: nothing is charged yet.
+not taken. It is bought through the cart (cart_service.add_tshirt_design): at
+checkout it becomes the order's lines, belongs to the order, and enters the
+review queue; the shop moves it on from there and the buyer is emailed. Paid
+for, it may have its artwork changed when it is sent back, and nothing else.
 """
 import io
 import json
@@ -48,6 +51,7 @@ from app.api.v1.gang_sheets import (
     _ADMIN_STATUSES,
     _BUYER_EDITABLE,
     _initials,
+    _linked_orders,
     _submitter,
 )
 from app.core.database import get_db
@@ -136,6 +140,9 @@ class DesignIn(BaseModel):
     contact_name: Optional[str] = Field(default=None, max_length=255)
     contact_email: Optional[str] = Field(default=None, max_length=255)
     customer_notes: Optional[str] = Field(default=None, max_length=2000)
+    # Going into the cart: the buyer is known at checkout, from the order, so
+    # no email is asked for here.
+    for_cart: bool = False
 
 
 class StatusIn(BaseModel):
@@ -267,7 +274,10 @@ def _output_row(o: TShirtDesignOutput) -> dict:
     }
 
 
-def _design_row(d: TShirtDesign, outputs: list[TShirtDesignOutput] | None = None, admin: bool = False) -> dict:
+def _design_row(d: TShirtDesign, outputs: list[TShirtDesignOutput] | None = None, admin: bool = False,
+                order: dict | None = None) -> dict:
+    """A design as its screens read it. `order` is its order, as
+    gang_sheets._linked_orders reads it, once it has been checked out."""
     data = {
         "id": str(d.id),
         "reference": d.reference,
@@ -279,13 +289,16 @@ def _design_row(d: TShirtDesign, outputs: list[TShirtDesignOutput] | None = None
         "shirt_count": d.shirt_count,
         "total_qty": d.total_qty,
         "quoted_total": float(d.quoted_total),
-        "contact_name": d.contact_name or "Guest",
-        "contact_email": d.contact_email,
+        "contact_name": d.contact_name or (order or {}).get("name") or "Guest",
+        "contact_email": d.contact_email or (order or {}).get("email"),
         "customer_notes": d.customer_notes,
         "supplier_notes": d.supplier_notes,
         "revision_count": d.revision_count,
         "order_id": str(d.order_id) if d.order_id else None,
-        "paid": bool(d.paid_at),
+        "order_number": (order or {}).get("number"),
+        # The order's own payment, which decides (a cash order is paid on
+        # handover); paid_at is set only by a card at checkout.
+        "paid": bool(d.paid_at) or (order or {}).get("payment") == "paid",
         "created_at": d.created_at.isoformat() if d.created_at else None,
         "updated_at": d.updated_at.isoformat() if d.updated_at else None,
     }
@@ -392,8 +405,12 @@ async def submit_design(payload: DesignIn, request: Request, db: AsyncSession = 
     quoted = await _priced(db, payload.document)
 
     who_name, who_email = await _submitter(request, db, payload)
-    # The shop answers a design by email: a guest who left none could never be reached.
-    if not who_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", who_email):
+    # A design sent for a quote is answered by email: a guest who left none
+    # could never be reached. One going into the cart is reached through its
+    # order.
+    if who_email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", who_email):
+        raise HTTPException(status_code=400, detail="That email address doesn't look right. Check it and try again.")
+    if not payload.for_cart and not who_email:
         raise HTTPException(status_code=400, detail="Add your name and email so the shop can reach you about this design.")
     d = TShirtDesign(
         reference=await _next_reference(db, who_name or ""),
@@ -436,7 +453,7 @@ async def my_design(design_id: uuid.UUID, request: Request, db: AsyncSession = D
     d = await _load(db, design_id)
     if not _may_touch(request, d):
         raise HTTPException(status_code=404, detail="Design not found")
-    return _design_row(d, await _outputs(db, d.id))
+    return _design_row(d, await _outputs(db, d.id), order=await _order_of(db, d))
 
 
 @public_router.patch("/{design_id}")
@@ -454,7 +471,18 @@ async def update_design(design_id: uuid.UUID, payload: DesignIn, request: Reques
         summary = summarise_document(payload.document)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    quoted = await _priced(db, payload.document)
+    if d.order_id is not None:
+        # Paid for, and sent back for a change: the artwork may change, not
+        # what the order bought (its sizes, quantities, printed sides, roster).
+        from app.services import tshirt_designer as td
+
+        if td.bought(payload.document) != td.bought(d.document):
+            raise HTTPException(status_code=409, detail=(
+                "This design is paid for, so its sizes, quantities and printed sides stay as ordered. "
+                "Change the artwork only, or start a new design for anything else."))
+        quoted = Decimal(str(d.quoted_total or 0))
+    else:
+        quoted = await _priced(db, payload.document)
 
     folder = await resolve_media_folder_key(request, db)
     for o in await _outputs(db, d.id):
@@ -468,9 +496,10 @@ async def update_design(design_id: uuid.UUID, payload: DesignIn, request: Reques
     d.quoted_total = quoted
     if payload.customer_notes is not None:
         d.customer_notes = payload.customer_notes
-    # Sent back for changes: this is the resubmission.
+    # Sent back for changes: this is the resubmission. Back into the review
+    # queue when it was ordered; one nobody has ordered yet is not in it.
     if d.status == STATUS_REVISION:
-        d.status = STATUS_IN_REVIEW
+        d.status = STATUS_IN_REVIEW if d.order_id is not None else STATUS_SUBMITTED
         d.revision_count = (d.revision_count or 0) + 1
     d.version = (d.version or 1) + 1
     d.versions = [*(d.versions or []), _snapshot(d, d.version)]
@@ -543,31 +572,48 @@ admin_router = APIRouter(prefix="/admin/tshirt-designs", tags=["admin-tshirt-des
                          dependencies=[Depends(require_admin)])
 
 
+async def _order_of(db: AsyncSession, d: TShirtDesign) -> dict | None:
+    if not d.order_id:
+        return None
+    return (await _linked_orders(db, [d.order_id])).get(str(d.order_id))
+
+
 @admin_router.get("")
 async def admin_list(status_filter: Optional[str] = None, db: AsyncSession = Depends(get_db)) -> list[dict]:
     q = select(TShirtDesign).order_by(TShirtDesign.created_at.desc()).limit(500)
     if status_filter:
         q = q.where(TShirtDesign.status == status_filter)
-    return [_design_row(d, admin=True) for d in (await db.execute(q)).scalars().all()]
+    rows = list((await db.execute(q)).scalars().all())
+    linked = await _linked_orders(db, [d.order_id for d in rows])
+    return [_design_row(d, admin=True, order=linked.get(str(d.order_id))) for d in rows]
 
 
 @admin_router.get("/{design_id}")
 async def admin_detail(design_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     d = await _load(db, design_id)
-    return _design_row(d, await _outputs(db, d.id), admin=True)
+    return _design_row(d, await _outputs(db, d.id), admin=True, order=await _order_of(db, d))
 
 
 @admin_router.patch("/{design_id}/status")
 async def admin_set_status(design_id: uuid.UUID, payload: StatusIn, db: AsyncSession = Depends(get_db)) -> dict:
+    """Move an ordered design through review and printing, as a gang sheet
+    moves. The buyer is emailed about it (_notify). A design nobody has
+    ordered is not in the queue yet: it joins it when it is checked out."""
     if payload.status not in _ADMIN_STATUSES:
         raise HTTPException(status_code=400, detail="Unknown status.")
     d = await _load(db, design_id)
+    if d.order_id is None:
+        raise HTTPException(status_code=409, detail=(
+            "This design has not been ordered yet. It joins the review queue when the customer checks out."))
+    changed = d.status != payload.status
     d.status = payload.status
     if payload.supplier_notes is not None:
         d.supplier_notes = payload.supplier_notes
     await db.flush()
     await db.refresh(d)
-    return _design_row(d, await _outputs(db, d.id), admin=True)
+    if changed:
+        await _notify(db, d, payload.status, payload.supplier_notes)
+    return _design_row(d, await _outputs(db, d.id), admin=True, order=await _order_of(db, d))
 
 
 @admin_router.patch("/{design_id}/notes")
@@ -576,7 +622,65 @@ async def admin_set_notes(design_id: uuid.UUID, payload: NotesIn, db: AsyncSessi
     d.internal_notes = payload.internal_notes
     await db.flush()
     await db.refresh(d)
-    return _design_row(d, admin=True)
+    return _design_row(d, admin=True, order=await _order_of(db, d))
+
+
+# What the buyer is told when the shop moves their design on. The mail shell
+# puts it in the shop's own name, colours and address (services/mails).
+_EVENT_COPY: dict[str, tuple[str, str]] = {
+    STATUS_PRODUCTION: ("Your design is being printed: {ref}", "Your design {ref} is on the press now."),
+    STATUS_COMPLETED: ("Your design is printed: {ref}", "Your design {ref} is printed and on its way to you with your order."),
+    STATUS_REJECTED: ("An update on your design: {ref}", "Your design {ref} could not be accepted for printing. The shop will be in touch about your order."),
+}
+
+
+async def _notify(db: AsyncSession, d: TShirtDesign, event: str, note: str | None = None) -> None:
+    """Email the buyer about their design, as a gang sheet's buyer is told
+    (gang_sheets._notify): approved and sent back for a change in the shop's own
+    Notifications wording, the rest in plain words. Best-effort: a mail that
+    will not send never stops the status change."""
+    try:
+        to = d.contact_email
+        if not to and d.user_id:
+            from sqlalchemy import text as _t
+
+            to = (await db.execute(_t("SELECT email FROM users WHERE id = :i"), {"i": str(d.user_id)})).scalar()
+        if not to:
+            return
+        from app.core.config import settings as _settings
+        from app.services import mails, notifications
+        from app.services.email_service import EmailService
+        from app.services.mail_layout import Button, Fact, render
+
+        # The designer opens the design: to change it when it was sent back.
+        job_url = f"{_settings.FRONTEND_URL}/design?design={d.id}"
+        first = ((d.contact_name or "").split() or ["there"])[0]
+        if event in (STATUS_APPROVED, STATUS_REVISION):
+            key = "artwork_approved" if event == STATUS_APPROVED else "revision_requested"
+            w = await notifications.wording(db, key, {"order": d.reference, "customer": first})
+            if not w.send:
+                return
+            if event == STATUS_APPROVED:
+                subj, body = mails.artwork_approved(d.reference, job_url=job_url, subject=w.subject, intro_html=w.intro_html)
+            else:
+                subj, body = mails.revision_requested(d.reference, note=(note or "").strip() or None, job_url=job_url,
+                                                      subject=w.subject, intro_html=w.intro_html)
+        else:
+            copy = _EVENT_COPY.get(event)
+            if not copy:
+                return
+            subj, line = copy[0].format(ref=d.reference), copy[1].format(ref=d.reference)
+            body = render(
+                heading=subj.split(":")[0],
+                lines=[line],
+                note=(note or "").strip() or None,
+                facts=[Fact("Design", d.reference), Fact("Pieces", str(d.total_qty or ""))],
+                buttons=[Button("See your design", job_url)],
+                preview=line,
+            )
+        EmailService(db).send_raw(to_email=to, subject=subj, body_html=body)
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not email the buyer about design %s", d.id, exc_info=True)
 
 
 # Re-exported for the shop's screens and tests.

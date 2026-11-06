@@ -56,19 +56,26 @@ async def supplier_lines(db: AsyncSession, order_ids: list[uuid.UUID]) -> dict[u
 
     if not order_ids:
         return {}
+    # A line of a t-shirt design is a blank the shop prints on before it goes
+    # anywhere: never sent to S&S to ship, wherever orders ship to. The shop
+    # orders those blanks itself.
+    printed = OrderItem.configuration["tshirt_design"].isnot(None)
+    designed = {str(i) for i in (await db.execute(
+        select(OrderItem.id).where(OrderItem.order_id.in_(order_ids), printed)
+    )).scalars().all()}
     rows = (await db.execute(
         select(OrderItem.order_id, OrderItem.quantity, OrderItem.product_name, OrderItem.color, OrderItem.size,
                ProductVariant.id, ProductVariant.sku, Product.supplier_ref)
         .join(ProductVariant, ProductVariant.id == OrderItem.variant_id)
         .join(Product, Product.id == ProductVariant.product_id)
-        .where(OrderItem.order_id.in_(order_ids), Product.supplier == SUPPLIER)
+        .where(OrderItem.order_id.in_(order_ids), Product.supplier == SUPPLIER, ~printed)
     )).all()
     out: dict[uuid.UUID, list[dict]] = defaultdict(list)
     for oid, qty, name, color, size, vid, sku, ref in rows:
         out[oid].append({"variant_id": str(vid), "sku": sku, "style_id": ref, "qty": int(qty or 0),
                          "name": name, "color": color, "size": size})
     for oid, shares in (await sourcing.order_shares(db, order_ids, SUPPLIER)).items():
-        out[oid].extend(s for s in shares if s["sku"])
+        out[oid].extend(s for s in shares if s["sku"] and s["order_item_id"] not in designed)
     return out
 
 

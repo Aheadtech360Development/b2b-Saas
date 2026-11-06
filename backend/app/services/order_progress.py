@@ -213,6 +213,17 @@ async def facts_for(db, orders: Iterable[Any]) -> dict:
         except Exception as exc:  # noqa: BLE001
             log.warning("order progress: print jobs unreadable: %s", exc)
         try:
+            # A t-shirt design bought on the order is a print job like a sheet.
+            from app.api.v1.tshirt_designs import TShirtDesign
+
+            async with db.begin_nested():
+                for oid, status in (await db.execute(
+                    select(TShirtDesign.order_id, TShirtDesign.status).where(TShirtDesign.order_id.in_(ids))
+                )).all():
+                    jobs.setdefault(oid, []).append(status)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("order progress: t-shirt designs unreadable: %s", exc)
+        try:
             async with db.begin_nested():
                 packed = set((await db.execute(
                     select(OrderEvent.order_id).where(OrderEvent.order_id.in_(ids), OrderEvent.type == "packed")

@@ -94,7 +94,12 @@ function BreakdownButton({ quote }: { quote: Quote }) {
   );
 }
 
-export function OrderBar({ onSave, onFinish, saving }: { onSave: () => void; onFinish: () => void; saving: boolean }) {
+export function OrderBar({ onSave, onFinish, saving, finish = "cart" }: {
+  onSave: () => void; onFinish: () => void; saving: boolean;
+  /** What finishing does: put the design in the cart, or send the changes to a
+   *  paid design the print team sent back. */
+  finish?: "cart" | "changes";
+}) {
   const doc = useDesigner((st) => st.doc);
   const tab = useDesigner((st) => st.tab);
   const { setTab } = useDesigner.getState();
@@ -118,8 +123,11 @@ export function OrderBar({ onSave, onFinish, saving }: { onSave: () => void; onF
       ? { label: "Choose sizes", icon: <ArrowRight size={17} />, run: () => setTab("sizes") }
       : tab !== "review"
         ? { label: "Review order", icon: <ArrowRight size={17} />, run: () => setTab("review") }
-        // The design goes to the shop, which answers with the order: not a cart yet.
-        : { label: "Send to the shop", icon: <Send size={17} />, run: onFinish };
+        // Into the cart, priced on the server; a paid design sent back for a
+        // change goes back to the print team instead.
+        : finish === "changes"
+          ? { label: "Send the changes", icon: <Send size={17} />, run: onFinish }
+          : { label: "Add to cart", icon: <ShoppingCart size={17} />, run: onFinish };
 
   return (
     <footer className={s.orderBar}>
@@ -141,7 +149,8 @@ export function OrderBar({ onSave, onFinish, saving }: { onSave: () => void; onF
         <span className={s.barLabel}>Total</span>
         <span className={`${s.barBig} ${s.num}`}>{money(quote.total)}</span>
       </div>
-      {quote.nextBreak && !noSizes && !noArt && (
+      {/* A paid design's sizes stay as ordered: no nudge to add pieces. */}
+      {quote.nextBreak && !noSizes && !noArt && finish !== "changes" && (
         <span className={s.barHint}>
           {quote.nextBreak.qty - quote.totalQty} more pieces saves <span className={s.num}>{money(quote.nextBreak.savingPerPiece)}</span> each
         </span>

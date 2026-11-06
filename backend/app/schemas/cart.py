@@ -22,6 +22,10 @@ class GangSheetAddRequest(BaseModel):
     gang_sheet_order_id: UUID
 
 
+class TShirtDesignAddRequest(BaseModel):
+    tshirt_design_id: UUID
+
+
 class CartItemOut(BaseModel):
     id: UUID
     # Null for non-variant lines (gang sheets); set for product variants.
@@ -40,7 +44,8 @@ class CartItemOut(BaseModel):
     moq: int
     moq_satisfied: bool
     stock_quantity: int
-    # 'variant' (default), 'gang_sheet' or 'configured'
+    # 'variant' (default), 'gang_sheet', 'configured', 'gift_card' or
+    # 'tshirt_design'
     item_type: str = "variant"
     gang_sheet_order_id: UUID | None = None
     # Configured lines only: the chosen options and their price effects, so the
@@ -48,6 +53,10 @@ class CartItemOut(BaseModel):
     # included in `line_total`.
     setup_fees: Decimal = Decimal("0")
     configuration: dict | None = None
+    # Why this line cannot be ordered as it stands (a t-shirt design whose
+    # product is no longer offered, or whose blanks ran out). Checkout refuses
+    # the cart until it is put right.
+    problem: str | None = None
 
     model_config = {"from_attributes": True}
 

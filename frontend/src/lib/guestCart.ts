@@ -12,6 +12,7 @@
 
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
+import type { DesignLineInfo } from "@/types/order.types";
 
 export const GUEST_CART_KEY = "af_guest_cart";
 /** Lines taken out of the guest cart while they are being moved into an account. */
@@ -43,6 +44,11 @@ export interface GuestLine {
   selections?: Record<string, string>;
   /** Set on a gang sheet the buyer already built; it carries its own price. */
   gang_sheet_order_id?: string;
+  /** Set on a design from the t-shirt designer: one line for the whole
+   *  design, priced again on the server when the buyer checks out. */
+  tshirt_design_id?: string;
+  /** What the design is, for the cart to show (the server's snapshot). */
+  design?: DesignLineInfo;
   /** The file this line is printed from, when the buyer supplied one. */
   artwork?: { url: string; file_name: string; file_type: string };
   /** Sold in a set quantity by the product's own question ("500"): the line
@@ -128,7 +134,7 @@ export function addToGuestCart(line: GuestLine): void {
   // A built sheet is one job, not a stock line: saving it again replaces the
   // line (new price, new count) instead of adding its quantity on top.
   if (line.gift_card) cart.push(line);
-  else if (existing && line.gang_sheet_order_id) Object.assign(existing, line);
+  else if (existing && (line.gang_sheet_order_id || line.tshirt_design_id)) Object.assign(existing, line);
   else if (existing && (line.quantity_from_option || existing.quantity_from_option)) cart.push(line);
   else if (existing) existing.quantity += line.quantity;
   else cart.push(line);
@@ -138,12 +144,15 @@ export function addToGuestCart(line: GuestLine): void {
 /** What the checkout sends for one line: the server prices it from this. */
 export function guestCheckoutItem(line: GuestLine): {
   quantity: number; variant_id?: string; product_id?: string;
-  selections?: Record<string, string>; gang_sheet_order_id?: string;
+  selections?: Record<string, string>; gang_sheet_order_id?: string; tshirt_design_id?: string;
   artwork?: { url: string; file_name: string; file_type: string };
   gift_card?: GiftCardDetails;
 } {
   if (line.gift_card) {
     return { quantity: 1, gift_card: line.gift_card };
+  }
+  if (line.tshirt_design_id) {
+    return { quantity: Math.max(1, line.quantity), tshirt_design_id: line.tshirt_design_id };
   }
   if (line.gang_sheet_order_id) {
     return { quantity: line.quantity, gang_sheet_order_id: line.gang_sheet_order_id };
@@ -173,6 +182,36 @@ export function gangSheetLine(job: {
     unit_price: Number(job.price_per_sheet) || 0,
     gang_sheet_order_id: job.id,
   };
+}
+
+/** A design from the t-shirt designer, as a line in the cart a guest already
+ *  has, at the price the server gave it. Saving it again replaces the line. */
+export function designLine(design: {
+  id: string; reference: string; name?: string | null; quoted_total: number; total_qty: number;
+  preview_url?: string | null;
+}): GuestLine {
+  const pieces = Math.max(1, design.total_qty || 0);
+  const total = Number(design.quoted_total) || 0;
+  const named = (design.name ?? "").trim();
+  return {
+    variant_id: `ts:${design.id}`,
+    quantity: pieces,
+    product_id: "",
+    product_name: named && named !== "Untitled design" ? named : "Custom design",
+    slug: "",
+    color: null,
+    size: null,
+    unit_price: Math.round((total / pieces) * 100) / 100,
+    line_total: total,
+    image_url: design.preview_url ?? null,
+    tshirt_design_id: design.id,
+    design: { id: design.id, reference: design.reference, name: design.name ?? undefined, pieces, total },
+  };
+}
+
+/** Is this cart line a design from the t-shirt designer (guest or account cart). */
+export function isDesignLine(line: { tshirt_design_id?: string | null; item_type?: string | null }): boolean {
+  return !!line.tshirt_design_id || line.item_type === "tshirt_design";
 }
 
 export interface AdoptResult {
@@ -237,6 +276,8 @@ export function adoptGuestCart(): Promise<AdoptResult> {
     for (const line of lines) {
       if (line.gift_card) {
         await one(line, () => apiClient.post("/api/v1/cart/gift-card", line.gift_card));
+      } else if (line.tshirt_design_id) {
+        await one(line, () => cartService.addTshirtDesign(line.tshirt_design_id!));
       } else if (line.gang_sheet_order_id) {
         await one(line, () => cartService.addGangSheet(line.gang_sheet_order_id!));
       } else if (line.selections) {

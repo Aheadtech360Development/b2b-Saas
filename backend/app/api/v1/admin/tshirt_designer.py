@@ -158,12 +158,14 @@ async def update_product(product_id: uuid.UUID, payload: ProductIn, db: AsyncSes
 
 @router.get("/setup")
 async def setup(db: AsyncSession = Depends(get_db)) -> dict:
-    """What is left before the designer sells: a product, the shop's own prices, a first design."""
+    """What is left before the designer sells: a product, the shop's own prices, a first order for a design."""
     from app.api.v1.tshirt_designs import TShirtDesign
 
     tid = _tenant()
     products = (await db.execute(select(func.count(Product.id)).where(Product.designer_enabled.is_(True)))).scalar() or 0
-    designs = (await db.execute(select(func.count(TShirtDesign.id)))).scalar() or 0
+    designs = (await db.execute(
+        select(func.count(TShirtDesign.id)).where(TShirtDesign.order_id.isnot(None))
+    )).scalar() or 0
     return {
         "has_products": products > 0,
         "prices_saved": (await td.settings_for(db, tid))["saved"],

@@ -266,7 +266,7 @@ describe("every screen that puts something in a cart", () => {
   // the cart fills, and no tool is ever told. It is how seven of them came to
   // report nothing.
   const src = join(process.cwd(), "src");
-  const adds = /cartService\.(addMatrix|addGangSheet)\(|\/api\/v1\/cart\/add-configured|addToGuestCart\(/;
+  const adds = /cartService\.(addMatrix|addGangSheet|addTshirtDesign)\(|\/api\/v1\/cart\/add-configured|addToGuestCart\(/;
   const reports = /track(AddToCart|CartAdd|SheetAdd|LineAdd|ConfiguredAdd)\(/;
   // Not screens: the cart's own plumbing, and moving a guest's cart into an
   // account (those lines were reported when the guest added them).

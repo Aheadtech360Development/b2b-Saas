@@ -68,7 +68,8 @@ def detect_abandoned_carts() -> dict:
                 total = 0.0
                 for item in items:
                     variant = item.variant
-                    product_name = "Unknown"
+                    # A line with no variant (a design, a gang sheet) carries its own name.
+                    product_name = item.label or "Unknown"
                     if variant:
                         product = (await db.execute(
                             select(Product).where(Product.id == variant.product_id)

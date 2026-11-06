@@ -4,7 +4,8 @@ import { minutesIntoDay } from "@/lib/shopClock";
 /** Where a job is on the board. "customer" waits in the review column. */
 export type JobStage = "draft" | "review" | "customer" | "approved" | "production" | "ready" | "shipped" | "rejected" | "cancelled";
 export type JobColumn = "review" | "approved" | "production" | "ready";
-export type JobKind = "gang_sheet" | "upload_by_size" | "upload_own";
+/** A sheet job, or a design from the t-shirt designer bought on an order. */
+export type JobKind = "gang_sheet" | "upload_by_size" | "upload_own" | "tshirt_design";
 
 export interface JobNext { key: "review" | "open" | "start" | "finish" | "order"; label: string; to: string | null }
 
@@ -32,6 +33,8 @@ export interface ProductionJob {
   pickup: boolean;
   ordered_at: string | null;
   updated_at: string | null;
+  /** A t-shirt design's decoration: print or embroidery. */
+  method?: string;
 }
 
 export interface ProductionBoard {
@@ -78,14 +81,29 @@ export interface ProductionSettings { cutoff: string | null; timezone?: string |
 
 // ── Words, said once ─────────────────────────────────────────────────────────
 
-const KIND_WORDS: Record<JobKind, string> = { gang_sheet: "Gang sheet", upload_by_size: "By size", upload_own: "Own sheet" };
+const KIND_WORDS: Record<JobKind, string> = {
+  gang_sheet: "Gang sheet", upload_by_size: "By size", upload_own: "Own sheet", tshirt_design: "Custom shirts",
+};
 
 const inches = (n: number) => `${Number(n.toFixed(2))}″`;
 
-/** "Gang sheet, 22 × 24, $26.00" — what the job is, in the words on a card. */
+/** "Gang sheet, 22 × 24, $26.00" — what the job is, in the words on a card.
+ *  A design: "Custom shirts, Team tees, 24 pieces, $468.00". */
 export function jobSummary(j: Pick<ProductionJob, "kind" | "sheet_name" | "width_in" | "height_in" | "quantity" | "subtotal">): string {
+  if (j.kind === "tshirt_design") {
+    // The buyer's own name for it, when they gave one.
+    const named = j.sheet_name && j.sheet_name !== "Untitled design" ? `${j.sheet_name}, ` : "";
+    return `${KIND_WORDS.tshirt_design}, ${named}${j.quantity} ${j.quantity === 1 ? "piece" : "pieces"}, $${j.subtotal.toFixed(2)}`;
+  }
   const size = j.kind === "upload_by_size" ? `${inches(j.width_in)} × ${inches(j.height_in)}` : j.sheet_name;
   return `${KIND_WORDS[j.kind] ?? "Gang sheet"}, ${size}${j.quantity > 1 ? ` ×${j.quantity}` : ""}, $${j.subtotal.toFixed(2)}`;
+}
+
+/** Where a job opens: a sheet's own page, or a design in T-shirt designer → Designs. */
+export function jobHref(j: Pick<ProductionJob, "id" | "kind">): string {
+  return j.kind === "tshirt_design"
+    ? `/admin/tshirt-designer?tab=designs&design=${encodeURIComponent(j.id)}`
+    : `/admin/production/${j.id}`;
 }
 
 /** "12:00" → "12 PM", "15:30" → "3:30 PM". */

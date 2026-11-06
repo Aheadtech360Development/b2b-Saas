@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
-from app.schemas.cart import CartResponse, GangSheetAddRequest, MatrixAddRequest, QuickOrderRequest, QuickOrderResult, ValidationResultItem
+from app.schemas.cart import (
+    CartResponse, GangSheetAddRequest, MatrixAddRequest, QuickOrderRequest, QuickOrderResult, TShirtDesignAddRequest,
+    ValidationResultItem,
+)
 from app.services.cart_service import CartService
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -57,6 +60,22 @@ async def add_gang_sheet(
     company_id = _require_company(request)
     svc = CartService(db)
     result = await svc.add_gang_sheet(company_id, payload.gang_sheet_order_id, _discount(request), _group_id(request))
+    await db.commit()
+    return result
+
+
+@router.post("/add-tshirt-design", response_model=CartResponse, status_code=status.HTTP_200_OK)
+async def add_tshirt_design(
+    payload: TShirtDesignAddRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """A design from the t-shirt designer, as one line priced on the server."""
+    company_id = _require_company(request)
+    result = await CartService(db).add_tshirt_design(
+        company_id, getattr(request.state, "user_id", None), payload.tshirt_design_id,
+        _discount(request), _group_id(request),
+    )
     await db.commit()
     return result
 

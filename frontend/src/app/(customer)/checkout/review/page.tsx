@@ -849,9 +849,15 @@ export default function CheckoutReviewPage() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)" }}>{item.product_name}</div>
                             <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "1px" }}>
-                              {[item.color, item.size].filter(Boolean).join(" / ")}
-                              {item.sku ? ` · SKU ${item.sku}` : ""}
-                              {" · "}qty {item.quantity}
+                              {item.item_type === "tshirt_design" ? (
+                                `Custom design ${item.sku} · ${item.quantity} ${item.quantity === 1 ? "piece" : "pieces"}`
+                              ) : (
+                                <>
+                                  {[item.color, item.size].filter(Boolean).join(" / ")}
+                                  {item.sku ? ` · SKU ${item.sku}` : ""}
+                                  {" · "}qty {item.quantity}
+                                </>
+                              )}
                             </div>
                             {/* What was configured — the buyer confirms it before paying. */}
                             <ConfigurationDetail configuration={item.configuration} compact />

@@ -124,6 +124,9 @@ class OrderItemOut(BaseModel):
     # print-ready file, edit links, low-resolution check. Set by the admin
     # order page's endpoint; see gang_sheets.production_details.
     gang_sheet: dict | None = None
+    # A line of a t-shirt design: the design's id, reference, where it stands
+    # and its picture. Set by the admin order page's endpoint too.
+    tshirt_design: dict | None = None
 
     model_config = {"from_attributes": True}
 

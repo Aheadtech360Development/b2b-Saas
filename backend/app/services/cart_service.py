@@ -194,6 +194,66 @@ class CartService:
         await self.db.flush()
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
 
+    async def add_tshirt_design(
+        self,
+        company_id: UUID,
+        user_id: UUID | None,
+        design_id: UUID,
+        discount_percent: Decimal = Decimal("0"),
+        group_id: str | None = None,
+    ) -> CartResponse:
+        """Add a design from the t-shirt designer as one line for the whole
+        design, priced on the server (services/tshirt_designer). Adding it
+        again updates the line. A design made as a guest becomes the account's
+        once it is in the account's cart."""
+        from app.api.v1.tshirt_designs import STATUS_SUBMITTED, TShirtDesign
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services import tshirt_designer as td
+
+        design = (await self.db.execute(
+            select(TShirtDesign).where(TShirtDesign.id == design_id)
+        )).scalar_one_or_none()
+        if design is None or not td.may_buy(design, company_id, user_id):
+            raise NotFoundError("Design not found")
+        if design.order_id is not None:
+            raise ValidationError(f"Design {design.reference} has already been ordered. "
+                                  "Open it in the designer to order it again.")
+        if design.status != STATUS_SUBMITTED:
+            raise ValidationError(f"Design {design.reference} is with the print team and can't be added again.")
+        try:
+            snap = await td.for_cart(self.db, get_current_tenant_id(), design)
+        except td.DesignerError as exc:
+            raise ValidationError(str(exc))
+        problem = await td.stock_problem(self.db, snap["lines"])
+        if problem:
+            raise InsufficientStockError(problem)
+
+        if design.company_id is None:
+            design.company_id = company_id
+        if design.user_id is None and user_id:
+            design.user_id = user_id
+
+        existing = next((row for row in (await self.db.execute(
+            select(CartItem).where(CartItem.company_id == company_id, CartItem.item_type == td.CART_LINE)
+        )).scalars().all() if (td.design_info(row.configuration) or {}).get("id") == str(design.id)), None)
+        # The row is one design at its whole price, as a gift card's is, so
+        # anything that multiplies a row's price by its quantity (abandoned
+        # carts) gets the design's total. Its pieces come from the snapshot.
+        fields = {
+            "quantity": 1,
+            "unit_price": Decimal(str(snap["total"])),
+            "label": td.line_label(design),
+            "image_url": await td.preview_of(self.db, design.id),
+            "configuration": {"tshirt_design": snap},
+        }
+        if existing:
+            for key, value in fields.items():
+                setattr(existing, key, value)
+        else:
+            self.db.add(CartItem(company_id=company_id, variant_id=None, item_type=td.CART_LINE, **fields))
+        await self.db.flush()
+        return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+
     async def add_gift_card(
         self,
         company_id: UUID,
@@ -366,6 +426,10 @@ class CartService:
 
         if getattr(item, "item_type", "variant") == "gift_card" and quantity != 1:
             raise ValidationError("A gift card line is one card. Add another to send a second one.")
+
+        # A design's sizes and quantities are part of the design.
+        if getattr(item, "item_type", "variant") == "tshirt_design":
+            raise ValidationError("Change the sizes and quantities of a design in the designer.")
 
         # How many this line is for is one of its own answers, priced as such:
         # it changes on the product page, not here.
@@ -611,6 +675,11 @@ class CartService:
 
         items: list[CartItemOut] = []
         for item in raw_items:
+            # A design from the t-shirt designer: priced again, as checkout will.
+            if getattr(item, "item_type", "variant") == "tshirt_design":
+                items.append(await self._design_line(item))
+                continue
+
             # Configured line: its identity is the chosen options, so the snapshot
             # travels with it for the cart, checkout and invoice to display. Any
             # one-off fee sits on the line total, not in the unit price.
@@ -798,6 +867,72 @@ class CartService:
                 )
             )
         return items
+
+    async def _design_line(self, item: CartItem) -> CartItemOut:
+        """A t-shirt design's cart line at its price now, which is what the
+        card and the order are charged (services/tshirt_designer). The line
+        keeps the latest price, and says what stops the design being ordered
+        when something does: its product taken out of the designer, a size no
+        longer sold, or its blanks run out."""
+        from uuid import UUID as _UUID
+
+        from app.api.v1.tshirt_designs import TShirtDesign
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services import tshirt_designer as td
+
+        snap = td.design_info(item.configuration) or {}
+        problem: str | None = None
+        design = None
+        try:
+            design = (await self.db.execute(
+                select(TShirtDesign).where(TShirtDesign.id == _UUID(str(snap.get("id"))))
+            )).scalar_one_or_none()
+        except ValueError:
+            design = None
+        if design is None:
+            problem = "This design could not be found. Remove it and add it again from the designer."
+        elif design.order_id is not None:
+            problem = f"Design {design.reference} has already been ordered. Remove it from your cart."
+        else:
+            try:
+                fresh = await td.for_cart(self.db, get_current_tenant_id(), design)
+            except td.DesignerError as exc:
+                problem = str(exc)
+            else:
+                problem = await td.stock_problem(self.db, fresh["lines"])
+                if fresh != snap:
+                    item.configuration = {"tshirt_design": fresh}
+                    item.quantity = 1
+                    item.unit_price = Decimal(str(fresh["total"]))
+                    item.label = td.line_label(design)
+                snap = fresh
+            if not item.image_url:
+                item.image_url = await td.preview_of(self.db, design.id)
+
+        total = Decimal(str(snap.get("total") or 0)).quantize(Decimal("0.01"))
+        pieces = int(snap.get("pieces") or 0)
+        each = (total / pieces).quantize(Decimal("0.01")) if pieces else total
+        return CartItemOut(
+            id=item.id,
+            variant_id=None,
+            product_id=None,
+            product_name=getattr(item, "label", None) or "Custom design",
+            product_slug="",
+            product_image_url=getattr(item, "image_url", None),
+            sku=str(snap.get("reference") or ""),
+            color=None,
+            size=None,
+            quantity=pieces,
+            retail_price=each,
+            unit_price=each,
+            line_total=total,
+            moq=0,
+            moq_satisfied=True,
+            stock_quantity=pieces,
+            item_type="tshirt_design",
+            configuration={"tshirt_design": snap} if snap else None,
+            problem=problem,
+        )
 
     async def _validate(
         self,

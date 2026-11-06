@@ -200,6 +200,13 @@ async def _pipeline(db: AsyncSession) -> list[dict]:
         artwork = (await db.execute(
             select(func.count(GangSheetOrder.id)).where(GangSheetOrder.status.in_((STATUS_IN_REVIEW, STATUS_REVISION)))
         )).scalar_one() or 0
+        # And the t-shirt designs ordered and waiting on the same look.
+        from app.api.v1.tshirt_designs import TShirtDesign
+
+        artwork += (await db.execute(
+            select(func.count(TShirtDesign.id)).where(
+                TShirtDesign.status.in_((STATUS_IN_REVIEW, STATUS_REVISION)), TShirtDesign.order_id.isnot(None))
+        )).scalar_one() or 0
     except Exception as exc:  # noqa: BLE001
         logger.warning("home: artwork count failed: %s", exc)
         await db.rollback()

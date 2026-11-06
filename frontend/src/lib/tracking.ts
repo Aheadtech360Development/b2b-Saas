@@ -534,6 +534,7 @@ export interface SheetJobLike {
 // ("Gang Sheet GS-AB-2610-0005 — 22 × 24"), and a job's number as the
 // product's name would make every sale a product of its own.
 const SHEET = "GANG-SHEET";
+const DESIGN = "CUSTOM-DESIGN";
 
 /** "Gang Sheet GS-… — 22 × 24" → Gang Sheet, 22 × 24. A design ordered by
  *  size is labelled "<product> — <size>" and keeps the product's name. */
@@ -563,6 +564,11 @@ export function cartLine(line: CartLineLike): TrackedItem {
 
   if (line.item_type === "gang_sheet" || line.gang_sheet_order_id || own.startsWith("gs:")) {
     return { id: SHEET, sku: SHEET, ...sheetWords(name), price, quantity };
+  }
+  // A design from the t-shirt designer is one product to a report, under one
+  // name: the design's own name is the buyer's words, not the shop's product.
+  if (line.item_type === "tshirt_design" || own.startsWith("ts:")) {
+    return { id: DESIGN, sku: DESIGN, name: "Custom design", price, quantity };
   }
   // A gift card's line names who it is for: never sent to an analytics tool.
   if (line.item_type === "gift_card" || line.sku === "GIFT-CARD" || own.startsWith("gc:")) {

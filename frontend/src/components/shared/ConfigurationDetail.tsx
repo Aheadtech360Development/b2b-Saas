@@ -6,7 +6,38 @@
  * the line, which is why the cart, checkout and invoice all show the same thing:
  * they're reading the same record, not re-deriving it.
  */
-import { oneOffFees, type ConfigLine, type LineConfiguration } from "@/types/order.types";
+import { oneOffFees, type ConfigLine, type DesignLineInfo, type LineConfiguration } from "@/types/order.types";
+
+const SIDE_WORDS: Record<string, string> = { front: "front", back: "back", left: "left sleeve", right: "right sleeve" };
+
+/** "Printed front and back": how a design's shirt is decorated. */
+export function decorationWords(method: string | undefined, sides: string[]): string {
+  const words = sides.map((v) => SIDE_WORDS[v] ?? v);
+  const list = words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : words[0] ?? "";
+  return `${method === "embroidery" ? "Embroidered" : "Printed"} ${list}`.trim();
+}
+
+/** A t-shirt design's line in words: in the cart, each shirt with its sizes;
+ *  on an order line, how that shirt is decorated. */
+export function designRows(d: DesignLineInfo): string[] {
+  const out: string[] = [];
+  if (d.lines?.length) {
+    const shirts = new Map<string, { label: string; sizes: string[]; sides: string[] }>();
+    for (const x of d.lines) {
+      const key = `${x.garment}|${x.colour}`;
+      const shirt = shirts.get(key) ?? { label: `${x.garment}, ${x.colour}`, sizes: [], sides: x.sides ?? [] };
+      shirt.sizes.push(`${x.size} ×${x.qty}`);
+      shirts.set(key, shirt);
+    }
+    for (const shirt of shirts.values()) {
+      out.push(`${shirt.label}: ${shirt.sizes.join(", ")}${shirt.sides.length ? `. ${decorationWords(d.method, shirt.sides)}` : ""}`);
+    }
+    if (Number(d.personalization) > 0) out.push(`Names and numbers: $${Number(d.personalization).toFixed(2)}`);
+  } else if (d.sides?.length) {
+    out.push(decorationWords(d.method, d.sides));
+  }
+  return out;
+}
 
 function delta(l: ConfigLine) {
   if (!l.price_delta) return null;
@@ -27,6 +58,18 @@ export function ConfigurationDetail({
   const artwork = configuration?.artwork ?? null;
   // Rounding cents ride with the fees so the line adds up; they are not a fee.
   const fees = oneOffFees(configuration);
+  const design = configuration?.tshirt_design ? designRows(configuration.tshirt_design) : [];
+  if (design.length) {
+    return compact ? (
+      <div style={{ fontSize: "11px", color: "#6B6B6B", lineHeight: 1.6, marginTop: "4px" }} data-design-detail>
+        {design.map((row) => <div key={row}>{row}</div>)}
+      </div>
+    ) : (
+      <div style={{ marginTop: "8px", fontSize: "12px", lineHeight: 1.7, color: "#4B4B4B" }} data-design-detail>
+        {design.map((row) => <div key={row}>{row}</div>)}
+      </div>
+    );
+  }
   if (!lines.length && !artwork) return null;
 
   // The file this line is printed from. On a line that has one it is the most

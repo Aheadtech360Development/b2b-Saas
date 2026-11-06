@@ -8,8 +8,9 @@
  *             catalog or switched on from a product's own page
  *   Prices    what decoration costs: per printed side by quantity break,
  *             embroidery from a minimum, names and numbers
- *   Designs   what customers sent in: their shirts, files and quote, and where
- *             each one stands
+ *   Designs   what customers designed: their shirts, print files and total,
+ *             the order each was bought on, and where it stands (an ordered
+ *             design is on Production too; one in a cart is not ordered yet)
  *
  * The designer itself is /design on the storefront; a product switched on here
  * gets "Design your own" on its page (backend services/tshirt_designer).
@@ -70,7 +71,7 @@ function TShirtDesigner() {
           </nav>
           {tab === "products" ? <ProductsTab setup={setup} onChange={loadSetup} />
             : tab === "prices" ? <PricesTab onSaved={loadSetup} />
-            : <DesignsTab />}
+            : <DesignsTab initial={params.get("design")} />}
         </div>
       </UpgradeNotice>
     </ProductsFrame>
@@ -83,7 +84,7 @@ function Checklist({ setup }: { setup: DesignerSetup | null }) {
   const steps = [
     { done: setup.has_products, title: "Put a product in the designer", desc: "Add products below, or switch it on from a product's own page." },
     { done: setup.prices_saved, title: "Set your decoration prices", desc: "Prices: what a printed side costs at each quantity, embroidery, names and numbers." },
-    { done: setup.has_designs, title: "Receive your first design", desc: "Customers press Design your own on the product's page; what they send lands under Designs." },
+    { done: setup.has_designs, title: "Get your first order for a design", desc: "Customers press Design your own on a product's page and add their design to the cart. Once they check out it lands under Designs and on Production." },
   ];
   const left = steps.filter((x) => !x.done).length;
   if (!left) return null;
@@ -389,8 +390,10 @@ function PricesTab({ onSaved }: { onSaved: () => void }) {
 }
 
 // ── Designs ─────────────────────────────────────────────────────────────────
+// A design in a cart, or left there, stays "submitted" until it is checked
+// out; then it is in review (backend services/tshirt_designer.link_to_order).
 const STATUS_WORDS: Record<string, { label: string; tone?: string }> = {
-  submitted: { label: "New", tone: "blue" },
+  submitted: { label: "Not ordered yet" },
   in_review: { label: "In review", tone: "amber" },
   approved: { label: "Approved", tone: "green" },
   production: { label: "In production", tone: "blue" },
@@ -398,7 +401,7 @@ const STATUS_WORDS: Record<string, { label: string; tone?: string }> = {
   revision_requested: { label: "Sent back for changes", tone: "amber" },
   rejected: { label: "Rejected", tone: "red" },
 };
-const FILTERS = ["", "submitted", "in_review", "approved", "production", "revision_requested", "completed", "rejected"];
+const FILTERS = ["", "in_review", "approved", "production", "revision_requested", "completed", "rejected", "submitted"];
 const NEXT: { status: string; label: string }[] = [
   { status: "in_review", label: "Start review" },
   { status: "approved", label: "Approve" },
@@ -413,10 +416,25 @@ function Status({ value }: { value: string }) {
   return <span className="pc-pill" data-tone={w.tone}>{w.label}</span>;
 }
 
-function DesignsTab() {
+/** The order a design was bought on, with its payment, or that it wasn't. */
+function OrderCell({ d }: { d: TShirtDesignRecord }) {
+  if (!d.order_id) return <span className="pc-sub-line">Not ordered</span>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <Link href={`/admin/orders/${d.order_id}`} className="pc-link" onClick={(e) => e.stopPropagation()} data-design-order>
+        {d.order_number ? `#${d.order_number}` : "Open order"}
+      </Link>
+      <span className="pc-pill" data-tone={d.paid ? "green" : "amber"}>{d.paid ? "Paid" : "Unpaid"}</span>
+    </span>
+  );
+}
+
+function DesignsTab({ initial }: { initial: string | null }) {
   const [filter, setFilter] = useState("");
   const [rows, setRows] = useState<TShirtDesignRecord[] | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  // Opened straight from an order or the Production board (?design=<id>).
+  const [open, setOpen] = useState<string | null>(initial);
+  useEffect(() => { if (initial) setOpen(initial); }, [initial]);
   const load = useCallback(() => {
     setRows(null);
     designs.adminList(filter || undefined).then(setRows).catch(() => setRows([]));
@@ -436,12 +454,12 @@ function DesignsTab() {
         <div className="pc-card pc-empty">Loading designs…</div>
       ) : rows.length === 0 ? (
         <div className="pc-card pc-empty" data-no-designs>
-          {filter ? "No designs here." : "No designs yet. They arrive here when customers press Send to the shop in the designer."}
+          {filter ? "No designs here." : "No designs yet. A design shows here once a customer adds it to their cart, and joins your review queue when they check out."}
         </div>
       ) : (
         <div className="pc-card pc-scroll-x" style={{ padding: 0 }}>
           <table className="pc-table" data-designs>
-            <thead><tr><th>Design</th><th>Customer</th><th>Pieces</th><th>Quote</th><th>Status</th></tr></thead>
+            <thead><tr><th>Design</th><th>Customer</th><th>Pieces</th><th>Total</th><th>Order</th><th>Status</th></tr></thead>
             <tbody>
               {rows.map((d) => (
                 <tr key={d.id} data-href="" tabIndex={0} onClick={() => setOpen(d.id)}
@@ -450,6 +468,7 @@ function DesignsTab() {
                   <td>{d.contact_name}<div className="pc-sub-line" style={{ fontSize: 12.5 }}>{d.contact_email ?? ""}</div></td>
                   <td>{d.total_qty}</td>
                   <td>{money(d.quoted_total)}</td>
+                  <td><OrderCell d={d} /></td>
                   <td><Status value={d.status} /></td>
                 </tr>
               ))}
@@ -518,21 +537,29 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
           <div className="pc-kv"><span>Email</span><b>{d.contact_email ? <a href={`mailto:${d.contact_email}?subject=${encodeURIComponent(`Your design ${d.reference}`)}`}>{d.contact_email}</a> : "–"}</b></div>
           <div className="pc-kv"><span>Pieces</span><b>{d.total_qty}</b></div>
           <div className="pc-kv"><span>Decoration</span><b>{d.method === "embroidery" ? "Embroidery" : "Printing"}</b></div>
-          <div className="pc-kv"><span>Quote</span><b>{money(d.quoted_total)}</b></div>
-          <div className="pc-kv"><span>Sent</span><b>{d.created_at ? new Date(d.created_at).toLocaleString() : "–"}</b></div>
+          <div className="pc-kv"><span>Total</span><b>{money(d.quoted_total)}</b></div>
+          <div className="pc-kv"><span>Order</span><b><OrderCell d={d} /></b></div>
+          <div className="pc-kv"><span>Made</span><b>{d.created_at ? new Date(d.created_at).toLocaleString() : "–"}</b></div>
           {d.customer_notes && <p className="pc-sub-line" style={{ margin: "6px 0 0" }}><b>Customer&apos;s note:</b> {d.customer_notes}</p>}
-          <p className="pc-sub-line" style={{ margin: "6px 0 0", fontSize: 12.5 }}>Nothing is charged yet: reply to the customer with the order or an invoice.</p>
         </section>
         <section className="pc-card pc-pad" style={{ display: "grid", gap: 8 }}>
           <h3 className="pc-h2" style={{ fontSize: 16 }}>Where it stands</h3>
-          <label className="pc-label" htmlFor="designer-message">Message for the customer (optional)</label>
-          <textarea id="designer-message" className="pc-input" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} style={{ height: "auto" }} />
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {NEXT.filter((n) => n.status !== d.status).map((n) => (
-              <button key={n.status} type="button" className="pc-btn" disabled={busy} onClick={() => void move(n.status)}
-                data-kind={n.status === "approved" ? "primary" : undefined}>{n.label}</button>
-            ))}
-          </div>
+          {d.order_id ? (
+            <>
+              <label className="pc-label" htmlFor="designer-message">Message for the customer (goes with the email they get)</label>
+              <textarea id="designer-message" className="pc-input" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} style={{ height: "auto" }} />
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-design-moves>
+                {NEXT.filter((n) => n.status !== d.status).map((n) => (
+                  <button key={n.status} type="button" className="pc-btn" disabled={busy} onClick={() => void move(n.status)}
+                    data-kind={n.status === "approved" ? "primary" : undefined}>{n.label}</button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="pc-sub-line" style={{ margin: 0 }} data-not-ordered>
+              Not ordered yet. The customer has it in their cart, or left it there. It joins your review queue, and Production, when they check out.
+            </p>
+          )}
           <label className="pc-label" htmlFor="designer-notes" style={{ marginTop: 6 }}>Notes for your team</label>
           <textarea id="designer-notes" className="pc-input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={{ height: "auto" }} />
           <div><button type="button" className="pc-btn" disabled={busy} onClick={() => void saveNotes()}>Save notes</button></div>
@@ -546,7 +573,7 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
         return (
           <section key={sh.key} className="pc-card pc-pad" style={{ display: "grid", gap: 10 }} data-shirt={sh.key}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-              <b>{sh.key.split(":")[1]?.replace(/-/g, " ")}</b>
+              <b>{sh.key.split(":")[1]?.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</b>
               <span className="pc-sub-line">{ordered.length ? ordered.map(([z, n]) => `${z} × ${n}`).join(" · ") : "Names and numbers only"}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>

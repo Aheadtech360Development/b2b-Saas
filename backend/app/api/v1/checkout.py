@@ -174,6 +174,12 @@ async def create_payment_intent(
         raise _blame("pricing your cart", exc) from exc
     if not cart.items:
         raise ValidationError("Cart is empty")
+    # A line that cannot be ordered as it stands (a t-shirt design whose
+    # product was taken out of the designer, or whose blanks ran out) stops
+    # the payment here, before the card is asked for anything.
+    _stuck = next((i for i in cart.items if getattr(i, "problem", None)), None)
+    if _stuck is not None:
+        raise ValidationError(f"{_stuck.product_name}: {_stuck.problem}")
 
     # Gift cards being bought: no shipping, no tax, no discount code, paid by
     # card (services/gift_card_checkout).

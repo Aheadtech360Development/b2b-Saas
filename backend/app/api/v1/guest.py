@@ -95,6 +95,8 @@ class GuestCartItem(BaseModel):
     artwork: dict | None = None
     # A gang sheet the buyer already built. It carries its own price.
     gang_sheet_order_id: UUID | None = None
+    # A design from the t-shirt designer, priced here (services/tshirt_designer).
+    tshirt_design_id: UUID | None = None
     # A gift card for someone, at one of the shop's amounts.
     gift_card: GuestGiftCardLine | None = None
 
@@ -276,6 +278,8 @@ class GuestTotals(BaseModel):
     items: list
     slugs: set
     gang_sheet_ids: list
+    # T-shirt designs bought here: the order takes them once it exists.
+    design_ids: list = []
     shipping_method: str
     subtotal: Decimal
     gang_sheet_subtotal: Decimal
@@ -301,6 +305,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
     order_items_data = []
     ordered_product_slugs: set[str] = set()
     gang_sheet_ids: list[UUID] = []
+    design_ids: list[UUID] = []
     subtotal = Decimal("0")
     gang_sheet_subtotal = Decimal("0")
     gift_card_subtotal = Decimal("0")
@@ -308,6 +313,41 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
     for cart_item in payload.items:
         if cart_item.quantity < 1:
             raise ValidationError("Quantity must be at least 1")
+
+        # A design from the t-shirt designer, made as a guest: priced and its
+        # blanks checked here, as the signed-in checkout does, whatever the
+        # browser sent. One that belongs to an account is ordered signed in.
+        if cart_item.tshirt_design_id is not None:
+            from app.api.v1.tshirt_designs import STATUS_SUBMITTED as _TS_SUBMITTED
+            from app.api.v1.tshirt_designs import TShirtDesign as _Design
+            from app.core.tenant_context import get_current_tenant_id as _ts_tid
+            from app.services import tshirt_designer as _td
+
+            design = (await db.execute(
+                select(_Design).where(_Design.id == cart_item.tshirt_design_id)
+            )).scalar_one_or_none()
+            if design is None or not _td.may_buy(design, None, None):
+                raise NotFoundError("That design could not be found. Sign in to order a design you saved to your account.")
+            if design.order_id is not None:
+                raise ValidationError(f"Design {design.reference} has already been ordered")
+            if design.status != _TS_SUBMITTED or design.id in design_ids:
+                raise ValidationError(f"Design {design.reference} can't be ordered again")
+            try:
+                _lines, _snap = await _td.lines_for_order(
+                    db, _ts_tid(), design, None, charged=bool(payload.payment_intent_id),
+                )
+            except _td.DesignerError as exc:
+                raise ValidationError(f"Design {design.reference}: {exc}")
+            for _line in _lines:
+                subtotal += _line["line_total"]
+            order_items_data.extend(_lines)
+            design_ids.append(design.id)
+            for _slug in (await db.execute(
+                select(Product.slug).where(Product.id.in_([x["product_id"] for x in _lines if x["product_id"]]))
+            )).scalars().all():
+                if _slug:
+                    ordered_product_slugs.add(_slug)
+            continue
 
         # A gift card for someone, at one of the shop's amounts.
         if cart_item.gift_card is not None:
@@ -503,6 +543,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
         items=order_items_data,
         slugs=ordered_product_slugs,
         gang_sheet_ids=gang_sheet_ids,
+        design_ids=design_ids,
         shipping_method=method,
         subtotal=subtotal,
         gang_sheet_subtotal=gang_sheet_subtotal,
@@ -803,6 +844,12 @@ async def guest_checkout(
                 _gs.paid_at = _dt.now(_tz.utc)
             if _gs.status == _GS_SUBMITTED:
                 _gs.status = _GS_IN_REVIEW
+
+    # And the designs: the order's, in the same queue.
+    if priced.design_ids:
+        from app.services import tshirt_designer as _td_link
+
+        await _td_link.link_to_order(db, priced.design_ids, order)
 
     # 6. Create OrderItem records + deduct inventory: the shop's own stock
     # first, then its suppliers' for a product with sources, noting what each

@@ -5,8 +5,8 @@
  * For every shirt being ordered and every side with art on it, two files: the
  * preview (the garment in its colour with the design on it) and the print
  * artwork alone at 300 DPI. The server keeps them in the shop's ImageKit
- * folder. A design sent before is updated, not sent again: its old files are
- * cleared and these replace them.
+ * folder. A design sent before is updated, not sent again (`remote`): its old
+ * files are cleared and these replace them. Without one, a new design is made.
  */
 import type { Garment, DesignDoc, ViewKey } from "@/lib/designer/types";
 import { tshirtDesignsService, type TShirtDesignRecord } from "@/services/tshirtDesigns.service";
@@ -52,8 +52,9 @@ export async function sendDesign(
   catalog: Garment[],
   quotedTotal: number,
   onProgress: (p: SendProgress) => void,
-  /** A guest's name and email, for the shop's reply. */
-  contact?: { name: string; email: string },
+  /** The design to update, when this one was sent before and may still be
+   *  changed; a new design otherwise. */
+  remote: DesignDoc["remote"],
 ): Promise<TShirtDesignRecord> {
   const work = jobs(doc, catalog);
   const total = 1 + work.length * 2;
@@ -61,12 +62,10 @@ export async function sendDesign(
   const step = (label: string) => onProgress({ done, total, label });
 
   step("Sending your design");
-  const payload = {
-    document: doc, quoted_total: quotedTotal, customer_notes: doc.notes || undefined,
-    ...(contact ? { contact_name: contact.name, contact_email: contact.email } : {}),
-  };
-  const record = doc.remote
-    ? await tshirtDesignsService.update(doc.remote.id, payload)
+  // Bought through the cart: the buyer is known from the order, so no email here.
+  const payload = { document: doc, quoted_total: quotedTotal, customer_notes: doc.notes || undefined, for_cart: true };
+  const record = remote
+    ? await tshirtDesignsService.update(remote.id, payload)
     : await tshirtDesignsService.submit(payload);
   done++;
 

@@ -32,7 +32,9 @@ export interface TShirtDesignRecord {
   customer_notes: string | null;
   supplier_notes: string | null;
   revision_count: number;
+  /** The order it was bought on; null while it is only in a cart (or nobody bought it). */
   order_id: string | null;
+  order_number?: string | null;
   paid: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -46,6 +48,14 @@ export interface DesignPayload {
   contact_name?: string;
   contact_email?: string;
   customer_notes?: string;
+  /** Going into the cart: the buyer is known from the order, so no email is asked for. */
+  for_cart?: boolean;
+}
+
+/** The picture a design's cart line shows: the first shirt's front preview. */
+export function designPreview(record: Pick<TShirtDesignRecord, "outputs">): string | null {
+  const previews = (record.outputs ?? []).filter((o) => o.kind === "preview");
+  return (previews.find((o) => o.view === "front") ?? previews[0])?.file_url ?? null;
 }
 
 export const tshirtDesignsService = {

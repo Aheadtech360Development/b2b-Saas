@@ -18,7 +18,7 @@ import { cartService } from "@/services/cart.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
-import { adoptGuestCart, isGiftCardLine } from "@/lib/guestCart";
+import { adoptGuestCart, isDesignLine, isGiftCardLine } from "@/lib/guestCart";
 import { PointsLine } from "@/components/storefront/PointsLine";
 import { trackCartViewed, trackLineAdd, trackLinesRemoved } from "@/lib/tracking";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
@@ -138,6 +138,11 @@ function buildGuestCart(entries: GuestCartEntry[]): Cart {
     ...(e.quantity_from_option ? { configuration: { quantity_from_option: true } } : {}),
     // A gift card: one card, emailed; its quantity is not changed here.
     ...(e.gift_card ? { item_type: "gift_card", configuration: { gift_card: e.gift_card } } : {}),
+    // A design from the t-shirt designer: its sizes are changed in the designer.
+    ...(e.tshirt_design_id ? {
+      item_type: "tshirt_design", sku: e.design?.reference ?? "",
+      configuration: { tshirt_design: e.design ?? { id: e.tshirt_design_id, reference: "" } },
+    } : {}),
     moq: 1,
     moq_satisfied: true,
     stock_quantity: 999,
@@ -326,6 +331,10 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
   function getCheckoutDisabledReason(): string | undefined {
     if (!cart || !cart.items || cart.items.length === 0) return "Cart is empty";
     if (isGuest) return undefined;
+    // A line that can't be ordered as it stands (a design whose product left
+    // the designer, or whose blanks ran out): the server refuses it too.
+    const stuck = cart.items.find((i) => i.problem);
+    if (stuck) return `Fix ${stuck.product_name} first: ${stuck.problem}`;
     if (!cart.validation) return undefined;
     const v = cart.validation;
     if (v.mov_violation) return `Minimum order value of ${formatCurrency(Number(v.mov_required))} not met`;
@@ -441,7 +450,8 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                     <div style={{ width: "72px", height: "72px", border: "1px solid var(--ui-line)", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "var(--ui-paper)" }}>
                       {item.product_image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                        <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                          onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       ) : (
                         <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9C6C0" strokeWidth={1.5}><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z" /></svg>
@@ -454,27 +464,39 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                       <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "3px" }}>
                         {isGiftCardLine(item)
                           ? `Emailed to ${item.configuration?.gift_card?.recipient_email ?? "the recipient"} when you pay`
-                          : [item.color, item.size].filter(Boolean).join(" · ") || "—"}
+                          : isDesignLine(item)
+                            ? "Design"
+                            : [item.color, item.size].filter(Boolean).join(" · ") || "—"}
                         {item.sku && (
                           <span className="ui-num" style={{ marginLeft: "8px", fontSize: "12px" }}>{item.sku}</span>
                         )}
                       </div>
                       <ConfigurationDetail configuration={item.configuration} compact />
                       <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "6px" }}>
-                        {/* Sold in set quantities ("Qty: 30"): its price is for
-                            the whole set, which is how the buyer chose it. */}
-                        {item.configuration?.quantity_from_option ? (
-                          <><span className="ui-num">{Number(item.quantity).toLocaleString()}</span> for <span className="ui-num">{formatCurrency(Number(item.line_total))}</span></>
+                        {/* Sold in set quantities ("Qty: 30"), or a design's
+                            pieces: its price is for the whole of it, which is
+                            how the buyer chose it. */}
+                        {item.configuration?.quantity_from_option || isDesignLine(item) ? (
+                          <><span className="ui-num">{Number(item.quantity).toLocaleString()}</span>{isDesignLine(item) ? (item.quantity === 1 ? " piece" : " pieces") : ""} for <span className="ui-num">{formatCurrency(Number(item.line_total))}</span></>
                         ) : (
                           <><span className="ui-num">{formatCurrency(Number(item.unit_price))}</span> each</>
                         )}
+                        {isDesignLine(item) && item.configuration?.tshirt_design?.id && (
+                          <Link href={`/design?design=${encodeURIComponent(item.configuration.tshirt_design.id)}`}
+                            className="ui-btn-quiet" style={{ marginLeft: "12px", fontSize: "13px", whiteSpace: "nowrap", display: "inline-block" }} data-edit-design>
+                            Edit design
+                          </Link>
+                        )}
                       </div>
+                      {item.problem && (
+                        <p className="ui-hint ui-hint-bad" role="alert" style={{ marginTop: "6px" }} data-line-problem>{item.problem}</p>
+                      )}
                     </div>
 
                     <div className="cart-line-end">
-                      {item.configuration?.quantity_from_option || isGiftCardLine(item) ? (
+                      {item.configuration?.quantity_from_option || isGiftCardLine(item) || isDesignLine(item) ? (
                         <span
-                          title="Change how many on the product page"
+                          title={isDesignLine(item) ? "Change the sizes and quantities in the designer" : "Change how many on the product page"}
                           aria-label={`Quantity for ${item.product_name}`}
                           className="cart-qty-input ui-num"
                           style={{ width: "68px", padding: "7px 8px", textAlign: "center", fontSize: "14px", display: "inline-block" }}

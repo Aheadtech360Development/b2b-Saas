@@ -20,6 +20,12 @@ export const cartService = {
     return apiClient.post<Cart>("/api/v1/cart/add-gang-sheet", { gang_sheet_order_id });
   },
 
+  /** Add a design from the t-shirt designer: one line for the whole design,
+   *  priced on the server. Adding it again updates the line. */
+  async addTshirtDesign(tshirt_design_id: string): Promise<Cart> {
+    return apiClient.post<Cart>("/api/v1/cart/add-tshirt-design", { tshirt_design_id });
+  },
+
   async updateItem(item_id: string, quantity: number): Promise<Cart> {
     return apiClient.patch<Cart>(`/api/v1/cart/items/${item_id}`, { quantity });
   },

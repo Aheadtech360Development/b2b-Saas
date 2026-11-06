@@ -11,6 +11,9 @@ is not what decides; the order's payment is. A job nobody checked out is a
 draft and stays out of the queue, so the shop prints only work somebody
 ordered.
 
+T-shirt designs bought through the cart (api/v1/tshirt_designs) share the
+queue by the same rule, as jobs of the kind "tshirt_design".
+
 Pure, apart from the loaders at the foot.
 """
 from __future__ import annotations
@@ -215,6 +218,40 @@ def row(job: Any, order: dict | None, product_type: str | None, company: str | N
     }
 
 
+def design_row(design: Any, order: dict | None, company: str | None = None) -> dict:
+    """One t-shirt design as the board and the list show it: the same card as
+    a sheet's, with the design's pieces where a sheet has its size. It is
+    opened, and moved on, by the t-shirt designer's own routes."""
+    d = describe(design.status, order)
+    pieces = int(design.total_qty or 0)
+    return {
+        "id": str(design.id),
+        "reference": design.reference,
+        "status": design.status,
+        "stage": d["stage"],
+        "column": column(d["stage"]),
+        "next": d["next"],
+        "kind": "tshirt_design",
+        "sheet_name": (design.name or "Custom design").strip() or "Custom design",
+        "width_in": 0.0,
+        "height_in": 0.0,
+        "quantity": pieces,
+        "subtotal": _money(design.quoted_total),
+        "customer": design.contact_name or company or "Guest",
+        "contact_email": design.contact_email,
+        "revision_count": int(design.revision_count or 0),
+        "paid": d["order_paid"],
+        "order_id": order.get("id") if order else None,
+        "order_number": d["order_number"],
+        "order_status": d["order_status"],
+        "payment_method": d["order_payment_method"],
+        "pickup": "will_call" in (d["order_shipping_method"] or ""),
+        "ordered_at": order.get("created_at") if order else None,
+        "updated_at": design.updated_at.isoformat() if getattr(design, "updated_at", None) else None,
+        "method": design.method or "print",
+    }
+
+
 def board(rows: list[dict], drafts: int, drafts_value: float, cutoff: str | None) -> dict:
     """The board's one answer: the jobs in the queue, oldest order first, and
     the counts above them, all from the same rows."""
@@ -279,8 +316,31 @@ async def load_queue(db) -> list[dict]:
         )
         .order_by(Order.created_at.asc(), GangSheetOrder.created_at.asc())
     )
-    return [row(job, _order_dict(order), ptype, company)
+    rows = [row(job, _order_dict(order), ptype, company)
             for job, order, ptype, company in (await db.execute(q)).all()]
+    return sorted(rows + await _design_queue(db), key=lambda r: r.get("ordered_at") or "")
+
+
+async def _design_queue(db) -> list[dict]:
+    """The t-shirt designs in the queue, by the same rule as the sheets."""
+    from sqlalchemy import and_, not_, select
+
+    from app.api.v1.tshirt_designs import TShirtDesign
+    from app.models.company import Company
+    from app.models.order import Order
+
+    q = (
+        select(TShirtDesign, Order, Company.name)
+        .join(Order, Order.id == TShirtDesign.order_id)
+        .outerjoin(Company, Company.id == Order.company_id)
+        .where(
+            TShirtDesign.status != "rejected",
+            Order.status.notin_(CLOSED),
+            not_(and_(TShirtDesign.status == "completed", Order.status.in_(SHIPPED))),
+        )
+        .order_by(Order.created_at.asc(), TShirtDesign.created_at.asc())
+    )
+    return [design_row(d, _order_dict(order), company) for d, order, company in (await db.execute(q)).all()]
 
 
 async def drafts_summary(db) -> tuple[int, float]:

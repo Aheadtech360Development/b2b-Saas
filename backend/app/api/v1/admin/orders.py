@@ -800,6 +800,11 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
         _item_rows = _attach_sheets(_item_rows, _sheets)
     except Exception:
         logger.warning("Could not load gang sheet details for order %s", order.id, exc_info=True)
+    try:
+        async with db.begin_nested():
+            _item_rows = await _attach_designs(db, order.id, _item_rows)
+    except Exception:
+        logger.warning("Could not load t-shirt designs for order %s", order.id, exc_info=True)
 
     from app.services import order_progress as _progress
 
@@ -916,6 +921,28 @@ async def _buyer_order_count(db: AsyncSession, order: Order) -> int | None:
         )
     )
     return int(count or 0) or None
+
+
+async def _attach_designs(db: AsyncSession, order_id, items: list[OrderItemOut]) -> list[OrderItemOut]:
+    """Each line of a t-shirt design with its design: where it stands and its
+    picture, so the order page links to it (services/tshirt_designer)."""
+    from app.api.v1.tshirt_designs import TShirtDesign
+    from app.services import tshirt_designer as td
+
+    designs = {str(d.id): d for d in (await db.execute(
+        select(TShirtDesign).where(TShirtDesign.order_id == order_id)
+    )).scalars().all()}
+    if not designs:
+        return items
+    pictures = {key: await td.preview_of(db, d.id) for key, d in designs.items()}
+    out = []
+    for item in items:
+        d = designs.get(str((td.design_info(item.configuration) or {}).get("id")))
+        out.append(item.model_copy(update={"tshirt_design": {
+            "id": str(d.id), "reference": d.reference, "name": d.name, "status": d.status,
+            "preview_url": pictures.get(str(d.id)),
+        }}) if d is not None else item)
+    return out
 
 
 def _attach_sheets(items: list[OrderItemOut], sheets: list[dict]) -> list[OrderItemOut]:
@@ -2427,7 +2454,8 @@ async def admin_list_abandoned_carts(
             variant = (await db.execute(
                 select(ProductVariant).where(ProductVariant.id == ci.variant_id)
             )).scalar_one_or_none()
-            product_name = ""
+            # A line with no variant (a design, a gang sheet) carries its own name.
+            product_name = ci.label or ""
             if variant:
                 prod = (await db.execute(
                     select(Product).where(Product.id == variant.product_id)
@@ -2510,7 +2538,7 @@ async def send_abandoned_cart_reminder(
         unit = float(ci.unit_price or 0)
         line = unit * ci.quantity
         total += line
-        name = prod.name if prod else "Product"
+        name = prod.name if prod else (ci.label or "Product")
         details = " / ".join(filter(None, [variant.color if variant else None, variant.size if variant else None]))
         details_html = f'<br><span style="font-size:11px;color:#9ca3af">{details}</span>' if details else ""
         rows_html += (

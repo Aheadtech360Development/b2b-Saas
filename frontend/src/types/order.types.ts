@@ -19,12 +19,32 @@ export interface CartItem {
   moq: number;
   moq_satisfied: boolean;
   stock_quantity: number;
-  /** 'variant' (default), 'gang_sheet' or 'configured'. */
+  /** 'variant' (default), 'gang_sheet', 'configured', 'gift_card' or 'tshirt_design'. */
   item_type?: string;
   gang_sheet_order_id?: string | null;
   /** Configured lines: one-off fees, already included in `line_total`. */
   setup_fees?: string | number;
   configuration?: LineConfiguration | null;
+  /** Why this line can't be ordered as it stands (a design whose product left
+   *  the designer, or whose blanks ran out). Checkout waits until it is fixed. */
+  problem?: string | null;
+}
+
+/** A design from the t-shirt designer, as its cart line keeps it, priced on
+ *  the server (backend services/tshirt_designer snapshot). */
+export interface DesignLineInfo {
+  id: string;
+  reference: string;
+  name?: string;
+  method?: string;
+  pieces?: number;
+  total?: number;
+  personalization?: number;
+  lines?: { garment: string; colour: string; size: string; qty: number; sides?: string[] }[];
+  /** On an order line: the printed sides of that shirt. */
+  sides?: string[];
+  /** On an order line: the line for names and numbers. */
+  names_and_numbers?: boolean;
 }
 
 /** Snapshot of the options chosen on a configurable product's line. */
@@ -50,6 +70,8 @@ export interface LineConfiguration {
     message?: string | null;
     sender_name?: string | null;
   };
+  /** A design from the t-shirt designer (cart and order lines). */
+  tshirt_design?: DesignLineInfo;
 }
 
 /** A configured line's real one-off fees: its setup fees less any rounding. */

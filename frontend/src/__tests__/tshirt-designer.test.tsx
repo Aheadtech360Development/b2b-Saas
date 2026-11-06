@@ -6,7 +6,7 @@
  * offers Design your own.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const get = vi.fn();
 const put = vi.fn();
@@ -159,29 +159,45 @@ describe("Products → T-shirt designer", () => {
     expect(await screen.findByText(/Saved. The designer shows these prices/)).toBeInTheDocument();
   });
 
-  it("shows what a customer sent: who, the quote, each shirt's pictures and print files", async () => {
+  const ordered = {
+    id: "d1", reference: "TS-AB-2611-0001", name: "Team tees", method: "print", status: "in_review", status_timeline: [],
+    version: 1, shirt_count: 1, total_qty: 12, quoted_total: 204, contact_name: "Ali Khan", contact_email: "ali@example.com",
+    customer_notes: "For Saturday", supplier_notes: null, revision_count: 0, order_id: "o-1042", order_number: "1042", paid: true,
+    created_at: null, updated_at: null,
+    document: { quantities: { [`${TEE}:black`]: { M: 12 } } },
+    outputs: [
+      { id: "o1", shirt_key: `${TEE}:black`, view: "front", kind: "preview", file_url: "https://ik.example/front.png", file_name: "f.png", width_px: 1600, height_px: 1600, dpi: null },
+      { id: "o2", shirt_key: `${TEE}:black`, view: "front", kind: "print", file_url: "https://ik.example/front-print.png", file_name: "fp.png", width_px: 3600, height_px: 4200, dpi: 300 },
+    ],
+  };
+
+  it("shows an ordered design: who, its order and payment, each shirt's pictures and print files, and moves it on", async () => {
     search = "tab=designs";
-    const design = {
-      id: "d1", reference: "TS-AB-2611-0001", name: "Team tees", method: "print", status: "submitted", status_timeline: [],
-      version: 1, shirt_count: 1, total_qty: 12, quoted_total: 204, contact_name: "Ali Khan", contact_email: "ali@example.com",
-      customer_notes: "For Saturday", supplier_notes: null, revision_count: 0, order_id: null, paid: false, created_at: null, updated_at: null,
-      document: { quantities: { [`${TEE}:black`]: { M: 12 } } },
-      outputs: [
-        { id: "o1", shirt_key: `${TEE}:black`, view: "front", kind: "preview", file_url: "https://ik.example/front.png", file_name: "f.png", width_px: 1600, height_px: 1600, dpi: null },
-        { id: "o2", shirt_key: `${TEE}:black`, view: "front", kind: "print", file_url: "https://ik.example/front-print.png", file_name: "fp.png", width_px: 3600, height_px: 4200, dpi: 300 },
-      ],
-    };
     answer({ "/setup": { has_products: true, prices_saved: true, has_designs: true, available: true },
-             "/admin/tshirt-designs/d1": design, "/admin/tshirt-designs": [design] });
+             "/admin/tshirt-designs/d1": ordered, "/admin/tshirt-designs": [ordered] });
     render(<TShirtDesignerPage />);
+    const table = await screen.findByRole("table");
+    expect(within(table).getByRole("link", { name: "#1042" })).toHaveAttribute("href", "/admin/orders/o-1042");
     fireEvent.click(await screen.findByText("TS-AB-2611-0001"));
     expect(await screen.findByText("Ali Khan")).toBeInTheDocument();
     expect(screen.getByText("$204.00")).toBeInTheDocument();
+    expect(screen.getByText("Paid")).toBeInTheDocument();
     expect(screen.getByText("M × 12")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Print file: front \(3600×4200, 300 DPI\)/ })).toHaveAttribute("href", "https://ik.example/front-print.png");
-    patch.mockResolvedValue({ ...design, status: "approved" });
+    patch.mockResolvedValue({ ...ordered, status: "approved" });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Approve" })); });
     expect(patch).toHaveBeenCalledWith("/api/v1/admin/tshirt-designs/d1/status", { status: "approved", supplier_notes: undefined });
+  });
+
+  it("opens a design straight from an order or Production, and one nobody ordered has nothing to approve yet", async () => {
+    search = "tab=designs&design=d1";
+    const inCart = { ...ordered, status: "submitted", order_id: null, order_number: null, paid: false };
+    answer({ "/setup": { has_products: true, prices_saved: true, has_designs: false, available: true },
+             "/admin/tshirt-designs/d1": inCart, "/admin/tshirt-designs": [inCart] });
+    const { container } = render(<TShirtDesignerPage />);
+    await waitFor(() => expect(container.querySelector('[data-design-detail="TS-AB-2611-0001"]')).not.toBeNull());
+    expect(screen.getByText(/Not ordered yet\. The customer has it in their cart/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
 });
 

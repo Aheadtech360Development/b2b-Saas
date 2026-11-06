@@ -8,13 +8,18 @@
  * The garments are the shop's own products switched on for the designer, at
  * their own prices with the shop's decoration prices (lib/designer/catalog,
  * backend services/tshirt_designer). Finishing sends the design and its
- * finished files to the shop, which answers with the order (a guest leaves a
- * name and email first); `onComplete` is where adding to the cart goes next.
+ * finished files to the shop and puts it in the cart, priced on the server:
+ * the account's cart when signed in, this browser's otherwise (it moves into
+ * the account at checkout). A paid design the print team sent back opens from
+ * its email (?design=<id>) and its changes go back to them instead.
  * Saved designs and the AI helper stay in the browser.
  */
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { addToGuestCart, designLine } from "@/lib/guestCart";
+import { trackLineAdd } from "@/lib/tracking";
 import { loadCatalog, type ShopCatalog } from "@/lib/designer/catalog";
+import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { money, type Quote } from "@/lib/designer/pricing";
 import { loadDraft, saveDesign, saveDraft } from "@/lib/designer/storage";
@@ -34,12 +39,13 @@ import { addImageFile, UploadPanel } from "./panels/UploadPanel";
 import { ArtTools, CopyDesign, SheetTabs, Turntable } from "./Rails";
 import { renderView } from "./render";
 import { sendDesign, type SendProgress } from "./send";
-import { tshirtDesignsService } from "@/services/tshirtDesigns.service";
+import { finishPlan } from "./finish";
+import { designPreview, tshirtDesignsService } from "@/services/tshirtDesigns.service";
 import { ReviewTab, SizesTab } from "./Steps";
 import { Stage } from "./Stage";
 
 export interface DesignerProps {
-  /** Called with the finished design. Without it, a confirmation is shown. */
+  /** Called with the design once it is in the cart. Without it, the cart opens. */
   onComplete?: (doc: DesignDoc, quote: Quote) => void;
 }
 
@@ -103,57 +109,24 @@ function Sheet({ saveCurrent, savedVersion }: { saveCurrent: () => Promise<void>
   );
 }
 
-/** Who a guest is, for the shop's reply. */
-export interface Contact {
-  name: string;
-  email: string;
-}
-
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-/** A guest's name and email, asked once before their first design goes to the shop. */
-function AskContact({ onSend, onClose }: { onSend: (c: Contact) => void; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [tried, setTried] = useState(false);
-  const ok = name.trim().length > 0 && EMAIL.test(email.trim());
-  return (
-    <div className={s.modalBack} role="presentation" onClick={onClose}>
-      <form className={s.modal} role="dialog" aria-modal="true" aria-labelledby="ask-title" data-ask-contact
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
-        onSubmit={(e) => { e.preventDefault(); setTried(true); if (ok) onSend({ name: name.trim(), email: email.trim() }); }}>
-        <h2 id="ask-title">Where should the shop reply?</h2>
-        <p className={s.hint}>The shop checks your design and gets back to you about the order at this email.</p>
-        <label className={s.label} htmlFor="ask-name" style={{ marginTop: 14, display: "block" }}><span>Your name</span></label>
-        <input id="ask-name" className={s.input} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus
-          aria-invalid={tried && !name.trim() ? true : undefined} />
-        <label className={s.label} htmlFor="ask-email" style={{ marginTop: 10, display: "block" }}><span>Email</span></label>
-        <input id="ask-email" className={s.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
-          aria-invalid={tried && !EMAIL.test(email.trim()) ? true : undefined} />
-        {tried && !ok && <p className={s.hint} role="alert" style={{ color: "var(--danger, #B42318)" }}>Add your name and an email address.</p>}
-        <div className={s.row} style={{ justifyContent: "flex-end", marginTop: 18, gap: 8 }}>
-          <button type="button" className={s.btn} onClick={onClose}>Back to the design</button>
-          <button type="submit" className={`${s.btn} ${s.btnPrimary}`}>Send to the shop</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 type SendState =
   | { phase: "sending"; progress: SendProgress }
-  | { phase: "sent"; reference: string; files: number; total?: number }
+  /** In the cart: the cart opens next. */
+  | { phase: "carted"; reference: string; total: number }
+  /** The changes to a paid design are back with the print team. */
+  | { phase: "sent"; reference: string; files: number }
   | { phase: "failed"; message: string };
+
+const plan = finishPlan;
 
 function Done({ state, quote, onClose, onRetry }: { state: SendState; quote: Quote; onClose: () => void; onRetry: () => void }) {
   const name = useDesigner((st) => st.doc?.name);
   const opener = useRef<Element | null>(typeof document !== "undefined" ? document.activeElement : null);
-  const close = () => { if (state.phase === "sending") return; onClose(); (opener.current as HTMLElement | null)?.focus?.(); };
+  const close = () => { if (state.phase === "sending" || state.phase === "carted") return; onClose(); (opener.current as HTMLElement | null)?.focus?.(); };
   const pct = state.phase === "sending" ? Math.round((state.progress.done / Math.max(1, state.progress.total)) * 100) : 100;
   return (
     <div className={s.modalBack} role="presentation" onClick={close}>
-      <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="done-title" aria-busy={state.phase === "sending"}
+      <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="done-title" aria-busy={state.phase === "sending" || state.phase === "carted"}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") close();
@@ -169,17 +142,28 @@ function Done({ state, quote, onClose, onRetry }: { state: SendState; quote: Quo
             <p className={`${s.hint} ${s.num}`}>{state.progress.done} of {state.progress.total}</p>
           </>
         )}
+        {state.phase === "carted" && (
+          <>
+            <CheckCircle2 size={34} color="var(--success)" />
+            <h2 id="done-title" style={{ marginTop: 10 }}>Added to your cart</h2>
+            <p className={s.hint} role="status">
+              “{name}”, reference <strong className={s.num}>{state.reference}</strong>:{" "}
+              <span className={s.num}>{quote.totalQty}</span> pieces, <span className={s.num}>{money(state.total)}</span>.
+              Opening your cart.
+            </p>
+          </>
+        )}
         {state.phase === "sent" && (
           <>
             <CheckCircle2 size={34} color="var(--success)" />
-            <h2 id="done-title" style={{ marginTop: 10 }}>Your design is with the print team</h2>
+            <h2 id="done-title" style={{ marginTop: 10 }}>Your changes are with the print team</h2>
             <p className={s.hint}>
-              “{name}”, reference <strong className={s.num}>{state.reference}</strong>.{" "}
-              <span className={s.num}>{quote.totalQty}</span> pieces, <span className={s.num}>{money(state.total ?? quote.total)}</span>,{" "}
-              <span className={s.num}>{state.files}</span> finished files.
+              “{name}”, reference <strong className={s.num}>{state.reference}</strong>,{" "}
+              <span className={s.num}>{state.files}</span> finished files. Your order stays as it is; the shop
+              checks the new artwork and lets you know.
             </p>
             <div className={s.row} style={{ justifyContent: "flex-end", marginTop: 18 }}>
-              <button type="button" className={`${s.btn} ${s.btnPrimary}`} autoFocus onClick={close}>Keep editing</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} autoFocus onClick={close}>Done</button>
             </div>
           </>
         )}
@@ -208,9 +192,8 @@ export function Designer({ onComplete }: DesignerProps) {
   const [sending, setSending] = useState<SendState | null>(null);
   // Why the designer cannot open at this shop, when it cannot.
   const [closed, setClosed] = useState<null | "off" | "empty" | "failed">(null);
-  // A guest says who they are before a design goes to the shop.
-  const [asking, setAsking] = useState(false);
-  const user = useAuthStore((st) => st.user);
+  // What finishing does: into the cart, or the changes to a paid design sent back.
+  const [finishMode, setFinishMode] = useState<"cart" | "changes">("cart");
 
   // Start: the shop's products, and the design in progress, unless the link
   // asks for a fresh one or for a product that design does not have.
@@ -229,6 +212,23 @@ export function Designer({ onComplete }: DesignerProps) {
       const catalog = shop.garments;
       if (!catalog.length) { setClosed("empty"); return; }
       const params = new URLSearchParams(window.location.search);
+      // A design of the buyer's, opened from its email or its order: the
+      // server's copy, changed and sent on from here.
+      const askedDesign = params.get("design");
+      if (askedDesign) {
+        const record = await tshirtDesignsService.get(askedDesign).catch(() => null);
+        if (!live) return;
+        const saved = record?.document;
+        if (record && saved && saved.products.every((p) => catalog.some((g) => g.id === p.garmentId))) {
+          const next = plan(record);
+          useDesigner.getState().init(
+            catalog, { ...saved, remote: next.keep ? { id: record.id, reference: record.reference } : undefined }, shop.rates,
+          );
+          setFinishMode(next.finish);
+          return;
+        }
+        useNotice.getState().show("That design couldn't be opened here. Sign in with the account it was made in, or start a new one.", "error");
+      }
       const asked = params.get("product");
       const wanted = asked ? catalog.find((g) => g.id === asked || g.slug === asked) : undefined;
       const draft = params.get("new") ? null : await loadDraft();
@@ -238,6 +238,11 @@ export function Designer({ onComplete }: DesignerProps) {
       const first = wanted ?? catalog[0];
       if (!live || !first) return;
       useDesigner.getState().init(catalog, usable ?? emptyDoc(first), shop.rates);
+      // Sent before: whether finishing updates it or makes a new one.
+      if (usable?.remote) {
+        const record = await tshirtDesignsService.get(usable.remote.id).catch(() => null);
+        if (live) setFinishMode(plan(record).finish);
+      }
     })();
     return () => { live = false; };
   }, []);
@@ -336,30 +341,50 @@ export function Designer({ onComplete }: DesignerProps) {
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("paste", onPaste); };
   }, [ctrl]);
 
-  // Send the design and its finished files to the shop, then hand it on. A
-  // guest's first send asks for their name and email first: the shop answers
-  // a design by email.
-  const finish = async (contact?: Contact) => {
+  // Send the design and its finished files, then put it in the cart at the
+  // server's price (the account's cart when signed in, this browser's
+  // otherwise), or send the changes to a paid design the print team sent back.
+  const finish = async () => {
     const { doc, catalog, setRemote } = useDesigner.getState();
     if (!doc || !quote) return;
-    if (!user && !doc.remote && !contact) { setAsking(true); return; }
-    setAsking(false);
     void saveCurrent();
     setSending({ phase: "sending", progress: { done: 0, total: 1, label: "Sending your design" } });
     try {
-      const record = await sendDesign(doc, catalog, quote.total, (progress) => setSending({ phase: "sending", progress }), contact);
+      // Sent before: still this buyer's to change, or bought already (then this is a new design).
+      const next = plan(doc.remote ? await tshirtDesignsService.get(doc.remote.id).catch(() => null) : null);
+      const remote = next.keep ? doc.remote : undefined;
+      if (doc.remote && !remote) setRemote(undefined);
+      setFinishMode(next.finish);
+      const record = await sendDesign(useDesigner.getState().doc!, catalog, quote.total,
+        (progress) => setSending({ phase: "sending", progress }), remote);
       setRemote({ id: record.id, reference: record.reference });
-      const files = await tshirtDesignsService.get(record.id).then((r) => r.outputs?.length ?? 0).catch(() => 0);
-      setSending({ phase: "sent", reference: record.reference, files, total: record.quoted_total });
-      onComplete?.(useDesigner.getState().doc!, quote);
+      const full = await tshirtDesignsService.get(record.id).catch(() => null);
+      if (next.finish === "changes") {
+        setSending({ phase: "sent", reference: record.reference, files: full?.outputs?.length ?? 0 });
+        return;
+      }
+      if (useAuthStore.getState().isAuthenticated()) {
+        await cartService.addTshirtDesign(record.id);
+        window.dispatchEvent(new Event("cart_updated"));
+      } else {
+        addToGuestCart(designLine({ ...record, preview_url: full ? designPreview(full) : null }));
+      }
+      // The shop's analytics hear of it as one custom design (lib/tracking).
+      const pieces = Math.max(1, record.total_qty || 0);
+      trackLineAdd({ item_type: "tshirt_design", product_name: "Custom design", quantity: pieces,
+        unit_price: Math.round((record.quoted_total / pieces) * 100) / 100 }, { navigating: !onComplete });
+      setSending({ phase: "carted", reference: record.reference, total: record.quoted_total });
+      if (onComplete) onComplete(useDesigner.getState().doc!, quote);
+      else window.location.assign("/cart");
     } catch (e) {
       const status = (e as { status?: number; response?: { status?: number } })?.response?.status ?? (e as { status?: number })?.status;
-      // The shop's own words for what stops the design (its price, its products).
-      const said = status === 400 && e instanceof Error && e.message ? e.message : null;
+      // The shop's own words for what stops the design: its price, its
+      // products, its stock, or a paid design's sizes staying as ordered.
+      const said = status && status >= 400 && status < 500 && e instanceof Error && e.message ? e.message : null;
       setSending({
         phase: "failed",
-        message: status === 409
-          ? "The print team has already started on this design, so it can no longer be changed."
+        message: status === 401 || status === 403
+          ? "You were signed out. Sign in again and add the design to your cart."
           : said ?? "The design could not be sent. Check your connection and try again.",
       });
     }
@@ -412,13 +437,12 @@ export function Designer({ onComplete }: DesignerProps) {
             <Sheet saveCurrent={saveCurrent} savedVersion={savedVersion} />
           </main>
         )}
-        <OrderBar onSave={() => void saveCurrent()} onFinish={() => void finish()} saving={saving} />
+        <OrderBar onSave={() => void saveCurrent()} onFinish={() => void finish()} saving={saving} finish={finishMode} />
         {notice.msg && (
           <div className={`${s.notice} ${notice.tone === "error" ? s.noticeError : ""}`} role={notice.tone === "error" ? "alert" : "status"}>
             {notice.msg}
           </div>
         )}
-        {asking && <AskContact onClose={() => setAsking(false)} onSend={(c) => void finish(c)} />}
         {sending && quote && <Done state={sending} quote={quote} onClose={() => setSending(null)} onRetry={() => void finish()} />}
       </div>
     </ControllerContext.Provider>

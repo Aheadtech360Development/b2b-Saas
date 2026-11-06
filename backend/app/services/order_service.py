@@ -106,11 +106,47 @@ class OrderService:
         total_units = 0
         ordered_product_slugs: set[str] = set()
         gang_sheet_ids: list = []  # gang sheet orders paid for in this checkout
+        design_ids: list = []  # t-shirt designs bought in this checkout
         # Gift cards bought on this order: no shipping, no stock.
         gift_subtotal = Decimal("0")
         gift_units = 0
 
         for cart_item in cart_items:
+            # A design from the t-shirt designer: one line per garment, colour
+            # and size on its blank's variant, priced again (services/
+            # tshirt_designer). Its blanks come off the shelf below, with the
+            # other variant lines.
+            if getattr(cart_item, "item_type", "variant") == "tshirt_design":
+                from app.api.v1.tshirt_designs import TShirtDesign as _Design
+                from app.core.tenant_context import get_current_tenant_id as _tid_now
+                from app.services import tshirt_designer as _td
+
+                _kept = _td.design_info(cart_item.configuration) or {}
+                _design = (await self.db.execute(
+                    select(_Design).where(_Design.id == UUID(str(_kept.get("id"))))
+                )).scalar_one_or_none() if _kept.get("id") else None
+                if _design is None:
+                    raise ValidationError("A design in your cart could not be found. Remove it and add it again.")
+                if _design.order_id is not None:
+                    raise ValidationError(f"Design {_design.reference} has already been ordered. Remove it from your cart.")
+                try:
+                    _lines, _snap = await _td.lines_for_order(
+                        self.db, _tid_now(), _design, _kept, charged=bool(confirm.payment_intent_id),
+                    )
+                except _td.DesignerError as exc:
+                    raise ValidationError(f"Design {_design.reference}: {exc}")
+                for _line in _lines:
+                    subtotal += _line["line_total"]
+                order_items_data.extend(_lines)
+                total_units += int(_snap["pieces"])
+                design_ids.append(_design.id)
+                for _p in (await self.db.execute(
+                    select(Product.slug).where(Product.id.in_([x["product_id"] for x in _lines if x["product_id"]]))
+                )).scalars().all():
+                    if _p:
+                        ordered_product_slugs.add(_p)
+                continue
+
             if getattr(cart_item, "item_type", "variant") == "gift_card":
                 from app.services.gift_card_checkout import order_line as _gift_line
 
@@ -395,6 +431,12 @@ class OrderService:
                     logger.warning("Could not tell %s about gang sheet %s",
                                    order.id, _gs.id, exc_info=True)
 
+        # The designs bought here belong to the order now, in the review queue.
+        if design_ids:
+            from app.services import tshirt_designer as _td_link
+
+            await _td_link.link_to_order(self.db, design_ids, order)
+
         # Save tax_rate / tax_region via raw SQL — columns may not exist in older deployments.
         # This is a best-effort update; failure does not block order creation.
         _tax_rate_val = confirm.tax_rate
@@ -665,6 +707,11 @@ class OrderService:
         skipped = []
 
         for order_item in order.items:
+            # A line of a t-shirt design is a printed shirt, not the blank it
+            # is on: it is ordered again from the designer, never as a blank.
+            if isinstance(order_item.configuration, dict) and order_item.configuration.get("tshirt_design"):
+                skipped.append({"sku": order_item.sku, "reason": "custom_design"})
+                continue
             stock_result = await self.db.execute(
                 select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
                     InventoryRecord.variant_id == order_item.variant_id

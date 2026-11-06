@@ -1653,7 +1653,8 @@ async def list_abandoned_carts(
         variant = (await db.execute(
             select(ProductVariant).where(ProductVariant.id == ci.variant_id)
         )).scalar_one_or_none()
-        product_name = ""
+        # A line with no variant (a design, a gang sheet) carries its own name.
+        product_name = ci.label or ""
         if variant:
             prod = (await db.execute(
                 select(Product).where(Product.id == variant.product_id)
