@@ -96,7 +96,15 @@ async def get_product(
     discount_group_id = getattr(request.state, "discount_group_id", None)
     is_guest = getattr(request.state, "company_id", None) is None and not getattr(request.state, "is_admin", False)
     svc = ProductService(db)
-    return await svc.get_by_slug_with_variants(slug, discount_percent, discount_group_id, is_guest)
+    product = await svc.get_by_slug_with_variants(slug, discount_percent, discount_group_id, is_guest)
+    # "Design your own" only where the shop's plan has the t-shirt designer.
+    if isinstance(product, dict) and product.get("designer_enabled"):
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services import tshirt_designer as td
+
+        if not await td.active(db, get_current_tenant_id()):
+            product = {**product, "designer_enabled": False}
+    return product
 
 
 def _is_this_brands_admin(request: Request) -> bool:

@@ -148,6 +148,10 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     # and library) stays unmapped, as it was.
     ("/api/v1/admin/production", "production"),
     ("/api/v1/admin/gang-sheets/orders", "production"),
+    # Buyers' t-shirt designs, reviewed and produced like gang sheets.
+    ("/api/v1/admin/tshirt-designs", "production"),
+    # Which products the t-shirt designer offers, and its decoration prices.
+    ("/api/v1/admin/tshirt-designer", "products"),
 ]
 
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}

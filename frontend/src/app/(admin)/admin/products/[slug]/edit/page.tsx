@@ -35,6 +35,7 @@ import { productTemplatesService, type ProductTemplateRow } from "@/services/pro
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
 import { ProductSources } from "@/components/admin/products/ProductSources";
+import { DesignerCard } from "@/components/admin/products/DesignerCard";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
 import { displayUrl } from "@/lib/brand";
 
@@ -1608,6 +1609,10 @@ function ProductEditor() {
               </div>
             )}
           </section>
+
+          {stocked && (
+            <DesignerCard productId={product.id} status={product.status} enabled={!!product.designer_enabled} config={product.designer_config} />
+          )}
 
           <section className="pc-card pc-pad" aria-label="Publish" data-side-publish>
             <h2 className="pc-h2">Publish</h2>

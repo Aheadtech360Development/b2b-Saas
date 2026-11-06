@@ -156,6 +156,14 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             options.append({"id": str(o.id), "name": o.name, "input_type": o.input_type,
                             "required": bool(o.required), "values": values})
 
+    # "Design your own": the shop switched the t-shirt designer on for this
+    # product, and the designer is in its plan (services/tshirt_designer).
+    designer = False
+    if getattr(product, "designer_enabled", False) and not product.gang_sheet_enabled:
+        from app.services import tshirt_designer as _td
+
+        designer = await _td.active(db, product.tenant_id)
+
     return {
         "id": str(product.id),
         "name": product.name,
@@ -191,6 +199,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "design_upload": bool(getattr(product, "allow_design_upload", False)),
         "gang_sheet_type": product.gang_sheet_type or "gang_sheet",
         "gang_sheet_config": product.gang_sheet_config or None,
+        "designer": designer,
         "sheets": sheets,
         # Where its button goes. An upload-by-size product is ordered from its
         # own page, where that upload opens; anything else opens the builder.

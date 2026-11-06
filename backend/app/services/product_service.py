@@ -718,6 +718,8 @@ def _product_to_dict(product: Product) -> dict:
         "gang_sheet_enabled": getattr(product, "gang_sheet_enabled", False),
         "gang_sheet_type": getattr(product, "gang_sheet_type", None),
         "gang_sheet_config": getattr(product, "gang_sheet_config", None),
+        "designer_enabled": bool(getattr(product, "designer_enabled", False)),
+        "designer_config": getattr(product, "designer_config", None),
         # Which buying UI the storefront should render: stocked variants or
         # the dynamic option configurator (options fetched separately).
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",

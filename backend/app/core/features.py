@@ -35,6 +35,8 @@ FEATURES: list[tuple[str, str, str]] = [
     ("reviews", "Product reviews", "Products and catalog"),
     ("multi_location_inventory", "Multi-location inventory", "Products and catalog"),
     ("supplier_catalog", "Supplier catalogue import", "Products and catalog"),
+    # Buyers design their own shirt on the products the shop switched it on for.
+    ("tshirt_designer", "T-shirt designer", "Products and catalog"),
     # Customers
     ("customers", "Customer records", "Customers"),
     ("segments", "Customer segments", "Customers"),
@@ -90,7 +92,7 @@ _BASE = [
 
 # What only a print business needs. Retail brands sell their own products: no
 # gang sheets and no supplier catalogues (owner, 2026-10-28).
-_PRINT_ONLY = {"gang_sheet", "supplier_catalog"}
+_PRINT_ONLY = {"gang_sheet", "supplier_catalog", "tshirt_designer"}
 
 PLAN_FEATURES: dict[str, set[str]] = {
     "retail": set(_BASE) - _PRINT_ONLY,
@@ -129,6 +131,8 @@ def plan_defaults(plan: str | None) -> set[str]:
 # the console and still reachable through the API.
 PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/gang-sheets", "gang_sheet"),
+    ("/api/v1/admin/tshirt-designer", "tshirt_designer"),
+    ("/api/v1/admin/tshirt-designs", "tshirt_designer"),
     ("/api/v1/admin/purchase-orders", "purchase_orders"),
     ("/api/v1/admin/returns", "returns"),
     ("/api/v1/admin/rma", "returns"),
@@ -196,6 +200,7 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/storefront/gift-cards", "gift_cards"),
     ("/api/v1/storefront/returns", "returns_portal"),
     ("/api/v1/gang-sheets", "gang_sheet"),
+    ("/api/v1/tshirt-designs", "tshirt_designer"),
     ("/api/v1/quick-order", "quick_buy"),
     # The builder's assistant before the rest of the copilot: it is the
     # shopper's, switched on per brand, not the admin's analytics agent.

@@ -63,6 +63,11 @@ class Product(TenantMixin, BaseModel):
     # {printer_width, max_height, tiers:[{max_height, max_area, price_per_sqin, discount}]}.
     # Gang-sheet fixed sizes live in gang_sheet_sizes (per product_id), not here.
     gang_sheet_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The t-shirt designer on this product (migration 0077): its page offers
+    # "Design your own", and the designer draws it in its own colours, sizes
+    # and prices. Config: {silhouette, embroidery} (services/tshirt_designer).
+    designer_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    designer_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Business rules
     moq: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="Minimum order quantity")

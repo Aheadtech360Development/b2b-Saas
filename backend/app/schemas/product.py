@@ -156,6 +156,10 @@ class ProductDetail(BaseModel):
     # and settings this product offers.
     gang_sheet_type: str | None = None
     gang_sheet_config: dict | None = None
+    # The t-shirt designer on this product (migration 0077): its page offers
+    # "Design your own" when on, and the shop's plan has the designer.
+    designer_enabled: bool = False
+    designer_config: dict | None = None
     # How the product is sold. The storefront needs this to decide between the
     # variant matrix and the options configurator — a response_model drops any
     # field it doesn't declare, so leaving it out hid configurable products.

@@ -58,6 +58,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "loyalty",  # points, rewards and buyer referrals: on or off and every rule (JSON) — see services/loyalty
     "brand_logos",  # brands on product cards: shown or not, each brand's logo (JSON) — see services/brand_logos
     "sourcing_rule",  # which supplier a product with sources takes from once own stock runs out — see services/suppliers/sourcing
+    "tshirt_designer",  # the t-shirt designer's decoration prices (JSON) — see services/tshirt_designer
 })
 
 _SEP = "@"

@@ -887,6 +887,20 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   );
   const buyBlock = (
     <>
+            {/* The t-shirt designer: the shop lets customers design this
+                product, so it leads the buy area, above the sizes table. */}
+            {product.designer_enabled && !product.gang_sheet_enabled && (
+              <div style={{ marginBottom: "24px" }}>
+                <Link href={`/design?product=${encodeURIComponent(product.id)}`} data-design-own
+                  style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "15px", background: "var(--brand-primary, #1C3557)", color: "#fff", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700 }}>
+                  Design your own
+                </Link>
+                <p style={{ textAlign: "center", marginTop: "8px", fontSize: "12px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>
+                  Your own artwork, text, names or numbers on it, or order it blank below.
+                </p>
+              </div>
+            )}
+
             {/* Configurable product — the brand's own option set, rendered
                 generically. Replaces the variant matrix for these products. */}
             {isConfigurable && (

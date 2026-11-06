@@ -42,15 +42,20 @@ async def upload_bytes(
     content: bytes,
     file_name: str,
     tenant_id: str | uuid.UUID | None = None,
+    subfolder: str | None = None,
 ) -> dict[str, Any]:
     """
-    Upload raw bytes to ImageKit under the tenant's folder.
+    Upload raw bytes to ImageKit under the tenant's folder, or a folder inside
+    it (`subfolder`, e.g. "tshirt-designs/TS-AB-2611-0001").
     Returns { url, file_id, thumbnail_url, name, file_path }.
     """
+    folder = _folder_for(tenant_id)
+    if subfolder:
+        folder = f"{folder.rstrip('/')}/{subfolder.strip('/')}"
     data = {
         "file": base64.b64encode(content).decode(),  # base64 payload
         "fileName": file_name,
-        "folder": _folder_for(tenant_id),
+        "folder": folder,
         "useUniqueFileName": "true",
     }
     async with httpx.AsyncClient(timeout=60) as client:

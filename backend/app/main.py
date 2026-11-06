@@ -1020,6 +1020,7 @@ from app.api.v1.platform import audit as platform_audit  # noqa: E402
 from app.api.v1.platform import taxes as platform_taxes  # noqa: E402
 from app.api.v1 import auth, products, cart, checkout, orders, account, webhooks, reviews, discounts, guest, contact, style_sheets, product_specs, upload, tax_rate, tax, pages_seo, blog_posts, shipping as public_shipping  # noqa: E402
 from app.api.v1 import gang_sheets  # noqa: E402
+from app.api.v1 import tshirt_designs  # noqa: E402
 from app.api.v1 import address as address_api  # noqa: E402
 from app.api.v1 import two_factor  # noqa: E402
 from app.api.v1.admin import (  # noqa: E402
@@ -1243,6 +1244,10 @@ app.include_router(admin_pages_seo.router, prefix=_V1)
 app.include_router(admin_blog_posts.router, prefix=_V1)
 app.include_router(gang_sheets.public_router, prefix=_V1)
 app.include_router(gang_sheets.admin_router, prefix=_V1)
+app.include_router(tshirt_designs.public_router, prefix=_V1)
+app.include_router(tshirt_designs.admin_router, prefix=_V1)
+from app.api.v1.admin import tshirt_designer as admin_tshirt_designer  # noqa: E402
+app.include_router(admin_tshirt_designer.router, prefix=_V1)
 app.include_router(admin_purchase_orders.router, prefix=f"{_V1}/admin/purchase-orders", tags=["purchase-orders"])
 app.include_router(admin_supplier_catalog.router, prefix=_V1)
 app.include_router(admin_segments.router, prefix=_V1)

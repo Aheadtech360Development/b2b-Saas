@@ -220,6 +220,8 @@ interface BuyProduct {
   /** Sold in bulk: the bulk order form instead of one colour and one size. */
   bulk?: boolean; bulk_cards?: string; moq?: number;
   variants?: BulkVariant[];
+  /** Customers can design it in the t-shirt designer (backend services/tshirt_designer). */
+  designer?: boolean;
 }
 
 /**
@@ -272,9 +274,16 @@ function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct 
   const artwork = !gang && !!product.design_upload;
   const label = str(p.label) || (gang ? "Start designing" : "Add to cart");
   const showQty = p.showQuantity !== false;
+  // Designed by the customer: the designer is the way in, Add to cart the blank.
+  const designer = !gang && !artwork && !!product.designer;
 
   return (
     <div data-b={id} className="b-buy">
+      {designer && (
+        <a className="b-btn b-btn-solid b-design" href={`/design?product=${encodeURIComponent(product.id)}`} data-design-own="">
+          Design your own
+        </a>
+      )}
       {groups.map((g) => (
         <div key={g.name} className="variant-group" data-option-id={g.optionId}>
           <label className="vlabel">{g.name}</label>
@@ -302,7 +311,7 @@ function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct 
         {artwork ? (
           <button type="button" className="b-btn b-btn-solid" data-theme-buy="artwork">Upload artwork &amp; add to cart</button>
         ) : (
-          <button type="button" className="b-btn b-btn-solid" data-theme-buy={gang ? "builder" : "cart"}>{label}</button>
+          <button type="button" className={`b-btn ${designer ? "b-btn-outline" : "b-btn-solid"}`} data-theme-buy={gang ? "builder" : "cart"}>{label}</button>
         )}
       </div>
       {!gang && !artwork && p.showBuyNow !== false && (

@@ -110,6 +110,10 @@ export interface ProductDetail {
     max_height?: number;
     tiers?: { max_height: number; max_area: number; price_per_sqin: number; discount: number }[];
   } | null;
+  /** Customers can design this product in the t-shirt designer (its page offers "Design your own"). */
+  designer_enabled?: boolean;
+  /** How the designer draws and decorates it. */
+  designer_config?: { silhouette?: string; embroidery?: boolean } | null;
 }
 
 /** Product asset (flyer, spec sheet). */

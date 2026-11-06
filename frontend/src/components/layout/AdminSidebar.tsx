@@ -106,7 +106,7 @@ export function AdminSidebar() {
     { key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["production", "products"], count: counts.production },
     {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"],
-      also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets"],
+      also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets", "/admin/tshirt-designer"],
       // Reviews are a Marketing tab.
       not: ["/admin/products/reviews"],
     },

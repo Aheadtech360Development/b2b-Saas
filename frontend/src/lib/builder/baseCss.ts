@@ -350,6 +350,7 @@ export const BASE_CSS = `
 .bsite :where(.b-swatch){width:34px;height:34px;padding:0;border-radius:999px;border:1.5px solid var(--b-border,#e6e6e6);cursor:pointer}
 .bsite :where(.b-swatch.selected){outline:2px solid var(--b-primary,#14161B);outline-offset:2px}
 .bsite :where(.b-buy-row){display:flex;flex-wrap:wrap;gap:10px}
+.bsite :where(.b-design){width:100%;padding:15px 22px;font-weight:600}
 .bsite :where(.b-qty){display:inline-flex;align-items:center;border:1.5px solid var(--b-border,#e6e6e6);border-radius:var(--b-btn-radius);overflow:hidden;flex:0 0 auto}
 .bsite :where(.b-qty button){width:42px;height:48px;border:0;background:none;font-size:18px;cursor:pointer;color:inherit}
 .bsite :where(.b-qty input){width:46px;height:48px;border:0;text-align:center;font:inherit;background:none;color:inherit;-moz-appearance:textfield}

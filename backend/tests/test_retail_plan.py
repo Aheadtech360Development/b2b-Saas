@@ -27,14 +27,15 @@ def test_retail_is_offered_beside_the_print_plans_since_its_pages_launched():
 
 def test_retail_leaves_out_print_wholesale_and_scale_only_tools():
     retail = plan_defaults("retail")
-    for key in ("gang_sheet", "gang_sheet_ai", "supplier_catalog", "wholesale_accounts", "customer_tiers",
-                "matrix_ordering", "quick_buy", "net_terms", "invoices", "mobile_app"):
+    for key in ("gang_sheet", "gang_sheet_ai", "supplier_catalog", "tshirt_designer", "wholesale_accounts",
+                "customer_tiers", "matrix_ordering", "quick_buy", "net_terms", "invoices", "mobile_app"):
         assert key not in retail, key
     for key in ("orders", "products", "customers", "discounts", "reviews", "storefront_theme", "returns",
                 "messages", "ai_agent", "staff_accounts", "abandoned_checkouts", "shipping_labels"):
         assert key in retail, key
-    # Starter is what it was: Retail is Starter without the print tools.
-    assert PLAN_FEATURES["starter"] - retail == {"gang_sheet", "supplier_catalog"}
+    # Starter is what it was: Retail is Starter without the print tools (the
+    # t-shirt designer is one, like the gang sheet builder).
+    assert PLAN_FEATURES["starter"] - retail == {"gang_sheet", "supplier_catalog", "tshirt_designer"}
 
 
 def test_the_left_out_tools_routes_are_closed_and_the_rest_open():
@@ -49,6 +50,10 @@ def test_the_left_out_tools_routes_are_closed_and_the_rest_open():
         "/api/v1/gang-sheets/designs": True,
         "/api/v1/register-wholesale": True,
         "/api/v1/quick-order/lines": True,
+        # The t-shirt designer: its admin page, its designs, and the storefront's designer.
+        "/api/v1/admin/tshirt-designer/products": False,
+        "/api/v1/admin/tshirt-designs": False,
+        "/api/v1/tshirt-designs/catalog": True,
     }
     for path, public in closed.items():
         assert feature_for_path(path, public=public) not in retail, path
