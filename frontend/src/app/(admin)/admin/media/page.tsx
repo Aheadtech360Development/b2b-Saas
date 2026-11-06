@@ -20,14 +20,17 @@ export default function MediaLibraryPage() {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function load() {
+  /** `added`: files just uploaded. The storage's list takes a few seconds to
+   *  include a new file, so they are shown first until it does. */
+  async function load(added: MediaItem[] = []) {
     setLoading(true);
     try {
       const res = await mediaService.list();
       setConfigured(res.configured);
       setVideos(!!res.videos);
       if (res.video_max_mb) setVideoMaxMb(res.video_max_mb);
-      setItems(res.items || []);
+      const listed = res.items || [];
+      setItems([...added.filter((a) => !listed.some((i) => i.file_id === a.file_id)), ...listed]);
     } catch {
       setError("The media library could not be loaded.");
     } finally {
@@ -43,17 +46,21 @@ export default function MediaLibraryPage() {
     setUploading("Uploading…");
     setError(null);
     const problems: string[] = [];
+    const added: MediaItem[] = [];
     for (const f of files) {
       try {
-        if (f.type.startsWith("video/")) {
-          if (f.size > videoMaxMb * 1024 * 1024) {
-            problems.push(`${f.name}: videos can be up to ${videoMaxMb} MB.`);
-            continue;
-          }
-          await mediaService.uploadVideo(f, (p) => setUploading(`Uploading ${f.name}: ${p}%`));
-        } else {
-          setUploading(`Uploading ${f.name}…`);
-          await mediaService.upload(f);
+        const video = f.type.startsWith("video/");
+        if (video && f.size > videoMaxMb * 1024 * 1024) {
+          problems.push(`${f.name}: videos can be up to ${videoMaxMb} MB.`);
+          continue;
+        }
+        if (!video) setUploading(`Uploading ${f.name}…`);
+        const up = video
+          ? await mediaService.uploadVideo(f, (p) => setUploading(`Uploading ${f.name}: ${p}%`))
+          : await mediaService.upload(f);
+        if (up.url && up.file_id) {
+          added.unshift({ file_id: up.file_id, url: up.url, thumbnail_url: null, name: up.name || f.name, size: f.size,
+                          file_type: video ? "non-image" : "image", mime: f.type || null, created_at: new Date().toISOString() });
         }
       } catch (err) {
         problems.push(`${f.name}: ${err instanceof Error && err.message ? err.message : "the upload did not go through."}`);
@@ -62,7 +69,7 @@ export default function MediaLibraryPage() {
     if (problems.length) setError(problems.join(" "));
     setUploading(null);
     if (fileRef.current) fileRef.current.value = "";
-    await load();
+    await load(added);
   }
 
   async function copyUrl(url: string, id: string) {

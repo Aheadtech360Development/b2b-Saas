@@ -122,6 +122,21 @@ describe("the Media library page", () => {
     up.mockRestore();
   });
 
+  it("shows a video the moment it is up, though the storage's list takes a few seconds to include it", async () => {
+    // Live, 2026-11-06: the upload landed, the list read right after did not have it yet.
+    get.mockResolvedValue({ configured: true, items: [ITEMS[1]], videos: true, video_max_mb: 100 });
+    const NEW = "https://ik.imagekit.io/9vhlgquzw/tenants/demo/new_Xy.mp4?updatedAt=1";
+    const up = vi.spyOn(mediaService, "uploadVideo").mockResolvedValue({ url: NEW, file_id: "v9", name: "new_Xy.mp4" });
+    const { container } = render(<MediaLibraryPage />);
+    await screen.findByText("tee.png");
+    const clip = new File(["x"], "new.mp4", { type: "video/mp4" });
+    await act(async () => { fireEvent.change(container.querySelector("input[type=file]")!, { target: { files: [clip] } }); });
+    await waitFor(() => expect(container.querySelector("[data-video] video")?.getAttribute("src")).toBe(NEW));
+    expect(container.querySelector("[data-media-item]")).toHaveAttribute("data-video");
+    expect(screen.queryByRole("alert")).toBeNull();
+    up.mockRestore();
+  });
+
   it("keeps to pictures when video uploads are not set up", async () => {
     get.mockResolvedValue({ configured: true, items: [], videos: false });
     const { container } = render(<MediaLibraryPage />);
