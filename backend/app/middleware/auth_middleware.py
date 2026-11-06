@@ -420,6 +420,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # the signed-in buyer itself, as the invoice summary does.
         if path.startswith("/api/v1/quotes/"):
             return True
+        # Files kept on this server's own disk when ImageKit could not take
+        # them: artwork, product pictures, flyers, design files. The same as
+        # an ImageKit address, which is open to whoever has it: each sits in a
+        # random folder, and the mount serves files and lists nothing. A
+        # browser opens them in a tab or an <img>, neither of which carries a
+        # sign-in, so behind one they never opened at all ("Authentication
+        # required" on a buyer's artwork, Innterflow, 2026-11-06).
+        if path.startswith("/media/"):
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True
