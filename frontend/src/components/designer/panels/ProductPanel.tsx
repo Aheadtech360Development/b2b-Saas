@@ -4,6 +4,7 @@ import { Check, Droplet, Info, Move, Plus, Repeat2, Scissors, Clipboard, X } fro
 import { useMemo, useState } from "react";
 import { luminance } from "@/lib/designer/mockups";
 import type { Garment } from "@/lib/designer/types";
+import { useAuthStore } from "@/stores/auth.store";
 import { useDesigner } from "@/stores/designer.store";
 import { useGarmentUrl } from "../context";
 import s from "../designer.module.css";
@@ -43,6 +44,9 @@ export function ProductPanel() {
   const [colours, setColours] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [copy, setCopy] = useState(true);
+  // The shop's own people are told how to offer more products; a customer
+  // is not shown a Change product with nothing to change to.
+  const isAdmin = useAuthStore((st) => !!st.user?.is_admin);
 
   const garments = useMemo(() => Object.fromEntries(catalog.map((g) => [g.id, g])), [catalog]);
   if (!doc) return null;
@@ -56,6 +60,7 @@ export function ProductPanel() {
           if (!g) return null;
           const on = active.product === i;
           const activeHex = g.colors.find((c) => c.id === (on ? active.colorId : p.colorIds[0]))?.hex;
+          const others = catalog.filter((x) => x.id !== g.id);
           return (
             <div key={`${p.garmentId}-${i}`} className={`${s.productCard} ${on ? s.productCardOn : ""}`}>
               <div className={s.productTop}>
@@ -80,10 +85,12 @@ export function ProductPanel() {
                       onClick={() => setDetails(details === i ? null : i)}>
                       <Info size={14} /> Details
                     </button>
-                    <button type="button" className={s.linkBtn} aria-expanded={changing === i}
-                      onClick={() => setChanging(changing === i ? null : i)}>
-                      <Repeat2 size={14} /> Change product
-                    </button>
+                    {(others.length > 0 || isAdmin) && (
+                      <button type="button" className={s.linkBtn} aria-expanded={changing === i}
+                        onClick={() => setChanging(changing === i ? null : i)}>
+                        <Repeat2 size={14} /> Change product
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -98,10 +105,16 @@ export function ProductPanel() {
 
               {changing === i && (
                 <div style={{ marginTop: 10 }}>
-                  <CatalogList
-                    garments={catalog.filter((x) => x.id !== g.id)}
-                    onPick={(id) => { changeProduct(i, id); setChanging(null); }}
-                  />
+                  {others.length > 0 ? (
+                    <CatalogList
+                      garments={others}
+                      onPick={(id) => { changeProduct(i, id); setChanging(null); }}
+                    />
+                  ) : (
+                    <p className={s.hint} role="status" data-only-product>
+                      {g.name} is the only product in the designer. To offer more, add them in Products → T-shirt designer → Add products, and they show here.
+                    </p>
+                  )}
                 </div>
               )}
 

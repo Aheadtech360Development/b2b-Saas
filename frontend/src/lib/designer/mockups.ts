@@ -259,10 +259,12 @@ export const PRINT_AREAS: Record<Silhouette, Record<ViewKey, PrintArea>> = {
   // shirt (the area is the garment's own box; art is cut to its outline), with
   // the usual chest, back and sleeve spots as the focus.
   tee: {
-    front: { cx: 500, top: 73, widthIn: 32.9, heightIn: 40.8, pxPerIn: 21, whole: true,
-      focus: { xIn: -0.95, topIn: 7.95, widthIn: 12, heightIn: 14 } },
-    back: { cx: 501, top: 73, widthIn: 32.4, heightIn: 40.8, pxPerIn: 21, whole: true,
-      focus: { xIn: -0.2, topIn: 5, widthIn: 12, heightIn: 15 } },
+    // Front and back are the straightened shots (photo.ts): the shirt is
+    // centred, so its chest and back spots sit on the centre line.
+    front: { cx: 500, top: 73, widthIn: 31.6, heightIn: 40.8, pxPerIn: 21, whole: true,
+      focus: { xIn: 0, topIn: 7.95, widthIn: 12, heightIn: 14 } },
+    back: { cx: 500, top: 73, widthIn: 31.6, heightIn: 40.8, pxPerIn: 21, whole: true,
+      focus: { xIn: 0, topIn: 5, widthIn: 12, heightIn: 15 } },
     left: { cx: 501, top: 69, widthIn: 17.2, heightIn: 41.1, pxPerIn: 21, whole: true, zoom: 2.6,
       focus: { xIn: 2.6, topIn: 10.9, widthIn: 3.5, heightIn: 3.5 } },
     right: { cx: 500, top: 54, widthIn: 17.4, heightIn: 41.7, pxPerIn: 21, whole: true, zoom: 2.6,

@@ -9,6 +9,12 @@
  * back, and each side with the garment turned 90°): the tee at 2200 px a view,
  * the long sleeve, tank and muscle tee at 1024 px, their side views at 1448 px.
  *
+ * The tee's front and back were shot turned a little to one side, so the
+ * shirt stood crooked on the stage. Their "-straight" files are made from
+ * those shots: the half facing the camera widened back to its un-turned width,
+ * mirrored about the centre line, the middle levelled so it hangs flat, and
+ * centred (2026-11-10). Same size and scale as before, so print areas hold.
+ *
  * A garment listed here uses its photo for that view, and needs print areas
  * measured on it in mockups.ts. The others are drawn.
  */
@@ -18,8 +24,8 @@ import type { Silhouette, ViewKey } from "./types";
 
 export const PHOTOS: Partial<Record<Silhouette, Record<ViewKey, string>>> = {
   tee: {
-    front: "/designer/tee-front.webp",
-    back: "/designer/tee-back.webp",
+    front: "/designer/tee-front-straight.webp",
+    back: "/designer/tee-back-straight.webp",
     left: "/designer/tee-left.webp",
     right: "/designer/tee-right.webp",
   },
