@@ -251,6 +251,21 @@ export const BASE_CSS = `
 .bsite :where(.b-menu-toggle:hover,.b-menu-caret:hover){color:var(--b-link-hover,var(--b-link,inherit))}
 .bsite :where(.b-menu-toggle:hover){background:var(--b-surface,#F4F4F2)}
 .bsite :where(.b-menu-empty){font-size:13px;color:var(--b-muted,#5B6170)}
+/* A header menu stays on one line. As room runs out its links draw closer,
+   then their text goes a size smaller, and when even that does not fit the
+   menu becomes the drawer's button, as on a tablet. MenuNav measures and sets
+   data-fit; before it has, one line clipped rather than a second line that
+   jumps away. */
+.bsite :where(.b-menu[data-mobile=drawer] .b-menu-list){flex-wrap:nowrap}
+.bsite :where(.b-menu[data-mobile=drawer]:not([data-fit]) .b-menu-list){overflow:hidden}
+.bsite :where(.b-menu[data-fit=snug] .b-menu-list > .b-menu-item > .b-menu-link){padding-inline:8px}
+.bsite :where(.b-menu[data-fit=tight] .b-menu-list > .b-menu-item > .b-menu-link){padding-inline:6px;font-size:.94em}
+.bsite :where(.b-menu[data-fit=tighter] .b-menu-list > .b-menu-item > .b-menu-link){padding-inline:5px;font-size:.87em}
+.bsite :where(.b-menu[data-fit=tight],.b-menu[data-fit=tighter]) :where(.b-menu-list > .b-menu-item > .b-menu-caret){width:22px;margin-left:-4px}
+.bsite :where(.b-menu[data-fit=drawer] .b-menu-list){display:none}
+.bsite :where(.b-menu[data-fit=drawer] .b-menu-toggle){display:inline-flex}
+.bsite :where(.b-menu[data-fit=drawer]){flex:0 0 auto;order:99;margin-left:-6px}
+.bsite :where(.b-stack:has(> .b-menu[data-fit=drawer])) > :nth-child(1 of :not(.b-menu[data-fit=drawer])){margin-right:auto}
 
 :is(.bsite,.bsite-layer) :where(.b-search-field){position:relative;display:flex;align-items:center;gap:8px;min-width:0;width:100%;max-width:420px;padding:0 6px 0 14px;border:1.5px solid var(--b-border,#e6e6e6);border-radius:999px;background:var(--b-background,#fff)}
 :is(.bsite,.bsite-layer) :where(.b-search-field:focus-within){border-color:var(--b-primary,#14161B)}

@@ -10,6 +10,11 @@
  * window. This component only adds what CSS cannot do: opening the drawer,
  * opening a dropdown by tap on a touch screen, and closing on Escape.
  *
+ * One thing CSS cannot tell is whether the links fit on one line: a header
+ * menu is measured here and steps down (links closer, then text a size
+ * smaller, then the drawer's button) until it does (see FIT_STEPS and
+ * baseCss's data-fit), so it never runs onto a second line.
+ *
  * The drawer is drawn on the page body, outside the site: the site wrapper
  * is a size container, and a container holds its fixed-position children
  * inside itself — a drawer drawn in place would open inside the header.
@@ -35,6 +40,22 @@ interface Props {
   title?: string;
   /** In the editor: clicks select, they do not navigate or open. */
   edit?: boolean;
+}
+
+/** A header menu's steps to stay on one line, roomiest first; the last resort is "drawer". */
+export const FIT_STEPS = ["normal", "snug", "tight", "tighter"] as const;
+
+/** The first step at which the menu's links fit on one line, set on the menu as data-fit. */
+export function fitOneLine(nav: HTMLElement): string {
+  const list = nav.querySelector<HTMLElement>(":scope > .b-menu-list");
+  for (const step of FIT_STEPS) {
+    nav.dataset.fit = step;
+    // A tablet or a phone: CSS already shows the drawer's button.
+    if (!list || getComputedStyle(list).display === "none") return step;
+    if (list.scrollWidth <= list.clientWidth + 1) return step;
+  }
+  nav.dataset.fit = "drawer";
+  return "drawer";
 }
 
 function Item({ item, depth, edit }: { item: MenuItem; depth: number; edit?: boolean }) {
@@ -149,9 +170,28 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
 
   const list = items.filter((i) => i && i.label);
   const drawer = layout === "horizontal" && mobile === "drawer";
+  const navRef = useRef<HTMLElement>(null);
+
+  // One line across: measured now, when the header's width changes and when
+  // the shop's fonts arrive (the text's width changes with them).
+  useEffect(() => {
+    const nav = navRef.current;
+    const row = nav?.parentElement;
+    if (!drawer || !nav || !row) return;
+    fitOneLine(nav);
+    let width = row.getBoundingClientRect().width;
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      const now = row.getBoundingClientRect().width;
+      if (now !== width) { width = now; fitOneLine(nav); }
+    });
+    ro?.observe(row);
+    let live = true;
+    document.fonts?.ready.then(() => { if (live) fitOneLine(nav); }).catch(() => {});
+    return () => { live = false; ro?.disconnect(); delete nav.dataset.fit; };
+  }, [drawer, items]);
 
   return (
-    <nav data-b={id} className="b-menu" data-layout={layout} data-mobile={drawer ? "drawer" : "inline"} aria-label={label}>
+    <nav ref={navRef} data-b={id} className="b-menu" data-layout={layout} data-mobile={drawer ? "drawer" : "inline"} aria-label={label}>
       {title && <div className="b-menu-title">{title}</div>}
       <ul className="b-menu-list">
         {list.map((item, i) => <Item key={`${item.label}-${i}`} item={item} depth={0} edit={edit} />)}
