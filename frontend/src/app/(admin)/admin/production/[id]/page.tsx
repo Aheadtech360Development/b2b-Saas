@@ -178,6 +178,19 @@ export default function PrintJobPage() {
     await move("revision_requested", "Sent back to the customer with your message.", text);
   }
 
+  // A finished sheet the customer uploaded, whose file the shop cannot use or
+  // no longer has: the customer is emailed a link to upload it again, and the
+  // new file lands on this same job (their print job page, Upload a new file).
+  async function askForFile() {
+    const typed = await askText(
+      "This is emailed to the customer, with a link to upload the file again on this same order.",
+      message.trim() || `We couldn't open the file you uploaded for ${j.reference}. Please upload it again: open your print job and press Upload a new file.`,
+      { title: "Ask for the file again", ok: "Send" },
+    );
+    if (!typed?.trim()) return;
+    await move("revision_requested", "Asked. The customer was emailed a link to upload the file again.", typed.trim());
+  }
+
   async function reject() {
     const typed = await askText(
       `Reject ${j.reference}? The customer is emailed that it could not be accepted. Say why: it is sent to them.`,
@@ -223,12 +236,18 @@ export default function PrintJobPage() {
   const head: React.ReactNode[] = [
     <button key="pdf" type="button" className="pc-btn" onClick={downloadPdf} disabled={working}>Download PDF</button>,
   ];
+  // Only a sheet the customer uploaded finished takes a new file this way.
+  const askFile = j.job_kind === "upload_own" && stage !== "customer"
+    ? <button key="ask-file" type="button" className="pc-btn" disabled={working} onClick={askForFile} data-ask-file>
+        {busy === "revision_requested" ? "Working…" : "Ask for the file again"}
+      </button>
+    : null;
   if (stage === "review" || stage === "customer") {
-    head.push(btn("Reject", reject, "rejected", "danger"), btn("Request revision", requestRevision, "revision_requested"), btn("Approve", approve, "approved", "primary"));
+    head.push(btn("Reject", reject, "rejected", "danger"), askFile, btn("Request revision", requestRevision, "revision_requested"), btn("Approve", approve, "approved", "primary"));
   } else if (stage === "approved") {
-    head.push(btn("Request revision", requestRevision, "revision_requested"), btn("Start printing", startPrinting, "production", "primary"));
+    head.push(askFile, btn("Request revision", requestRevision, "revision_requested"), btn("Start printing", startPrinting, "production", "primary"));
   } else if (stage === "production") {
-    head.push(btn("Mark ready to ship", markReady, "completed", "primary"));
+    head.push(askFile, btn("Mark ready to ship", markReady, "completed", "primary"));
   } else if ((stage === "ready" || stage === "shipped") && j.order_id) {
     head.push(<Link key="order" href={`/admin/orders/${j.order_id}`} className="pc-btn" data-kind={stage === "ready" ? "primary" : undefined}>{stage === "ready" ? "Ship the order" : "Open order"}</Link>);
   } else if (stage === "rejected") {

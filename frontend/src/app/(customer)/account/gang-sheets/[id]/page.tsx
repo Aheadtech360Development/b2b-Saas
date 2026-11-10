@@ -6,7 +6,7 @@
  * it stands, its tracking, and the order it was bought on.
  */
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { gangSheetsService, type GangSheetArtwork } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
@@ -16,6 +16,9 @@ import { day } from "@/lib/customerWords";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { Banner, Chip, Loading, PageHead, type Tone } from "@/components/portal/ui";
 import { JOB_STEPS, jobKind, jobLine, jobState, jobStep, type Job } from "@/components/portal/data";
+
+/** What a finished sheet may be, as the own-sheet uploader takes it (UploadOwnSheetModal). */
+const OWN_SHEET_FILES = ".png,.jpg,.jpeg,.webp,.pdf,.tif,.tiff";
 
 const CHECK: Record<string, [string, Tone]> = {
   ready: ["Print ready", "ok"],
@@ -90,6 +93,26 @@ export default function PrintJobPage() {
     }
   }
 
+  // The shop asked for the sheet's file again: the new one takes the old
+  // one's place on this same job, which goes back to the print team.
+  const fileInput = useRef<HTMLInputElement>(null);
+  async function sendNewFile(file: File | undefined) {
+    if (!job || !file) return;
+    setBusy(true);
+    setNotice("Uploading your file…");
+    try {
+      const up = await gangSheetsService.uploadArtwork(file);
+      await gangSheetsService.replaceFile(job.id, { file_url: up.url, file_name: up.file_name, file_type: up.type });
+      load();
+      setNotice("Thanks! Your new file is with the print team.");
+    } catch (e) {
+      setNotice((e as { message?: string })?.message || "Your file could not be uploaded. Please try again.");
+    } finally {
+      setBusy(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
   if (error) {
     return (
       <>
@@ -141,6 +164,16 @@ export default function PrintJobPage() {
                 )}
                 {job.status === "revision_requested" && kind === "upload_by_size" && job.product_slug && (
                   <Link href={`/products/${job.product_slug}?revise=${job.id}`} className="cp-btn cp-btn-p cp-btn-sm">Update and resubmit</Link>
+                )}
+                {job.status === "revision_requested" && job.own_sheet && (
+                  <>
+                    <input ref={fileInput} type="file" accept={OWN_SHEET_FILES} style={{ display: "none" }} data-new-file-input
+                      onChange={(e) => void sendNewFile(e.target.files?.[0])} />
+                    <button type="button" className="cp-btn cp-btn-p cp-btn-sm" disabled={busy} data-upload-new-file
+                      onClick={() => fileInput.current?.click()}>
+                      {busy ? "Uploading…" : "Upload a new file"}
+                    </button>
+                  </>
                 )}
                 {job.status === "revision_requested" && (
                   <button type="button" className="cp-btn cp-btn-sm" disabled={busy} onClick={resubmit}>Resubmit</button>

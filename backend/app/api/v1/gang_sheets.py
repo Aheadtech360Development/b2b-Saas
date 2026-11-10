@@ -316,6 +316,7 @@ def _order_row(
     admin: bool = False,
     product_slug: str | None = None,
     linked: dict | None = None,
+    own_sheet: bool = False,
 ) -> dict:
     # The order it was checked out on, for the shop (_linked_orders): its
     # number, and who bought it.
@@ -360,6 +361,9 @@ def _order_row(
         # Upload-by-size has no builder to reopen — a revision happens back on the
         # product page, and the buyer's list needs the slug to link there.
         "kind": "gang_sheet" if o.sheet_size_id else "upload_by_size",
+        # A finished sheet the buyer uploaded (its product's type): sent back,
+        # its file is replaced by uploading a new one (replace_own_sheet_file).
+        "own_sheet": own_sheet,
         "product_slug": product_slug,
     }
     if artworks is not None:
@@ -1128,7 +1132,74 @@ async def my_order_detail(
     slugs = await _product_slugs(db, [order.product_id])
     return _order_row(order, await _load_artworks(db, order.id),
                       product_slug=slugs.get(str(order.product_id)),
-                      linked=await _linked_order_of(db, order))
+                      linked=await _linked_order_of(db, order),
+                      own_sheet=await _is_own_sheet(db, order))
+
+
+async def _is_own_sheet(db: AsyncSession, order: "GangSheetOrder") -> bool:
+    """Is this job a finished sheet the buyer uploaded (its product's type)?"""
+    if not order.product_id:
+        return False
+    from app.models.product import Product
+
+    kind = (await db.execute(select(Product.gang_sheet_type).where(Product.id == order.product_id))).scalar()
+    return kind == "upload_own"
+
+
+class ReplaceFileIn(BaseModel):
+    """The new file, as /upload/artwork returned it."""
+    file_url: str = Field(..., max_length=1000)
+    file_name: str = Field(..., max_length=300)
+    file_type: Optional[str] = Field(default=None, max_length=20)
+
+
+@public_router.post("/orders/{order_id}/replace-file")
+async def replace_own_sheet_file(
+    order_id: uuid.UUID, payload: ReplaceFileIn, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The buyer's own finished sheet, uploaded again because the shop asked
+    for it (sent back for changes: "Ask for the file again" on the job page).
+
+    The new file takes the old one's place, at the sheet's size and on the same
+    layout, so the order, the print file and Production all read it; the job is
+    kept as a new version and goes back into review, as Resubmit does. Only a
+    file this shop stored is taken (the address /upload/artwork gave).
+    """
+    from app.services.artwork.inspect import allowed_source
+
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order or not _may_touch(request, order):
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status != STATUS_REVISION:
+        raise HTTPException(status_code=409, detail="The shop has not asked for a new file for this job.")
+    if not await _is_own_sheet(db, order):
+        raise HTTPException(status_code=409, detail="Only a sheet you uploaded finished can be replaced this way.")
+    url = payload.file_url.strip()
+    local = url.startswith("/media/artwork/") and ".." not in url
+    if not (allowed_source(url) or local):
+        raise HTTPException(status_code=400, detail="Upload the file again from this page.")
+    arts = await _load_artworks(db, order.id)
+    if not arts:
+        raise HTTPException(status_code=409, detail="This job has no file to replace. Message the shop.")
+
+    art = arts[0]
+    art.file_url = url
+    art.file_name = payload.file_name.strip()[:300] or art.file_name
+    art.file_type = (payload.file_type or "").strip()[:20] or art.file_type
+    art.inspection = None
+    await db.flush()
+    await _inspect_and_store(db, [art])
+
+    order.version = (order.version or 1) + 1
+    order.versions = [*(order.versions or []), _snapshot(order, arts, order.version)]
+    order.status = STATUS_IN_REVIEW
+    await db.flush()
+    await db.refresh(order)
+    slugs = await _product_slugs(db, [order.product_id])
+    return _order_row(order, arts, product_slug=slugs.get(str(order.product_id)),
+                      linked=await _linked_order_of(db, order), own_sheet=True)
 
 
 @public_router.patch("/orders/{order_id}/layout")

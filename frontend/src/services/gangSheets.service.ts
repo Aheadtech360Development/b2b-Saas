@@ -108,6 +108,8 @@ export interface GangSheetOrder {
   paid?: boolean;
   /** Built on a sheet in the studio, or one design printed at an exact size. */
   kind?: "gang_sheet" | "upload_by_size" | "upload_own";
+  /** A finished sheet the buyer uploaded: sent back, it takes a new file (replaceFile). */
+  own_sheet?: boolean;
   /** Where an upload-by-size job is revised — the product it was ordered from. */
   product_slug?: string | null;
   // Batch 3
@@ -284,6 +286,11 @@ export const gangSheetsService = {
 
   resubmit: (id: string) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/resubmit`),
+
+  /** The buyer's own sheet, uploaded again when the shop asked for it: the new
+   *  file takes the old one's place and the job goes back into review. */
+  replaceFile: (id: string, file: { file_url: string; file_name: string; file_type?: string }) =>
+    apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/replace-file`, file),
 
   saveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
