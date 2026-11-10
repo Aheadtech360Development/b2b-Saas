@@ -37,6 +37,7 @@ import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
 import { ProductSources } from "@/components/admin/products/ProductSources";
 import { DesignerCard } from "@/components/admin/products/DesignerCard";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
+import { DuplicateProductModal } from "@/components/admin/products/DuplicateProductModal";
 import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
@@ -132,6 +133,8 @@ function ProductEditor() {
   const [notice, setNotice] = useState<string | null>(null);
   // Import on this product: a products file, this product's rows only.
   const [fileImport, setFileImport] = useState(false);
+  // Duplicate: a copy of the whole product, opened once it is made.
+  const [duplicating, setDuplicating] = useState(false);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -268,6 +271,7 @@ function ProductEditor() {
   useEffect(() => {
     if (!product) return;
     if (params.get("published") === "1") setNotice("Published. It is on your store now.");
+    if (params.get("duplicated") === "1") setNotice("Duplicated. This is the copy: the original is unchanged.");
     if (window.location.hash !== "#options") return;
     router.replace(`${pathname}?tab=pricing`, { scroll: false });
   }, [product]);
@@ -605,8 +609,19 @@ function ProductEditor() {
             title={dirty ? "Save or discard your changes first" : undefined} onClick={() => setFileImport(true)}>
             Import
           </button>
+          <button type="button" className="pc-btn" data-duplicate-open disabled={dirty}
+            title={dirty ? "Save or discard your changes first" : undefined} onClick={() => setDuplicating(true)}>
+            Duplicate
+          </button>
         </div>
       </div>
+      {duplicating && (
+        <DuplicateProductModal
+          product={product}
+          onClose={() => setDuplicating(false)}
+          onDone={(copy) => { setDuplicating(false); router.push(`/admin/products/${encodeURIComponent(copy.slug)}/edit?duplicated=1`); }}
+        />
+      )}
       {fileImport && (
         <ImportProductsModal
           onlyHandle={product.slug}

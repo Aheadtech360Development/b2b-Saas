@@ -17,6 +17,7 @@ import { ask, tell } from "@/lib/dialog";
 import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
+import { DuplicateProductModal } from "@/components/admin/products/DuplicateProductModal";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import { BULK_CHOICE, KIND_WORDS, PRODUCT_KINDS, STATUS_PILL, type ProductKind } from "@/lib/productKinds";
 
@@ -71,6 +72,8 @@ function ProductsList() {
   const [working, setWorking] = useState("");
   const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
   const [importing, setImporting] = useState(false);
+  // Duplicate, on one product ticked: the copy opens once it is made.
+  const [duplicating, setDuplicating] = useState<Row | null>(null);
   const [editing, setEditing] = useState<Record<string, { status: string; vendor: string; product_type: string }> | null>(null);
   const seq = useRef(0);
 
@@ -272,6 +275,7 @@ function ProductsList() {
           <button type="button" disabled={!!working} onClick={() => bulk("archived")}>Archive</button>
           <button type="button" disabled={!!working} onClick={() => void exportChosen()}>Export</button>
           <button type="button" disabled={!!working} onClick={openEdit}>Edit details</button>
+          {chosen.length === 1 && <button type="button" disabled={!!working} onClick={() => setDuplicating(chosen[0]!)} data-duplicate-open>Duplicate</button>}
           <button type="button" disabled={!!working} onClick={bulkDelete}>Delete</button>
           <button type="button" className="pc-bulk-clear" disabled={!!working} onClick={() => setPicked(new Set())}>Clear</button>
         </div>
@@ -345,6 +349,14 @@ function ProductsList() {
           </div>
         )}
       </div>
+
+      {duplicating && (
+        <DuplicateProductModal
+          product={duplicating}
+          onClose={() => setDuplicating(null)}
+          onDone={(copy) => { setDuplicating(null); router.push(`/admin/products/${encodeURIComponent(copy.slug)}/edit?duplicated=1`); }}
+        />
+      )}
 
       {importing && (
         <ImportProductsModal onClose={() => setImporting(false)} onSuccess={() => { setImporting(false); void load(); }} />

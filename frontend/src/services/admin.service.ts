@@ -188,6 +188,13 @@ export const adminService = {
     return downloadCsv(`/api/v1/admin/products/export-csv${only}`, filename);
   },
 
+  /** Products → a product → Duplicate: a copy of the whole product. */
+  async duplicateProduct(id: string, body: { name: string; status: "draft" | "active"; images: boolean; stock: boolean }) {
+    return apiClient.post<{ id: string; slug: string; name: string; status: string }>(
+      `/api/v1/admin/products/${encodeURIComponent(id)}/duplicate`, body,
+    );
+  },
+
   /** Brands on product cards: every brand of the shop's products and its logo. */
   async listBrandLogos() {
     return apiClient.get<BrandLogos>("/api/v1/admin/products/brands");

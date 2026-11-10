@@ -144,6 +144,45 @@ async def create_product(payload: ProductCreate, db: AsyncSession = Depends(get_
     return result.scalar_one()
 
 
+class DuplicateIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    status: str = "draft"
+    images: bool = True
+    stock: bool = False
+
+
+@router.post("/{product_id}/duplicate", status_code=status.HTTP_201_CREATED)
+async def duplicate_product(product_id: UUID, payload: DuplicateIn, db: AsyncSession = Depends(get_db)):
+    """Products → a product → Duplicate: a copy of the whole product under the
+    name the admin gave it (see services/product_duplicate)."""
+    from uuid import uuid4
+
+    from app.services import product_duplicate as dup
+    from app.services.product_import import slugify
+
+    slug = await _free_slug(db, slugify(payload.name) or "product")
+    for attempt in range(4):
+        try:
+            async with db.begin_nested():
+                copy = await dup.duplicate(db, product_id, name=payload.name, status=payload.status,
+                                           images=payload.images, stock=payload.stock, slug=slug)
+            break
+        except dup.DuplicateError as e:
+            code = 404 if "could not be found" in str(e) else 422
+            raise HTTPException(status_code=code, detail=str(e)) from None
+        except IntegrityError as exc:
+            # The address or a SKU was taken between the look and the write:
+            # the next address (SKUs are looked up afresh) rather than a 500.
+            if attempt == 3:
+                logger.warning("Product duplicate refused: %s", exc)
+                raise HTTPException(status_code=409, detail="The copy couldn't be saved just now. Please try again.") from None
+            slug = f"{slug[:235]}-{uuid4().hex[:4]}"
+    made = {"id": str(copy.id), "slug": copy.slug, "name": copy.name, "status": copy.status}
+    await db.commit()
+    await ProductService(db).invalidate_product_cache(None)
+    return made
+
+
 @router.patch("/{product_id}", response_model=ProductDetail)
 async def update_product(
     product_id: UUID, payload: ProductUpdate, db: AsyncSession = Depends(get_db)
