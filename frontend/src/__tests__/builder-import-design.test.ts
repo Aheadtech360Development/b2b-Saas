@@ -7,8 +7,10 @@
  * how a design is made safe to read, colours, and how the result goes into
  * the draft.
  */
-import { describe, expect, it } from "vitest";
-import { applyImport, dropAsset, hexColour, placeUpload, prepareHtml, siteSize, sizeAfter, type ImportedDesign } from "@/lib/builder/importHtml";
+import { describe, expect, it, vi } from "vitest";
+import {
+  applyImport, dropAsset, hexColour, inlineCode, localise, placeUpload, planFolder, prepareHtml, siteSize, sizeAfter, type ImportedDesign,
+} from "@/lib/builder/importHtml";
 import type { BuilderNode, SiteDoc } from "@/lib/builder/types";
 
 const section = (id: string, children: BuilderNode[] = []): BuilderNode => ({ id, type: "section", props: { width: "contained" }, style: {}, children });
@@ -62,6 +64,52 @@ describe("reading a design safely", () => {
     expect(hexColour("rgba(0, 0, 0, 0)")).toBeNull();
     expect(hexColour("rgba(255, 255, 255, 0.5)")).toBe("#FFFFFF80");
     expect(hexColour("transparent")).toBeNull();
+  });
+});
+
+describe("a design folder (the Sidequest demo store: index, contact, rewards, checkout, product…)", () => {
+  const file = (name: string, body = "", type = "text/html") => new File([body], name, { type });
+
+  it("makes index the home page, brings its own pages, and leaves the shop's working pages to the shop", () => {
+    const names = ["index.html", "contact.html", "rewards.html", "checkout.html", "product.html", "collections.html",
+                   "gift-cards.html", "returns.html", "track.html"];
+    const plan = planFolder([...names.map((n) => file(n)), file("styles.css", "", "text/css"), file("hero.jpg", "", "image/jpeg")]);
+    expect(plan.home?.name).toBe("index.html");
+    expect(plan.pages.map((f) => f.name)).toEqual(["contact.html", "rewards.html"]);
+    expect(Object.fromEntries(plan.shop.map((s) => [s.file.name, s.path]))).toEqual({
+      "checkout.html": "/cart", "product.html": "/products", "collections.html": "/products",
+      "gift-cards.html": "/gift-cards", "returns.html": "/returns", "track.html": "/track-order",
+    });
+  });
+
+  it("writes the folder's stylesheets and scripts into the page, leaving other sites' ones alone", () => {
+    const html = `<head><link rel="stylesheet" href="assets/styles.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton">
+      </head><body><script src="assets/app.js"></script><script src="https://cdn.example.com/x.js"></script></body>`;
+    const out = inlineCode(html, new Map([["styles.css", "body{color:red}"], ["app.js", "var a = '</script>';"]]));
+    expect(out).toContain("<style>body{color:red}</style>");
+    expect(out).toContain('href="https://fonts.googleapis.com/css2?family=Anton"');
+    expect(out).toContain("<script>var a = '<\\/script>';</script>");
+    expect(out).toContain('src="https://cdn.example.com/x.js"');
+  });
+
+  it("shows the folder's pictures from this page's copy of each file, and knows which file each is", () => {
+    let n = 0;
+    const made = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:local/${++n}`);
+    try {
+      const hero = file("hero.jpg", "x", "image/jpeg");
+      const html = `<img src="assets/img/hero.jpg"><div style="background-image: url(&quot;assets/img/hero.jpg&quot;)"></div>
+        <style>.a{background:url(img/hero.jpg)}</style><img src="https://cdn.example.com/hero.jpg"><img src="missing.png">`;
+      const { html: out, blobs } = localise(html, [hero]);
+      expect(out).toContain('<img src="blob:local/1">');
+      expect(out).toContain("url(&quot;blob:local/1&quot;)");
+      expect(out).toContain("url(blob:local/1)");
+      expect(out).toContain('src="https://cdn.example.com/hero.jpg"');
+      expect(out).toContain('src="missing.png"');
+      expect(blobs.get("blob:local/1")).toBe(hero);
+      expect(blobs.size).toBe(1);
+    } finally {
+      made.mockRestore();
+    }
   });
 });
 

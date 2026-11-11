@@ -200,7 +200,7 @@ class Declared {
 
 class Assets {
   readonly list = new Map<string, ImportAsset>();
-  constructor(private files: Map<string, File>, private warn: (m: string) => void) {}
+  constructor(private files: Map<string, File>, private warn: (m: string) => void, private blobs: Map<string, File> = new Map()) {}
 
   /**
    * An address the shop can show. A web address is kept; one inside the
@@ -210,6 +210,13 @@ class Assets {
   use(raw: string, use: AssetUse): string {
     const url = (raw || "").trim();
     if (!url) return "";
+    // A picture of the design's folder, shown while reading from this page's own copy of the file.
+    if (url.startsWith("blob:")) {
+      const file = this.blobs.get(url);
+      if (!file) return "";
+      this.add(`file:${file.name.toLowerCase()}`, file.name, file, { ...use, from: url });
+      return url;
+    }
     if (url.startsWith(LOCAL)) {
       const name = decodeURIComponent(url.slice(LOCAL.length).split(/[?#]/)[0]!.split("/").pop() || "");
       const file = this.files.get(name.toLowerCase());
@@ -583,9 +590,13 @@ function looksLikeButton(el: Element, cs: CSSStyleDeclaration, env: Env): boolea
 
 /** Words with their marks, as safe rich text: bold, links, colours that differ. */
 function richHtml(el: Element, base: CSSStyleDeclaration, env: Env): string {
+  return richNodes(Array.from(el.childNodes), base, env);
+}
+
+function richNodes(nodes: Node[], base: CSSStyleDeclaration, env: Env): string {
   const out: string[] = [];
-  const walk = (n: Node, parentCs: CSSStyleDeclaration) => {
-    for (const c of Array.from(n.childNodes)) {
+  const walk = (list: Node[], parentCs: CSSStyleDeclaration) => {
+    for (const c of list) {
       if (c.nodeType === 3) { out.push(escapeHtml((c.textContent ?? "").replace(/\s+/g, " "))); continue; }
       if (!isEl(c)) continue;
       const t = tag(c);
@@ -616,11 +627,11 @@ function richHtml(el: Element, base: CSSStyleDeclaration, env: Env): string {
       }
       if (css.length) { open.push(`<span style="${escapeAttr(css.join("; "))}">`); close.unshift("</span>"); }
       out.push(...open);
-      walk(c, cs);
+      walk(Array.from(c.childNodes), cs);
       out.push(...close);
     }
   };
-  walk(el, base);
+  walk(nodes, base);
   return out.join("").replace(/\s{2,}/g, " ").trim();
 }
 
@@ -659,23 +670,55 @@ function record(env: Env, el: Element, node: BuilderNode, read: (cs: CSSStyleDec
 
 interface Walk { href?: string; depth: number }
 
+/** Whether a child flows in its parent's lines with words: a link, a mark, a plain button, not a box or a picture. */
+function flowsInLine(el: Element, env: Env): boolean {
+  const cs = env.win.getComputedStyle(el);
+  if (!/^inline/.test(cs.display) || cs.position === "absolute" || cs.position === "fixed") return false;
+  if (el.querySelector("img,svg,video,iframe,picture,input,select,textarea")) return false;
+  if (/^(img|svg|video|iframe|picture|input|select|textarea)$/.test(tag(el))) return false;
+  if ((tag(el) === "a" || tag(el) === "button") && looksLikeButton(el, cs, env) && tag(el) !== "button") return false;
+  return !hexColour(cs.backgroundColor) && !/flex|grid/.test(cs.display);
+}
+
 function convertChildren(parent: Element, env: Env, w: Walk): BuilderNode[] {
   const out: BuilderNode[] = [];
-  for (const c of Array.from(parent.childNodes)) {
+  const pcs = env.win.getComputedStyle(parent);
+  // In a box laid out down the page, words and links that run on in one line
+  // beside a block of their own ("Shortcuts" then "Track an order · Start a
+  // return") stay one line of rich text, as the design draws them.
+  const flowing = !/flex|grid/.test(pcs.display);
+  let run: Node[] = [];
+  const one = (c: Node) => {
     if (c.nodeType === 3) {
       const text = (c.textContent ?? "").replace(/\s+/g, " ").trim();
-      if (!text) continue;
+      if (!text) return;
       // Words loose in a box beside other things: a text element of their own.
       const node = make("text", { text });
-      node.style = clean(typeStyle(env.win.getComputedStyle(parent), env), "text") as BuilderNode["style"];
+      node.style = clean(typeStyle(pcs, env), "text") as BuilderNode["style"];
       out.push(node);
-      continue;
+      return;
     }
-    if (!isEl(c)) continue;
+    if (!isEl(c)) return;
     const got = convert(c, env, w);
     if (Array.isArray(got)) out.push(...got);
     else if (got) out.push(got);
+  };
+  const flush = () => {
+    const elements = run.filter(isEl);
+    const words = run.map((n) => n.textContent ?? "").join("").replace(/\s+/g, " ").trim();
+    if (flowing && words && elements.length >= 1 && run.filter((n) => isEl(n) || (n.textContent ?? "").trim()).length >= 2) {
+      const node = make("rich_text", { html: cleanHtml(`<p>${richNodes(run, pcs, env).replace(/<\/?button[^>]*>/gi, "")}</p>`) });
+      node.style = clean(typeStyle(pcs, env), "rich_text") as BuilderNode["style"];
+      out.push(node);
+    } else run.forEach(one);
+    run = [];
+  };
+  for (const c of Array.from(parent.childNodes)) {
+    if (c.nodeType === 3 || (isEl(c) && flowing && (tag(c) === "br" || flowsInLine(c, env)))) { run.push(c); continue; }
+    flush();
+    one(c);
   }
+  flush();
   return out;
 }
 
@@ -684,6 +727,9 @@ function convert(el: Element, env: Env, w: Walk): BuilderNode | BuilderNode[] | 
   if (SKIP.has(t)) return null;
   const cs = env.win.getComputedStyle(el);
   if (cs.position === "absolute" || cs.position === "fixed") {
+    // A picture laid over its whole box (the usual way to fill a card or a
+    // hero with a photo) is that box's picture: kept, filling it.
+    if ((t === "img" || t === "picture") && fillsParent(el)) return image(t === "picture" ? el.querySelector("img") ?? el : el, el, env, w, true);
     // Shapes laid over other things are decoration and stay out; a short
     // label laid over a card ("Most popular") is kept, at the top of it.
     const label = readText(el);
@@ -756,10 +802,12 @@ function words(el: Element, cs: CSSStyleDeclaration, env: Env, w: Walk): Builder
       || (/text/.test(ccs.backgroundClip) && ccs.backgroundImage !== "none");
   });
   const gradient = /text/.test(cs.backgroundClip || cs.getPropertyValue("-webkit-background-clip")) && cs.backgroundImage !== "none";
+  // A title broken over lines on purpose ("Moving<br>fast") keeps its lines.
+  const broken = !!el.querySelector("br");
   let node: BuilderNode;
   if (t === "a" && !marked) {
     node = make("link", { text, href: env.link(el.getAttribute("href"), text), newTab: el.getAttribute("target") === "_blank" });
-  } else if (level && !marked && !gradient) {
+  } else if (level && !marked && !gradient && !broken) {
     node = make("heading", { text, level, ...(w.href ? { href: w.href } : {}) });
   } else if (!marked && !gradient && !w.href) {
     node = make("text", { text });
@@ -831,7 +879,10 @@ function button(el: Element, env: Env, w: Walk): BuilderNode {
   const solid = !!hexColour(env.win.getComputedStyle(el).backgroundColor);
   const node = make("button", { text: label, href, variant: solid ? "solid" : "outline", newTab: el.getAttribute("target") === "_blank" });
   return record(env, el, node, (c) => {
-    const s: Style = { ...typeStyle(c, env), ...boxStyle(c, env, node), ...placeStyle(el, c, env) };
+    const s: Style = { ...typeStyle(c, env), ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) };
+    // A least height is kept (a button's words sit in the middle of it already).
+    delete s.width;
+    delete s.height;
     const dw = env.declared.get(el, "width");
     if (dw === "100%") s.width = "100%";
     else if (dw && /px$/.test(dw)) s.width = px(num(c.width));
@@ -840,7 +891,30 @@ function button(el: Element, env: Env, w: Walk): BuilderNode {
   });
 }
 
-function image(img: Element, outer: Element, env: Env, w: Walk): BuilderNode | null {
+/** Whether an element laid over its box covers (nearly) all of it. */
+function fillsParent(el: Element): boolean {
+  const p = el.parentElement;
+  if (!p) return false;
+  const r = el.getBoundingClientRect();
+  const pr = p.getBoundingClientRect();
+  return pr.width > 0 && pr.height > 0 && r.width >= pr.width * 0.9 && r.height >= pr.height * 0.9;
+}
+
+function image(img: Element, outer: Element, env: Env, w: Walk, cover = false): BuilderNode | null {
+  // A picture filling its box: in the flow, as wide as the box and its shape.
+  if (cover) {
+    const raw = (img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src || img.getAttribute("src") || "";
+    const node = make("image", { src: "", alt: img.getAttribute("alt") || "", fit: "cover", ...(w.href ? { href: w.href } : {}) });
+    const src = env.assets.use(raw, { node, prop: "src" });
+    if (!src) return null;
+    (node.props as Record<string, unknown>).src = src;
+    return record(env, outer, node, (c) => {
+      const box = outer.parentElement?.getBoundingClientRect();
+      const s: Style = { width: "100%", height: "auto", objectFit: /contain|scale-down/.test(c.objectFit) ? "contain" : "cover", borderRadius: c.borderRadius };
+      if (box && box.width > 0 && box.height > 0) s.aspectRatio = `${round(box.width, 0)} / ${round(box.height, 0)}`;
+      return s;
+    });
+  }
   const raw = (img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src || img.getAttribute("src") || "";
   const node = make("image", { src: "", alt: img.getAttribute("alt") || "", fit: "cover", ...(w.href ? { href: w.href } : {}) });
   const src = env.assets.use(raw, { node, prop: "src" });
@@ -921,7 +995,20 @@ function icon(el: Element, env: Env, href?: string): BuilderNode | null {
   return record(env, holder, node, (c) => ({ ...placeStyle(holder, c, env), color: colour, lineHeight: "0", width: px(svg.getBoundingClientRect().width) }));
 }
 
-function faq(el: Element, env: Env): BuilderNode {
+function faq(el: Element, env: Env): BuilderNode | BuilderNode[] {
+  // What sits around the questions (a "Quick answers" title) stays itself.
+  const others = Array.from(el.children).filter((c) => tag(c) !== "details" && shown(c, env));
+  if (others.length) {
+    const firstDetails = el.querySelector(":scope > details")!;
+    const before = others.filter((c) => c.compareDocumentPosition(firstDetails) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const after = others.filter((c) => !before.includes(c));
+    const conv = (list: Element[]) => list.flatMap((c) => { const got = convert(c, env, { depth: 1 }); return Array.isArray(got) ? got : got ? [got] : []; });
+    return [...conv(before), questions(el, env), ...conv(after)];
+  }
+  return questions(el, env);
+}
+
+function questions(el: Element, env: Env): BuilderNode {
   const items = Array.from(el.querySelectorAll(":scope > details")).map((d) => {
     const q = readText(d.querySelector("summary") ?? d);
     const copy = d.cloneNode(true) as Element;
@@ -951,16 +1038,44 @@ function form(el: Element, env: Env): BuilderNode | null {
     const node = make("newsletter", { placeholder: email.getAttribute("placeholder") || "Your email", button: label, success: "Thanks! You're on the list." });
     return record(env, el, node, (c) => ({ ...sizeStyle(el, c, env), ...placeStyle(el, c, env) }));
   }
+  // Two fields side by side are half a row each, as the design lays them.
+  const formWidth = el.getBoundingClientRect().width || 1;
   const fields = visible.map((i) => {
     const id = i.getAttribute("id");
     const lab = (id ? env.doc.querySelector(`label[for="${CSS.escape(id)}"]`) : null) ?? i.closest("label");
     const ty = (i.getAttribute("type") || "").toLowerCase();
     const type = tag(i) === "textarea" ? "textarea" : tag(i) === "select" ? "select" : ty === "email" ? "email" : ty === "tel" ? "tel" : "text";
-    return { label: (lab ? readText(lab) : "") || i.getAttribute("placeholder") || i.getAttribute("name") || "Field",
-             type, placeholder: i.getAttribute("placeholder") || "", required: i.hasAttribute("required"), width: "full" };
+    // The form says "(optional)" itself.
+    const text = ((lab ? readText(lab) : "") || i.getAttribute("placeholder") || i.getAttribute("name") || "Field").replace(/\s*\(optional\)\s*$/i, "");
+    const field: Record<string, unknown> = {
+      label: text, type, placeholder: i.getAttribute("placeholder") || "", required: i.hasAttribute("required"),
+      width: i.getBoundingClientRect().width < formWidth * 0.6 ? "half" : "full",
+    };
+    if (type === "select") {
+      field.options = Array.from(i.querySelectorAll("option")).map((o) => readText(o)).filter((o) => o && !/^(choose|select)\b/i.test(o)).join("\n");
+      field.placeholder = "";
+    }
+    return field;
   });
-  const node = make("contact_form", { formName: "Imported form", fields, button: label, success: "Thanks! We'll be in touch." });
-  return record(env, el, node, (c) => ({ ...sizeStyle(el, c, env), ...placeStyle(el, c, env) }));
+  // The form's look, from the design's fields, labels and button.
+  const first0 = env.win.getComputedStyle(first);
+  const labelEl = el.querySelector("label");
+  const look: Record<string, unknown> = {};
+  const colour = (v: string | null | undefined) => (v ? hexColour(v) ?? undefined : undefined);
+  look.fieldBg = colour(first0.backgroundColor) ?? "transparent";
+  look.fieldBorder = colour(first0.borderTopColor);
+  look.fieldRadius = Math.round(num(first0.borderTopLeftRadius));
+  if (labelEl) look.labelColor = colour(env.win.getComputedStyle(labelEl).color);
+  if (submit) {
+    const b = env.win.getComputedStyle(submit);
+    look.buttonBg = colour(b.backgroundColor);
+    look.buttonColor = colour(b.color);
+    look.buttonRadius = Math.round(num(b.borderTopLeftRadius));
+    look.buttonWidth = submit.getBoundingClientRect().width >= formWidth * 0.9 ? "full" : "auto";
+  }
+  for (const k of Object.keys(look)) if (look[k] === undefined) delete look[k];
+  const node = make("contact_form", { formName: "Imported form", fields, button: label, success: "Thanks! We'll be in touch.", ...look });
+  return record(env, el, node, (c) => ({ ...typeStyle(c, env), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) }));
 }
 
 /** A row of cards that each show a picture and a price: the shop's products instead. */
@@ -986,6 +1101,27 @@ function productGrid(el: Element, env: Env): BuilderNode | null {
     { columns: across });
 }
 
+/** A block whose children all flow in its lines (links, buttons, words), not one under another. */
+function inlineRun(el: Element, env: Env): boolean {
+  const cs = env.win.getComputedStyle(el);
+  if (!/^(block|list-item|table-cell)$/.test(cs.display)) return false;
+  const kids = Array.from(el.children).filter((k) => shown(k, env));
+  return kids.length >= 2 && kids.every((k) => /^inline/.test(env.win.getComputedStyle(k).display));
+}
+
+function inlineRow(cs: CSSStyleDeclaration): { style: Style; direction: "row" } {
+  const align = cs.textAlign;
+  return {
+    direction: "row",
+    style: {
+      display: "flex", flexDirection: "row", flexWrap: "wrap", alignItems: "center",
+      justifyContent: align === "center" ? "center" : align === "right" || align === "end" ? "flex-end" : "flex-start",
+      // The space a word space would leave between them.
+      columnGap: px(Math.round(num(cs.fontSize) * 0.3)), rowGap: "4px",
+    },
+  };
+}
+
 /** A box of things: a stack laid out as the design lays it out. */
 function box(el: Element, env: Env, w: Walk): BuilderNode | BuilderNode[] | null {
   const children = convertChildren(el, env, { ...w, depth: w.depth + 1 });
@@ -998,10 +1134,11 @@ function box(el: Element, env: Env, w: Walk): BuilderNode | BuilderNode[] | null
     const onlyEl = env.recs.find((r) => r.node === only)?.el;
     if (onlyEl && onlyEl.parentElement === el && !env.declared.get(el, "max-width") && !env.declared.get(el, "width")) return only;
   }
-  const node = make("stack", { direction: layoutStyle(cs).direction });
+  const node = make("stack", { direction: inlineRun(el, env) ? "row" : layoutStyle(cs).direction });
   node.children = children;
   return record(env, el, node, (c) => {
-    const lay = layoutStyle(c);
+    // Links and words in a line ("Track an order · Start a return"): a row that wraps.
+    const lay = inlineRun(el, env) ? inlineRow(c) : layoutStyle(c);
     // The direction is the computer's; a phone's own way down is a style of its own.
     if (env.at === "style") (node.props as Record<string, unknown>).direction = lay.direction;
     return { ...lay.style, ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) };
@@ -1349,8 +1486,12 @@ function linkMaker(pages: Map<string, string>) {
 
 // ── The whole design ─────────────────────────────────────────────────────────
 
-/** What belongs to the document we were sent, not to a shop: review notes and their switches. */
-const FURNITURE = /(^|\s)(wn|wf-note|wf-notes|notes-btn|annotation|section-badge|devbar|wireframe-note)(\s|$)/;
+/**
+ * What belongs to the document we were sent, not to a shop: review notes and
+ * their switches, and the demo stores' "Plan features" tour button (its tour
+ * is the demo's own script; the bar's words stay).
+ */
+const FURNITURE = /(^|\s)(wn|wf-note|wf-notes|notes-btn|annotation|section-badge|devbar|wireframe-note|pcp-demo-bar__btn|pcp-feat)(\s|$)/;
 
 interface PagePlan { el: Element; title: string; key: string }
 
@@ -1558,9 +1699,171 @@ export async function importBoards(boards: { title: string; html: string }[], fr
   return merged;
 }
 
+// ── A design folder: several pages, their code and pictures ────────────────
+
+/**
+ * Pages every shop already has, working with its products, cart and orders.
+ * A design's page of that name is not brought in: its links go to the shop's
+ * own page, drawn in the site's look.
+ */
+export const SHOP_PAGES: Record<string, { path: string; label: string }> = {
+  checkout: { path: "cart", label: "Checkout" }, cart: { path: "cart", label: "Cart" }, bag: { path: "cart", label: "Cart" },
+  product: { path: "products", label: "Product page" }, products: { path: "products", label: "All products" },
+  collection: { path: "products", label: "Collection page" }, collections: { path: "products", label: "Collections" },
+  shop: { path: "products", label: "Shop" }, catalog: { path: "products", label: "Catalogue" },
+  "gift-cards": { path: "gift-cards", label: "Gift cards" }, "gift-card": { path: "gift-cards", label: "Gift cards" },
+  giftcards: { path: "gift-cards", label: "Gift cards" }, returns: { path: "returns", label: "Returns" },
+  track: { path: "track-order", label: "Track order" }, "track-order": { path: "track-order", label: "Track order" },
+  tracking: { path: "track-order", label: "Track order" }, account: { path: "account", label: "My account" },
+  login: { path: "login", label: "Log in" }, signup: { path: "create-account?next=/account", label: "Sign up" },
+  register: { path: "create-account?next=/account", label: "Sign up" }, search: { path: "search", label: "Search" },
+};
+
+const pageName = (f: File) => f.name.toLowerCase().replace(/\.html?$/, "");
+const fileBase = (ref: string) => {
+  let path = ref.split(/[?#]/)[0] ?? "";
+  try { path = decodeURIComponent(path); } catch { /* keep as written */ }
+  return (path.split("/").pop() ?? "").toLowerCase();
+};
+const relative = (ref: string) => !/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(ref.trim());
+
+/** The design's own stylesheets and scripts, written into the page (a page read on its own cannot fetch them). */
+export function inlineCode(html: string, code: Map<string, string>): string {
+  return html
+    .replace(/<link\b[^>]*>/gi, (tag) => {
+      if (!/\brel\s*=\s*["']?stylesheet/i.test(tag)) return tag;
+      const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
+      const css = href && relative(href) ? code.get(fileBase(href)) : undefined;
+      return css === undefined ? tag : `<style>${css.replace(/<\/style/gi, "<\\/style")}</style>`;
+    })
+    .replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script\s*>/gi, (tag, a: string, src: string, b: string) => {
+      const js = relative(src) ? code.get(fileBase(src)) : undefined;
+      const attrs = `${a} ${b}`.replace(/\s+/g, " ").trim();
+      return js === undefined ? tag : `<script${attrs ? ` ${attrs}` : ""}>${js.replace(/<\/script/gi, "<\\/script")}</script>`;
+    });
+}
+
+/**
+ * The design folder's pictures shown from this page's own copy of each file
+ * (the frame that reads the design cannot open them by their names), and
+ * which file each copy is, for the upload.
+ */
+export function localise(html: string, pictures: File[]): { html: string; blobs: Map<string, File> } {
+  const byName = new Map(pictures.map((f) => [f.name.toLowerCase(), f] as const));
+  const made = new Map<string, string>();
+  const blobs = new Map<string, File>();
+  const IMG = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:[?#]|$)/i;
+  const swap = (ref: string): string => {
+    if (!relative(ref)) return ref;
+    const file = byName.get(fileBase(ref));
+    if (!file) return ref;
+    let url = made.get(file.name.toLowerCase());
+    if (!url) {
+      url = URL.createObjectURL(file);
+      made.set(file.name.toLowerCase(), url);
+      blobs.set(url, file);
+    }
+    return url;
+  };
+  const out = html
+    .replace(/(\s(?:src|poster|href)\s*=\s*)(["'])([^"']+)\2/gi, (m, pre: string, q: string, ref: string) => (IMG.test(ref) ? `${pre}${q}${swap(ref)}${q}` : m))
+    .replace(/(\ssrcset\s*=\s*)(["'])([^"']+)\2/gi, (_m, pre: string, q: string, list: string) =>
+      `${pre}${q}${list.split(",").map((part) => { const [u = "", ...rest] = part.trim().split(/\s+/); return [swap(u), ...rest].join(" "); }).join(", ")}${q}`)
+    // In a style attribute the quotes are written as &quot;.
+    .replace(/url\(\s*(&quot;|&#39;|["']?)([^"')&]+?)\1\s*\)/gi, (m, q: string, ref: string) => (IMG.test(ref) ? `url(${q}${swap(ref)}${q})` : m));
+  return { html: out, blobs };
+}
+
+export interface FolderPlan {
+  /** The page that becomes the home page. */
+  home: File | null;
+  /** Other pages, brought in as pages of the site. */
+  pages: File[];
+  /** Pages the shop has its own of: not brought in. */
+  shop: { file: File; label: string; path: string }[];
+}
+
+/** What a folder of design files holds, and what each page becomes. */
+export function planFolder(files: File[]): FolderPlan {
+  const htmls = files.filter((f) => /\.html?$/i.test(f.name));
+  const home = htmls.find((f) => /^(index|home)$/.test(pageName(f))) ?? htmls[0] ?? null;
+  const shop: FolderPlan["shop"] = [];
+  const pages: File[] = [];
+  for (const f of htmls) {
+    if (f === home) continue;
+    const known = SHOP_PAGES[pageName(f)];
+    if (known) shop.push({ file: f, label: known.label, path: `/${known.path}` });
+    else pages.push(f);
+  }
+  return { home, pages, shop };
+}
+
+/**
+ * A folder of design files, as one site: the home page, its other pages, its
+ * header and footer. Each page is drawn with the design's own scripts and
+ * styles (in a sealed frame), then read; links between its pages go to where
+ * each page is on the shop.
+ */
+export async function importFolder(files: File[], frame: HTMLIFrameElement, scripted: HTMLIFrameElement,
+                                   onStep?: (msg: string) => void): Promise<ImportedDesign> {
+  const plan = planFolder(files);
+  if (!plan.home) throw new Error("the folder has no .html page.");
+  const code = new Map<string, string>();
+  for (const f of files) if (/\.(css|js|mjs)$/i.test(f.name)) code.set(f.name.toLowerCase(), await f.text());
+  const pictures = files.filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(f.name));
+
+  // Where every page of the design is on the shop.
+  const taken = new Set<string>();
+  const links: Record<string, string> = {};
+  for (const s of plan.shop) links[pageName(s.file)] = s.path.slice(1);
+  const slugs = new Map(plan.pages.map((f) => [f, slugFor(pageName(f), taken)] as const));
+  for (const [f, slug] of slugs) links[pageName(f)] = slug;
+
+  const designs: { file: File; design: ImportedDesign }[] = [];
+  const order = [plan.home, ...plan.pages];
+  for (let i = 0; i < order.length; i++) {
+    const f = order[i]!;
+    onStep?.(`Reading ${f.name} (${i + 1} of ${order.length})…`);
+    let html = inlineCode(await f.text(), code);
+    if (/<script\b/i.test(html)) html = (await renderWithScripts(html, scripted))?.html ?? html;
+    const local = localise(html, pictures);
+    designs.push({ file: f, design: await importDesign(local.html, frame, pictures, { links, blobs: local.blobs }) });
+  }
+
+  const merged = designs[0]!.design;
+  const fonts = new Map(merged.fonts.map((f) => [f.family, new Set(f.weights)] as const));
+  const warnings = new Set(merged.warnings);
+  merged.pages = merged.pages.slice(0, 1);
+  for (const { file, design } of designs.slice(1)) {
+    design.fonts.forEach((f) => fonts.set(f.family, new Set([...(fonts.get(f.family) ?? []), ...f.weights])));
+    design.warnings.forEach((w) => warnings.add(w));
+    const first = design.pages[0];
+    if (!first) continue;
+    const title = /<title>([^<]*)<\/title>/i.exec(await file.text())?.[1]?.split(/[·|–-]/)[0]?.trim()
+      || pageName(file).replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    merged.pages.push({ ...first, key: slugs.get(file)!, title });
+    merged.header ??= design.header;
+    merged.footer ??= design.footer;
+    merged.announcement ??= design.announcement;
+    merged.menu ??= design.menu;
+    // A picture used on several pages is uploaded once, and goes everywhere it is used.
+    for (const a of design.assets) {
+      const same = merged.assets.find((x) => x.key === a.key);
+      if (same) same.uses.push(...a.uses);
+      else merged.assets.push(a);
+    }
+    merged.count += count(first.tree);
+  }
+  merged.fonts = [...fonts.entries()].map(([family, ws]) => ({ family, weights: [...ws].sort((a, b) => a - b) }));
+  merged.warnings = [...warnings];
+  return merged;
+}
+
 /** The design, ready for the frame: no scripts, relative addresses made recognisable. */
 export function prepareHtml(html: string): string {
   let s = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, "").replace(/<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
+  // Every picture loads at once: the frame reading the design is off screen, so a lazy one never would.
+  s = s.replace(/\sloading\s*=\s*(["'])lazy\1/gi, ' loading="eager"');
   // Inline handlers would not run (the frame allows no scripts); kept as data, they still say which button shows which page.
   s = s.replace(/(\s)on([a-z]+)\s*=(?=[^<>]*>)/gi, "$1data-on$2=");
   s = s.replace(/<base\b[^>]*>/gi, "");
@@ -1607,7 +1910,14 @@ function slugFor(title: string, taken: Set<string>): string {
  * Read a design. `frame` is a hidden iframe the caller owns, in the page and
  * sandboxed with allow-same-origin and nothing else, so nothing in it runs.
  */
-export async function importDesign(html: string, frame: HTMLIFrameElement, files: File[] = []): Promise<ImportedDesign> {
+export interface ImportOptions {
+  /** Where the design's other pages go on the shop, by file name: { "checkout": "cart", "contact": "contact" }. */
+  links?: Record<string, string>;
+  /** The design folder's pictures, by the address this page shows them at while reading (see localise). */
+  blobs?: Map<string, File>;
+}
+
+export async function importDesign(html: string, frame: HTMLIFrameElement, files: File[] = [], opts: ImportOptions = {}): Promise<ImportedDesign> {
   const warnings = new Set<string>();
   const warn = (m: string) => { warnings.add(m); };
   frame.style.width = `${IMPORT_WIDTHS.desktop}px`;
@@ -1628,9 +1938,9 @@ export async function importDesign(html: string, frame: HTMLIFrameElement, files
   ]);
   await settle(win);
 
-  const assets = new Assets(new Map(files.map((f) => [f.name.toLowerCase(), f] as const)), warn);
+  const assets = new Assets(new Map(files.map((f) => [f.name.toLowerCase(), f] as const)), warn, opts.blobs);
   const fonts = new Map<string, Set<number>>();
-  const pageLinks = new Map<string, string>();
+  const pageLinks = new Map<string, string>(Object.entries(opts.links ?? {}));
   const env: Env = { win, doc, declared: new Declared(doc, win), assets, warn, fonts, link: linkMaker(pageLinks), recs: [], at: "style" };
 
   const plan = planPages(doc, env);

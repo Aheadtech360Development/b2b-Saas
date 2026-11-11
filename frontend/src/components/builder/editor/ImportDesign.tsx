@@ -11,8 +11,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import {
-  applyImport, dropAsset, importBoards, importDesign, needsScripts, placeUpload, renderWithScripts, sizeAfter, unpackBoard,
-  IMPORT_MAX_NODES, SITE_MAX_NODES, type ImportedDesign,
+  applyImport, dropAsset, importBoards, importDesign, importFolder, needsScripts, placeUpload, planFolder, renderWithScripts, sizeAfter,
+  unpackBoard, IMPORT_MAX_NODES, SITE_MAX_NODES, type FolderPlan, type ImportedDesign,
 } from "@/lib/builder/importHtml";
 import type { SiteDoc } from "@/lib/builder/types";
 import { menusService } from "@/services/menus.service";
@@ -39,18 +39,39 @@ export function ImportDesign({ doc, uploadImage, onClose, onDone }: {
   const [look, setLook] = useState(true);
   const [progress, setProgress] = useState("");
   const [boardNote, setBoardNote] = useState("");
+  // A folder's pages the shop has its own of (checkout, product…): shown, not brought in.
+  const [shopPages, setShopPages] = useState<FolderPlan["shop"]>([]);
   const busy = stage === "reading" || stage === "working";
 
   useEffect(() => () => { if (frame.current) frame.current.srcdoc = ""; }, []);
 
   async function read(list: FileList | null) {
     const files = Array.from(list ?? []);
-    const html = files.find((f) => /\.html?$/i.test(f.name));
-    if (!html) { setError("Choose the design's .html file (and, if it has them, the pictures beside it)."); return; }
+    const htmls = files.filter((f) => /\.html?$/i.test(f.name));
+    const html = htmls[0];
+    if (!html) { setError("Choose the design's .html file (and, if it has them, the pictures beside it), or its whole folder."); return; }
     setError("");
     setBoardNote("");
-    setFileName(html.name);
+    setShopPages([]);
+    const folder = (html as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/")[0];
+    setFileName(htmls.length > 1 ? `${folder ? `the ${folder} folder` : "the folder"} (${htmls.length} pages)` : html.name);
     setStage("reading");
+    // A folder of pages, or a page with its own stylesheets and scripts beside it.
+    if (htmls.length > 1 || files.some((f) => /\.(css|js)$/i.test(f.name))) {
+      try {
+        const d = await importFolder(files, frame.current!, scripted.current!, setBoardNote);
+        setShopPages(planFolder(files).shop);
+        setDesign(d);
+        setPages(d.pages.map((p) => p.key));
+        setHeader(!!d.header);
+        setFooter(!!d.footer);
+        setStage("ready");
+      } catch (err) {
+        setError(err instanceof Error && err.message ? `That design could not be read: ${err.message}` : "That design could not be read.");
+        setStage("pick");
+      }
+      return;
+    }
     try {
       let text = await html.text();
       const pictures = files.filter((f) => f !== html && /^image\//.test(f.type));
@@ -153,16 +174,29 @@ export function ImportDesign({ doc, uploadImage, onClose, onDone }: {
       {(stage === "pick" || stage === "reading") && (
         <div data-import-pick>
           <p className="sbe-help" style={{ fontSize: 13, marginBottom: 12 }}>
-            Choose a finished design as an <b>.html</b> file. Its pages, header and footer become this site&apos;s own sections,
-            text, pictures and buttons, laid out as the design is on a computer, a tablet and a phone, and you edit them here like
-            anything else. The header&apos;s links become a menu, its cart and sign-in the shop&apos;s own, and a grid of product
-            cards shows your real products. Pictures the design keeps beside it: choose them together with the .html file.
+            Choose a finished design: its <b>folder</b> (its pages, stylesheets, scripts and pictures together), or one
+            <b> .html</b> file. Its pages, header and footer become this site&apos;s own sections, text, pictures and buttons, laid
+            out as the design is on a computer, a tablet and a phone, and you edit them here like anything else. The header&apos;s
+            links become a menu, its cart and sign-in the shop&apos;s own, and a grid of product cards shows your real products, not
+            the design&apos;s sample ones.
           </p>
-          <label className="sbe-btn primary" style={{ cursor: busy ? "wait" : "pointer" }}>
-            <FileUp size={15} /> {stage === "reading" ? boardNote || `Reading ${fileName}…` : "Choose the design"}
-            <input type="file" accept=".html,.htm,image/*" multiple hidden disabled={busy} data-import-file
-              onChange={(e) => { void read(e.target.files); e.target.value = ""; }} />
-          </label>
+          {stage === "reading" ? (
+            <div className="sbe-btn primary" style={{ cursor: "wait" }} role="status"><FileUp size={15} /> {boardNote || `Reading ${fileName}…`}</div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <label className="sbe-btn primary" style={{ cursor: "pointer" }}>
+                <FileUp size={15} /> Choose the design&apos;s folder
+                <input type="file" multiple hidden data-import-folder
+                  {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+                  onChange={(e) => { void read(e.target.files); e.target.value = ""; }} />
+              </label>
+              <label className="sbe-btn" style={{ cursor: "pointer" }}>
+                Choose files
+                <input type="file" accept=".html,.htm,.css,.js,image/*" multiple hidden data-import-file
+                  onChange={(e) => { void read(e.target.files); e.target.value = ""; }} />
+              </label>
+            </div>
+          )}
         </div>
       )}
       {design && stage !== "pick" && stage !== "reading" && (
@@ -186,6 +220,12 @@ export function ImportDesign({ doc, uploadImage, onClose, onDone }: {
                 label={p.key === "home" ? `Home page (${p.sections} sections)` : `${p.title} (${p.sections} sections)`}
                 help={p.key === "home" ? "Replaces your home page." : `A new page at /${p.key}.`} />
             ))}
+            {shopPages.length > 0 && (
+              <div className="sbe-note" style={{ marginTop: 8 }} data-import-shop-pages>
+                <b>Your shop&apos;s own pages are used for:</b> {shopPages.map((s) => `${s.label} (${s.file.name})`).join(", ")}.
+                {" "}They work with your real products, cart and orders, in this site&apos;s look; the design&apos;s links go to them.
+              </div>
+            )}
           </div>
           <div className="sbe-sec">
             <div className="sbe-h"><span>Around every page</span></div>
