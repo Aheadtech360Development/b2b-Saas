@@ -1798,6 +1798,34 @@ export interface ApplyChoice {
   look: boolean;
 }
 
+/** The most elements a site may have: the server refuses to publish more (schema.MAX_NODES). */
+export const SITE_MAX_NODES = 3000;
+
+/** How many elements a site has, every tree counted, as the server counts them. */
+export function siteSize(doc: SiteDoc): number {
+  const trees: (BuilderNode | null | undefined)[] = [
+    ...Object.values(doc.parts ?? {}),
+    ...Object.values(doc.templates ?? {}).flatMap((group) => Object.values(group ?? {}).map((t) => t?.tree)),
+    ...Object.values(doc.pages ?? {}).map((p) => p?.tree),
+    ...Object.values(doc.globals ?? {}).map((g) => g?.tree),
+    ...Object.values(doc.saved ?? {}).map((s) => s?.tree),
+  ];
+  return trees.reduce((n, t) => n + count(t ?? null), 0);
+}
+
+/** The site's size once the design is in, as chosen: what it replaces taken off, what it adds put on. */
+export function sizeAfter(doc: SiteDoc, d: ImportedDesign, choice: ApplyChoice): number {
+  let n = siteSize(doc);
+  for (const p of d.pages) {
+    if (!choice.pages.includes(p.key)) continue;
+    if (p.key === "home") n -= count(doc.templates?.home?.default?.tree ?? null);
+    n += count(p.tree);
+  }
+  if (choice.header && d.header) n += count(d.header) + count(d.announcement) - count(doc.parts?.header ?? null) - count(doc.parts?.announcement ?? null);
+  if (choice.footer && d.footer) n += count(d.footer) - count(doc.parts?.footer ?? null);
+  return n;
+}
+
 /** Every link in the imported trees and menu from one address to another. */
 function relink(trees: (BuilderNode | null)[], from: string, to: string) {
   const visit = (n: BuilderNode | null) => {

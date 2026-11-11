@@ -8,7 +8,7 @@
  * the draft.
  */
 import { describe, expect, it } from "vitest";
-import { applyImport, dropAsset, hexColour, placeUpload, prepareHtml, type ImportedDesign } from "@/lib/builder/importHtml";
+import { applyImport, dropAsset, hexColour, placeUpload, prepareHtml, siteSize, sizeAfter, type ImportedDesign } from "@/lib/builder/importHtml";
 import type { BuilderNode, SiteDoc } from "@/lib/builder/types";
 
 const section = (id: string, children: BuilderNode[] = []): BuilderNode => ({ id, type: "section", props: { width: "contained" }, style: {}, children });
@@ -101,6 +101,19 @@ describe("into the draft", () => {
     expect(hero.style!.fontFamily).toBeUndefined();
     expect(hero.style!.fontSize).toBe("44px");
     expect((doc.settings.fonts ?? []).map((f) => f.family)).toEqual(["Inter"]);
+  });
+
+  it("knows the site's size with the design in it, as the server counts it", () => {
+    const doc = site();
+    // header 1 + footer 1 + bar 1 + home 1 + two empty page templates 0 + about 1
+    expect(siteSize(doc)).toBe(5);
+    const d = design();
+    // The new home (3) replaces the old (1); the new header (1) replaces the old one and its bar (2); the new footer replaces the old.
+    expect(sizeAfter(doc, d, { pages: ["home"], header: true, footer: true, look: true })).toBe(5 - 1 + 3 - 2 + 1);
+    // Two more pages (2 each).
+    expect(sizeAfter(doc, d, { pages: ["home", "about", "collection-page"], header: false, footer: false, look: false })).toBe(5 - 1 + 3 + 2 + 2);
+    const { doc: next } = applyImport(doc, d, { pages: ["home", "about", "collection-page"], header: true, footer: true, look: true });
+    expect(siteSize(next)).toBe(sizeAfter(site(), design(), { pages: ["home", "about", "collection-page"], header: true, footer: true, look: true }));
   });
 
   it("puts an uploaded picture's address everywhere it is used, and takes out one that could not be uploaded", () => {

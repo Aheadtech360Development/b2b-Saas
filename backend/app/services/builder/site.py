@@ -132,23 +132,38 @@ def _uuid(value: Any) -> uuid.UUID | None:
         return None
 
 
+def _the_one(query: Any) -> Any:
+    """A brand's one site. The database keeps it to one (uq_builder_sites_tenant);
+    should a database without that rule ever hold two, every reader agrees on
+    the same one: the one that is live, else the first made."""
+    return query.order_by(BuilderSite.published_version_id.is_(None), BuilderSite.created_at, BuilderSite.id).limit(1)
+
+
 async def get_site(db: AsyncSession, tenant_id: uuid.UUID) -> BuilderSite | None:
-    return (await db.execute(
-        select(BuilderSite).where(BuilderSite.tenant_id == tenant_id)
-    )).scalar_one_or_none()
+    return (await db.execute(_the_one(select(BuilderSite).where(BuilderSite.tenant_id == tenant_id)))).scalars().first()
 
 
 async def ensure_site(db: AsyncSession, tenant_id: uuid.UUID, seed: dict[str, Any]) -> BuilderSite:
     """The brand's site, made with a starter draft if it has none.
 
     Created in legacy mode, always. Opening the builder is not switching to it.
+    Two first openings at the same moment (two tabs) make one site: the second
+    is refused by the database and reads the first.
     """
     site = await get_site(db, tenant_id)
     if site is not None:
         return site
-    site = BuilderSite(tenant_id=tenant_id, render_mode=RENDER_LEGACY, draft=seed, draft_revision=1)
-    db.add(site)
-    await db.flush()
+    from sqlalchemy.exc import IntegrityError
+
+    try:
+        async with db.begin_nested():
+            site = BuilderSite(tenant_id=tenant_id, render_mode=RENDER_LEGACY, draft=seed, draft_revision=1)
+            db.add(site)
+            await db.flush()
+    except IntegrityError:
+        site = await get_site(db, tenant_id)
+        if site is None:
+            raise
     return site
 
 
@@ -475,10 +490,10 @@ async def live_document(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, di
     # The mode first, on its own: every storefront page asks this, and for a
     # shop on its imported theme the answer is all that is needed. The
     # published document — the whole site — is read only for a builder shop.
-    site = (await db.execute(
+    site = (await db.execute(_the_one(
         select(BuilderSite.render_mode, BuilderSite.published_version_id)
         .where(BuilderSite.tenant_id == tenant_id)
-    )).first()
+    ))).first()
     if site is None or site.render_mode != RENDER_BUILDER or site.published_version_id is None:
         return RENDER_LEGACY, None, None
     found = await published_document(db, tenant_id, site.published_version_id)

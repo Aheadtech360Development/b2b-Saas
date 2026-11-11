@@ -11,8 +11,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import {
-  applyImport, dropAsset, importBoards, importDesign, needsScripts, placeUpload, renderWithScripts, unpackBoard,
-  IMPORT_MAX_NODES, type ImportedDesign,
+  applyImport, dropAsset, importBoards, importDesign, needsScripts, placeUpload, renderWithScripts, sizeAfter, unpackBoard,
+  IMPORT_MAX_NODES, SITE_MAX_NODES, type ImportedDesign,
 } from "@/lib/builder/importHtml";
 import type { SiteDoc } from "@/lib/builder/types";
 import { menusService } from "@/services/menus.service";
@@ -129,13 +129,16 @@ export function ImportDesign({ doc, uploadImage, onClose, onDone }: {
 
   const tooBig = !!design && design.count > IMPORT_MAX_NODES;
   const nothing = !!design && !pages.length && !(header && design.header) && !(footer && design.footer);
+  // The whole site with the design in it: over the limit, it could not be published.
+  const after = design ? sizeAfter(doc, design, { pages, header, footer, look }) : 0;
+  const overSite = after > SITE_MAX_NODES;
 
   return (
     <Modal wide title="Import a design" onClose={() => { if (!busy) onClose(); }}
       footer={stage === "ready" || stage === "working" ? (
         <>
           <button type="button" className="sbe-btn ghost" disabled={busy} onClick={onClose}>Cancel</button>
-          <button type="button" className="sbe-btn primary" disabled={busy || tooBig || nothing} onClick={() => void bringIn()} data-import-go>
+          <button type="button" className="sbe-btn primary" disabled={busy || tooBig || nothing || overSite} onClick={() => void bringIn()} data-import-go>
             {stage === "working" ? progress || "Bringing it in…" : "Bring it in"}
           </button>
         </>
@@ -170,6 +173,12 @@ export function ImportDesign({ doc, uploadImage, onClose, onDone }: {
             {" "}Nothing changes on your shop until you publish.
           </p>
           {tooBig && <div className="sbe-note bad">That is more than a site can hold ({IMPORT_MAX_NODES} elements). Bring in fewer pages.</div>}
+          {!tooBig && overSite && (
+            <div className="sbe-note bad" data-import-over>
+              With this, your site would have {after} elements; a site can hold {SITE_MAX_NODES} and would not publish.
+              Untick some pages here, or delete pages you no longer need first (Pages, then a page&apos;s Settings).
+            </div>
+          )}
           <div className="sbe-sec">
             <div className="sbe-h"><span>Pages</span></div>
             {design.pages.map((p) => (

@@ -6,7 +6,7 @@ moves to the builder only by an explicit switch, and can switch back.
 """
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,9 @@ class BuilderSite(TenantMixin, BaseModel):
     """One per brand: its draft, and which published version is live."""
 
     __tablename__ = "builder_sites"
+    # One site per brand, kept by the database (migrations 0056 and 0078). Said
+    # here too, so a database made from the models has it as well.
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_builder_sites_tenant"),)
 
     render_mode: Mapped[str] = mapped_column(String(20), default=RENDER_LEGACY, nullable=False)
     # The working copy. The storefront never reads it.
