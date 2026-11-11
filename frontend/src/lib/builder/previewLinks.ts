@@ -18,8 +18,9 @@ export const PREVIEW_PATH = "/site-builder/preview";
 const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
 
 /** The app's own pages at one-word addresses, which the builder never draws
- *  even when the draft has a page by that name. */
-const APP_PAGES = new Set(["quote", "policies", "print-guide", "private-label", "product-specs", "style-sheets"]);
+ *  even when the draft has a page by that name. "design" is the t-shirt
+ *  designer ("Design your own" on a product's page). */
+const APP_PAGES = new Set(["quote", "policies", "print-guide", "private-label", "product-specs", "style-sheets", "design"]);
 
 /** What is carried from one preview address to the next when only the page or the sort changes. */
 const PAGING = ["page", "sort"] as const;

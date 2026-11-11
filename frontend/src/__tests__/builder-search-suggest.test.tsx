@@ -204,7 +204,7 @@ describe("links in the draft's preview stay in the preview", () => {
 
   it("leaves alone what the draft does not draw", () => {
     for (const href of ["/checkout", "/account/orders", "/gang-sheets?product=p-1", "/quote", "/policies/terms",
-                        "https://elsewhere.example/", "#reviews", "/site-builder/preview?route=home"]) {
+                        "/design", "/design?product=p-1", "https://elsewhere.example/", "#reviews", "/site-builder/preview?route=home"]) {
       expect(at(href)).toBeNull();
     }
   });
