@@ -74,3 +74,21 @@ describe("a header menu on one line", () => {
     expect(BASE_CSS).toContain(".b-menu[data-mobile=drawer] .b-menu-list){flex-wrap:nowrap}");
   });
 });
+
+// Sidequest, 2026-11-11: light links on a black header; pointing at one laid
+// the page's light card colour under it and the word vanished.
+describe("a menu with light links (a dark header)", () => {
+  it("says so, and a link pointed at gets a light wash instead of the page's card colour", () => {
+    const { container } = render(<div>
+      <MenuNav id="d" items={items} layout="horizontal" mobile="drawer" label="Dark" onDark />
+      <MenuNav id="l" items={items} layout="horizontal" mobile="drawer" label="Light" />
+    </div>);
+    const [dark, light] = Array.from(container.querySelectorAll("nav"));
+    expect(dark!.dataset.tone).toBe("dark");
+    expect(light!.dataset.tone).toBeUndefined();
+    expect(BASE_CSS).toContain(".b-menu[data-tone=dark] .b-menu-link:hover){background:rgba(255,255,255,.1)}");
+    // After the usual rule, so it wins for a dark header; a footer's list (vertical) still has none.
+    expect(BASE_CSS.indexOf("data-tone=dark")).toBeGreaterThan(BASE_CSS.indexOf(".b-menu-link:hover){background:var(--b-surface"));
+    expect(BASE_CSS.indexOf("data-layout=vertical] .b-menu-link:hover){background:none")).toBeGreaterThan(BASE_CSS.indexOf("data-tone=dark"));
+  });
+});

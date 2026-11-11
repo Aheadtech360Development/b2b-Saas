@@ -40,6 +40,8 @@ interface Props {
   title?: string;
   /** In the editor: clicks select, they do not navigate or open. */
   edit?: boolean;
+  /** Its links are light (a dark header): a link pointed at gets a light wash, not the page's card colour. */
+  onDark?: boolean;
 }
 
 /** A header menu's steps to stay on one line, roomiest first; the last resort is "drawer". */
@@ -114,7 +116,7 @@ function DrawerList({ items }: { items: MenuItem[] }) {
   );
 }
 
-export default function MenuNav({ id, items, layout, mobile, label, title, edit }: Props) {
+export default function MenuNav({ id, items, layout, mobile, label, title, edit, onDark }: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -191,7 +193,8 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
   }, [drawer, items]);
 
   return (
-    <nav ref={navRef} data-b={id} className="b-menu" data-layout={layout} data-mobile={drawer ? "drawer" : "inline"} aria-label={label}>
+    <nav ref={navRef} data-b={id} className="b-menu" data-layout={layout} data-mobile={drawer ? "drawer" : "inline"}
+         data-tone={onDark ? "dark" : undefined} aria-label={label}>
       {title && <div className="b-menu-title">{title}</div>}
       <ul className="b-menu-list">
         {list.map((item, i) => <Item key={`${item.label}-${i}`} item={item} depth={0} edit={edit} />)}

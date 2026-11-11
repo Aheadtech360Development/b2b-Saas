@@ -234,6 +234,7 @@ export const BASE_CSS = `
 .bsite :where(.b-menu-item){position:relative;display:flex;align-items:center}
 .bsite :where(.b-menu-link){display:inline-flex;align-items:center;gap:4px;padding:9px 12px;border-radius:8px;text-decoration:none;font-weight:inherit;font-size:inherit;white-space:nowrap}
 .bsite :where(.b-menu-link:hover){background:var(--b-surface,#F4F4F2)}
+.bsite :where(.b-menu[data-tone=dark] .b-menu-link:hover){background:rgba(255,255,255,.1)}
 .bsite :where(.b-menu-caret){display:inline-grid;place-items:center;width:26px;height:26px;margin-left:-8px;border:0;background:none;cursor:pointer;color:var(--b-link,inherit);border-radius:6px}
 .bsite :where(.b-menu-sub){--b-link:initial;--b-link-hover:initial;position:absolute;top:100%;left:0;min-width:220px;background:var(--b-background,#fff);color:var(--b-text,#14161B);border:1px solid var(--b-border,#e6e6e6);border-radius:12px;box-shadow:0 14px 36px rgba(20,22,27,.14);padding:6px;display:none;z-index:60;flex-direction:column}
 .bsite :where(.b-menu-sub .b-menu-item){width:100%}

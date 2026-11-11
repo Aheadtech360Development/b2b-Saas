@@ -17,7 +17,7 @@
  * off sale) draws nothing on the storefront, and says why in the editor.
  */
 import type { CSSProperties, ReactNode } from "react";
-import { knownColor, resolveColor } from "@/lib/colors";
+import { isLightColor, knownColor, normalizeHex, resolveColor } from "@/lib/colors";
 import {
   Award, Check, CircleUser, Clock, Heart, Leaf, Mail, MapPin, Phone, ShieldCheck, Sparkles, Star, Truck,
   type LucideIcon,
@@ -515,11 +515,14 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       }
       const items = data.menus?.[menuId] as MenuItem[] | undefined;
       if (!items) return note(ctx, id, ctx.edit ? "This menu is loading, or no longer exists. Choose another." : "");
+      // Light links sit on a dark header: pointing at one must not lay the page's light card colour under it.
+      const linkHex = normalizeHex(node.style?.linkColor) ?? normalizeHex(node.style?.color);
       return (
         <MenuNav id={id} items={items} edit={ctx.edit} title={str(p.title).trim()}
                  layout={p.layout === "vertical" ? "vertical" : "horizontal"}
                  mobile={p.mobile === "inline" ? "inline" : "drawer"}
-                 label={str(p.title).trim() || str(p.label) || "Menu"} />
+                 label={str(p.title).trim() || str(p.label) || "Menu"}
+                 onDark={!!linkHex && isLightColor(linkHex)} />
       );
     }
     case "search":
