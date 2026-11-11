@@ -9,7 +9,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import {
-  applyImport, dropAsset, hexColour, inlineCode, localise, placeUpload, planFolder, prepareHtml, siteSize, sizeAfter, type ImportedDesign,
+  applyImport, dropAsset, hexColour, inlineCode, liveRewards, localise, placeUpload, planFolder, prepareHtml, siteSize, sizeAfter,
+  type ImportedDesign,
 } from "@/lib/builder/importHtml";
 import type { BuilderNode, SiteDoc } from "@/lib/builder/types";
 
@@ -90,6 +91,27 @@ describe("a design folder (the Sidequest demo store: index, contact, rewards, ch
     expect(out).toContain('href="https://fonts.googleapis.com/css2?family=Anton"');
     expect(out).toContain("<script>var a = '<\\/script>';</script>");
     expect(out).toContain('src="https://cdn.example.com/x.js"');
+  });
+
+  it("makes the design's rewards page the shop's own program: its title stays, a pretend member's numbers go", () => {
+    const words = (id: string, text: string): BuilderNode => ({ id, type: "text", props: { text }, style: { fontSize: "14px" } });
+    const title: BuilderNode = { id: "t", type: "heading", props: { text: "Night Owl Club", level: 1 }, style: {} };
+    const head = stack("head", [words("eyebrow", "Loyalty & referrals"), title, words("intro", "Free to join.")]);
+    const balance = stack("balance", [words("pts", "240 points · Regular tier")]);
+    const tiers = stack("tiers", [{ id: "th", type: "heading", props: { text: "Tiers", level: 2 }, style: {} }]);
+    const bar = section("bar", [stack("bar-in", [words("ship", "Free shipping $150+"), words("code", "NIGHTSHIFT = 15% off")])]);
+    const page = stack("page", [bar, section("main", [head, balance, tiers])]);
+    const gone = liveRewards(page);
+    expect(gone.map((n) => n.id)).toEqual(["balance", "tiers"]);
+    expect(page.children![0]).toBe(bar);
+    expect(page.children![1]!.children!.map((n) => n.type)).toEqual(["stack", "loyalty_program", "loyalty_referral"]);
+    expect(page.children![1]!.children![0]).toBe(head);
+
+    // A page with no title to keep: the program after it, in a band of its own.
+    const plain = stack("plain", [section("only", [stack("in", [words("w", "Points on every order")])])]);
+    expect(liveRewards(plain)).toEqual([]);
+    expect(plain.children!.map((n) => n.type)).toEqual(["section", "section"]);
+    expect(plain.children![1]!.children!.map((n) => n.type)).toEqual(["loyalty_program", "loyalty_referral"]);
   });
 
   it("shows the folder's pictures from this page's copy of each file, and knows which file each is", () => {

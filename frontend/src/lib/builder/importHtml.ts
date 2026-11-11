@@ -24,6 +24,7 @@
  */
 import { RESERVED_SLUGS } from "./doc";
 import { GOOGLE_FONTS } from "./fonts";
+import { BY_TYPE } from "./registry";
 import { cleanHtml, safeHref } from "./sanitize";
 import { newId } from "./tree";
 import type { BuilderNode, MenuItem, SiteDoc, Template } from "./types";
@@ -372,10 +373,19 @@ function boxStyle(cs: CSSStyleDeclaration, env: Env, node: BuilderNode): Style {
   return s;
 }
 
+/** A value written with the design's own variables (height: var(--hdr)), as those variables hold it here. */
+function resolveVars(v: string, cs: CSSStyleDeclaration): string {
+  for (let i = 0; i < 5 && v.includes("var("); i++) {
+    v = v.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/g, (_m, name: string, fallback?: string) =>
+      cs.getPropertyValue(name).trim() || (fallback ?? "").trim());
+  }
+  return v.trim();
+}
+
 /** Sizes the design set on purpose: a width, a cap, a least height, a shape. */
 function sizeStyle(el: Element, cs: CSSStyleDeclaration, env: Env): Style {
   const s: Style = {};
-  const d = (p: string) => env.declared.get(el, p);
+  const d = (p: string) => resolveVars(env.declared.get(el, p), cs);
   const keep = (v: string) => /^-?\d+(\.\d+)?(px|%|vh|vw|rem|em)$/.test(v) || /^calc\(/.test(v);
   const w = d("width");
   if (w && keep(w)) s.width = /%|vw|vh|calc/.test(w) ? w.replace(/\s+/g, " ") : px(num(cs.width));
@@ -609,14 +619,26 @@ function richNodes(nodes: Node[], base: CSSStyleDeclaration, env: Env): string {
         open.push(`<a href="${escapeAttr(env.link(c.getAttribute("href"), readText(c)))}">`);
         close.push("</a>");
       }
-      if (t === "strong" || t === "b") { open.push("<strong>"); close.unshift("</strong>"); }
-      if (t === "em" || t === "i") { open.push("<em>"); close.unshift("</em>"); }
+      // A mark the design restyled (an <em> drawn upright, in another colour)
+      // is written as it is drawn, not as the tag usually is.
+      const bold = (t === "strong" || t === "b") && num(cs.fontWeight) >= 600;
+      const italic = (t === "em" || t === "i") && /italic|oblique/.test(cs.fontStyle);
+      if (bold) { open.push("<strong>"); close.unshift("</strong>"); }
+      if (italic) { open.push("<em>"); close.unshift("</em>"); }
       const css: string[] = [];
       const col = hexColour(cs.color);
       if (col && col !== hexColour(parentCs.color)) css.push(`color: ${col}`);
-      if (cs.fontWeight !== parentCs.fontWeight && !(t === "strong" || t === "b")) css.push(`font-weight: ${Math.round(num(cs.fontWeight))}`);
-      if (cs.fontStyle !== parentCs.fontStyle && !(t === "em" || t === "i")) css.push(`font-style: ${cs.fontStyle}`);
+      const fam = familyOf(cs);
+      if (fam && fam !== familyOf(parentCs)) { const f = family(cs, env); if (f) css.push(`font-family: '${f.replace(/'/g, "")}'`); }
+      if (cs.fontWeight !== parentCs.fontWeight && !bold) css.push(`font-weight: ${Math.round(num(cs.fontWeight))}`);
+      if (cs.fontStyle !== parentCs.fontStyle && !italic) css.push(`font-style: ${cs.fontStyle}`);
       if (Math.abs(num(cs.fontSize) - num(parentCs.fontSize)) > 0.5) css.push(`font-size: ${round(num(cs.fontSize) / (num(parentCs.fontSize) || 16), 3)}em`);
+      // Set beside the words ("S/Q" then a small "SUPPLY" in the middle of the line, a little apart).
+      if (/^(middle|top|bottom|text-top|text-bottom|super|sub)$/.test(cs.verticalAlign)) css.push(`vertical-align: ${cs.verticalAlign}`);
+      for (const side of ["left", "right"]) {
+        const m = num(cs.getPropertyValue(`margin-${side}`));
+        if (Math.abs(m) >= 1) css.push(`margin-${side}: ${px(m)}`);
+      }
       const bg = hexColour(cs.backgroundColor);
       if (bg) css.push(`background-color: ${bg}`, `padding: ${cs.padding}`, `border-radius: ${cs.borderRadius}`);
       if (t !== "a" && (cs.textDecorationLine || "none") !== (parentCs.textDecorationLine || "none")) css.push(`text-decoration: ${cs.textDecorationLine || "none"}`);
@@ -708,7 +730,7 @@ function convertChildren(parent: Element, env: Env, w: Walk): BuilderNode[] {
     const words = run.map((n) => n.textContent ?? "").join("").replace(/\s+/g, " ").trim();
     if (flowing && words && elements.length >= 1 && run.filter((n) => isEl(n) || (n.textContent ?? "").trim()).length >= 2) {
       const node = make("rich_text", { html: cleanHtml(`<p>${richNodes(run, pcs, env).replace(/<\/?button[^>]*>/gi, "")}</p>`) });
-      node.style = clean(typeStyle(pcs, env), "rich_text") as BuilderNode["style"];
+      node.style = clean({ ...typeStyle(pcs, env), overflow: "visible" }, "rich_text") as BuilderNode["style"];
       out.push(node);
     } else run.forEach(one);
     run = [];
@@ -816,12 +838,17 @@ function words(el: Element, cs: CSSStyleDeclaration, env: Env, w: Walk): Builder
     // rich text keeps them; the look of the whole is on the element.
     let html = richHtml(el, cs, env);
     if (gradient) html = `<span style="${escapeAttr(`background-image: ${cs.backgroundImage}; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent`)}">${html}</span>`;
-    if (w.href && t !== "a") html = `<a href="${escapeAttr(w.href)}" style="color: inherit; text-decoration: none">${html}</a>`;
+    // A link with marks (a logo "S/Q SUPPLY" going home) stays a link.
+    const href = t === "a" ? env.link(el.getAttribute("href"), text) : w.href;
+    if (href) html = `<a href="${escapeAttr(href)}" style="color: inherit; text-decoration: none">${html}</a>`;
     node = make("rich_text", { html: cleanHtml(`<p>${html}</p>`) });
   }
   return record(env, el, node, (c) => {
     const s: Style = { ...typeStyle(c, env, { decoration: t === "a" }), ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) };
     if (gradient) { s.backgroundImage = "none"; }
+    // Rich text scrolls when something in it is wider than its box (a table);
+    // a title drawn with a tight line height would show a scrollbar instead.
+    if (node.type === "rich_text" && s.overflow !== "hidden") s.overflow = "visible";
     // Words placed inside their own box (a number in a circle, a badge).
     if (/flex|grid/.test(c.display)) {
       const grid = c.display.includes("grid");
@@ -867,9 +894,15 @@ function inlined(el: Element, env: Env): string {
   return copy.outerHTML;
 }
 
+/** A table, or a list of words, as rich text. A table may be wider than a phone and scrolls sideways; a list never needs to. */
 function rich(el: Element, html: string, env: Env): BuilderNode {
   const node = make("rich_text", { html: cleanHtml(html) });
-  return record(env, el, node, (c) => ({ ...typeStyle(c, env), ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) }));
+  const table = tag(el) === "table";
+  return record(env, el, node, (c) => {
+    const s: Style = { ...typeStyle(c, env), ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) };
+    if (!table && s.overflow !== "hidden") s.overflow = "visible";
+    return s;
+  });
 }
 
 function button(el: Element, env: Env, w: Walk): BuilderNode {
@@ -992,7 +1025,23 @@ function icon(el: Element, env: Env, href?: string): BuilderNode | null {
   if (href) markup = `<a href="${escapeAttr(href)}"${label ? ` aria-label="${escapeAttr(label)}"` : ""} style="display: inline-flex; color: inherit">${markup}</a>`;
   const node = make("html", { html: cleanHtml(markup), css: "", js: "" });
   const holder = tag(el) === "svg" ? svg : el;
-  return record(env, holder, node, (c) => ({ ...placeStyle(holder, c, env), color: colour, lineHeight: "0", width: px(svg.getBoundingClientRect().width) }));
+  return record(env, holder, node, (c) => {
+    const s: Style = { ...placeStyle(holder, c, env), color: colour, lineHeight: "0", width: px(svg.getBoundingClientRect().width) };
+    // An icon button is a box bigger than its drawing (a 44px square with the
+    // heart in its middle): it keeps that box, so it lines up with the shop's
+    // own icons beside it, the drawing where the design has it.
+    const hr = holder.getBoundingClientRect();
+    const sr = svg.getBoundingClientRect();
+    if (holder !== svg && (hr.width > sr.width + 2 || hr.height > sr.height + 2)) {
+      const where = (before: number, after: number) => (Math.abs(before - after) < 2 ? "center" : before < after ? "flex-start" : "flex-end");
+      s.width = px(hr.width);
+      s.height = px(hr.height);
+      s.display = "flex";
+      s.justifyContent = where(sr.left - hr.left, hr.right - sr.right);
+      s.alignItems = where(sr.top - hr.top, hr.bottom - sr.bottom);
+    }
+    return s;
+  });
 }
 
 function faq(el: Element, env: Env): BuilderNode | BuilderNode[] {
@@ -1783,6 +1832,40 @@ export interface FolderPlan {
   shop: { file: File; label: string; path: string }[];
 }
 
+/** A design's page about its rewards program, by its file's name. */
+const REWARDS_PAGE = /^(rewards?|loyalty|points|club|vip|members?|membership|referrals?|refer-a-friend)$/;
+
+/**
+ * A design's rewards page shows a pretend member: a balance, a referral link,
+ * tiers and points it made up. On the shop it is the shop's own program: the
+ * page's title and words stay, and what follows them is the builder's rewards
+ * program and refer a friend, which show the program set in Marketing,
+ * Loyalty, and a signed-in customer's own points and link. What it took out
+ * is returned (its pictures are not uploaded).
+ */
+export function liveRewards(tree: BuilderNode): BuilderNode[] {
+  const program: BuilderNode = { ...BY_TYPE.loyalty_program!.create(), style: { textAlign: "center", marginTop: "48px" } };
+  const referral: BuilderNode = { ...BY_TYPE.loyalty_referral!.create(), style: { textAlign: "center", marginTop: "64px", marginBottom: "80px" } };
+  const title = (n: BuilderNode): boolean => n.type === "heading" || /<h[1-6]\b/i.test(String(n.props?.html ?? ""))
+    || ((n.type === "text" || n.type === "rich_text") && num(String(n.style?.fontSize ?? "")) >= 32) || (n.children ?? []).some(title);
+  for (const band of tree.children ?? []) {
+    // Through a box that only holds the rest, to where the title sits among what follows it.
+    let box = band;
+    while ((box.children ?? []).length === 1 && (box.children![0]!.children ?? []).length) box = box.children![0]!;
+    const kids = box.children ?? [];
+    const head = kids.findIndex(title);
+    if (head < 0) continue;
+    box.children = [...kids.slice(0, head + 1), program, referral];
+    return kids.slice(head + 1);
+  }
+  // No title to keep: the program in a band of its own, after the page.
+  const band = make("section", { width: "contained" });
+  band.style = { paddingTop: "64px", paddingBottom: "64px" };
+  band.children = [program, referral];
+  tree.children = [...(tree.children ?? []), band];
+  return [];
+}
+
 /** What a folder of design files holds, and what each page becomes. */
 export function planFolder(files: File[]): FolderPlan {
   const htmls = files.filter((f) => /\.html?$/i.test(f.name));
@@ -1841,6 +1924,7 @@ export async function importFolder(files: File[], frame: HTMLIFrameElement, scri
     if (!first) continue;
     const title = /<title>([^<]*)<\/title>/i.exec(await file.text())?.[1]?.split(/[·|–-]/)[0]?.trim()
       || pageName(file).replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const gone = REWARDS_PAGE.test(pageName(file)) ? liveRewards(first.tree) : [];
     merged.pages.push({ ...first, key: slugs.get(file)!, title });
     merged.header ??= design.header;
     merged.footer ??= design.footer;
@@ -1848,6 +1932,8 @@ export async function importFolder(files: File[], frame: HTMLIFrameElement, scri
     merged.menu ??= design.menu;
     // A picture used on several pages is uploaded once, and goes everywhere it is used.
     for (const a of design.assets) {
+      a.uses = a.uses.filter((u) => !gone.some((g) => g === u.node || contains(g, u.node)));
+      if (!a.uses.length) continue;
       const same = merged.assets.find((x) => x.key === a.key);
       if (same) same.uses.push(...a.uses);
       else merged.assets.push(a);
