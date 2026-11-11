@@ -24,6 +24,7 @@ import type { DragPayload } from "./Canvas";
 import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
 import { POLICIES, policyHtml, removePolicy, savePolicy, type Policy } from "@/lib/builder/policies";
 import { PolicyEditor } from "./PolicyEditor";
+import { ImportDesign } from "./ImportDesign";
 import WrittenPagesEditor from "@/components/admin/WrittenPagesEditor";
 import { apiClient } from "@/lib/api-client";
 import { safeSrc } from "@/lib/builder/sanitize";
@@ -218,6 +219,7 @@ function PagesPanel(p: LeftProps) {
   const [title, setTitle] = useState("");
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [written, setWritten] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const pages = Object.entries(p.doc.pages ?? {});
   const pageTemplates = Object.entries(p.doc.templates?.page ?? {});
@@ -361,6 +363,25 @@ function PagesPanel(p: LeftProps) {
         </form>
         <div className="sbe-help" style={{ marginTop: 6 }}>Pages show at /their-address on your shop once published.</div>
       </div>
+      {/* A finished HTML design, brought in as this site's own pages, header and footer. */}
+      <div className="sbe-sec" data-import-design>
+        <div className="sbe-h"><span>Import a design</span></div>
+        <button type="button" className="sbe-btn" onClick={() => setImporting(true)}><Upload size={14} /> From an HTML file</button>
+        <div className="sbe-help" style={{ marginTop: 6 }}>
+          Its pages, header and footer become editable sections here, with a phone layout. Nothing is live until you publish.
+        </div>
+      </div>
+      {importing && (
+        <ImportDesign doc={p.doc} uploadImage={p.env.uploadImage} onClose={() => setImporting(false)}
+          onDone={(next, info) => {
+            p.commit(next);
+            if (info.madeMenu) p.reloadMenus();
+            setImporting(false);
+            p.open(info.home || !info.slugs[0] ? { kind: "template", type: "home", id: "default" } : { kind: "page", slug: info.slugs[0] });
+            say.done(`The design is in your draft${info.slugs.length ? ` with ${info.slugs.length} new page${info.slugs.length === 1 ? "" : "s"}` : ""}. Publish when it looks right.`
+              + (info.skipped ? ` ${info.skipped} picture${info.skipped === 1 ? "" : "s"} could not be uploaded and were left out.` : ""));
+          }} />
+      )}
     </>
   );
 }
