@@ -38,6 +38,7 @@ import { SearchBox, SearchIcon } from "./islands/SearchBox";
 import { splitDescription } from "@/lib/builder/descSections";
 import { isVideoFile, videoEmbed } from "@/lib/videoUrl";
 import BulkOrderPicker, { type BulkVariant } from "@/components/storefront/BulkOrderPicker";
+import { PLATFORM_URL } from "@/components/storefront/PoweredBy";
 
 export interface RenderCtx {
   data: SitePayload["data"];
@@ -98,6 +99,18 @@ function loyalty(ctx: RenderCtx, id: string, what: string): { info: LoyaltyInfo 
 function html(ctx: RenderCtx, markup: unknown): string {
   const raw = str(markup);
   return ctx.trusted ? raw : cleanHtml(raw);
+}
+
+/**
+ * The demo stores' line "Demo store, powered by PrintCoPilot" (their design's
+ * own bar, brought in by Import a design): the platform's name goes to the
+ * platform, on every store that has the line, without anyone editing it.
+ * Words that already link to the platform, or say anything else, are left alone.
+ */
+export function platformLink(markup: string): string {
+  if (!/powered by/i.test(markup) || /printcopilot\.co/i.test(markup)) return markup;
+  return markup.replace(/(powered by\s*)(<strong>\s*PrintCoPilot\s*<\/strong>|<b>\s*PrintCoPilot\s*<\/b>|PrintCoPilot)/i,
+    `$1<a href="${PLATFORM_URL}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none">$2</a>`);
 }
 
 /**
@@ -357,7 +370,7 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     case "text":
       return <p data-b={id} className="b-text">{str(p.text)}</p>;
     case "rich_text":
-      return <div data-b={id} className="b-rich" dangerouslySetInnerHTML={{ __html: html(ctx, p.html) }} />;
+      return <div data-b={id} className="b-rich" dangerouslySetInnerHTML={{ __html: platformLink(html(ctx, p.html)) }} />;
     case "button": {
       const variant = ["solid", "outline", "link"].includes(str(p.variant)) ? str(p.variant) : "solid";
       return <a data-b={id} className={`b-btn b-btn-${variant}`} {...link(p.href, p.newTab)}>{str(p.text, "Button")}</a>;

@@ -4,7 +4,7 @@
  * wears that site's colours (it sits in a .bsite, where the theme's colours
  * are); in the app's own footer it is a line of that footer.
  */
-export const PLATFORM_URL = "https://printcopilot.co";
+export const PLATFORM_URL = "https://www.printcopilot.co/";
 
 export function PoweredBy({ builder = false }: { builder?: boolean }) {
   return (
