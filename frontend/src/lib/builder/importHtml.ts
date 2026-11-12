@@ -57,7 +57,7 @@ export interface ImportedDesign {
   headingFont: string | null;
   bodyFont: string | null;
   containerWidth: number | null;
-  colors: { background?: string; text?: string; primary?: string };
+  colors: { background?: string; text?: string; primary?: string; surface?: string; border?: string; muted?: string };
   assets: ImportAsset[];
   warnings: string[];
   count: number;
@@ -81,6 +81,12 @@ export function hexColour(v: string): string | null {
   const hex = [m[1], m[2], m[3]]
     .map((x) => Math.max(0, Math.min(255, Math.round(num(x)))).toString(16).padStart(2, "0")).join("");
   return a >= 0.996 ? `#${hex}`.toUpperCase() : `#${hex}${Math.round(a * 255).toString(16).padStart(2, "0")}`.toUpperCase();
+}
+
+/** Two colours mixed: `t` of the way from `a` to `b`, as #RRGGBB. */
+export function mixHex(a: string, b: string, t: number): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return "#" + [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, "0")).join("").toUpperCase();
 }
 
 const tag = (el: Element) => el.tagName.toLowerCase();
@@ -2115,9 +2121,22 @@ export async function importDesign(html: string, frame: HTMLIFrameElement, files
   result.headingFont = usable.has(hf) ? hf : result.bodyFont;
   result.colors.background = hexColour(bodyCs.backgroundColor) ?? undefined;
   result.colors.text = hexColour(bodyCs.color) ?? undefined;
-  const firstButton = [result.header, ...result.pages.map((p) => p.tree)].map((t) => (t ? findType(t, "button") : null)).find(Boolean);
-  const pc = firstButton?.style?.backgroundColor;
-  if (typeof pc === "string" && /^#[0-9A-F]{6}$/i.test(pc)) result.colors.primary = pc;
+  // The brand colour: the first button the design fills (a code link in the
+  // top bar, drawn as words, says nothing about the brand).
+  const buttons: BuilderNode[] = [];
+  const collect = (n: BuilderNode | null) => { if (!n) return; if (n.type === "button") buttons.push(n); (n.children ?? []).forEach(collect); };
+  [result.header, ...result.pages.map((p) => p.tree)].forEach(collect);
+  const pc = buttons.map((b) => b.style?.backgroundColor).find((c) => typeof c === "string" && /^#[0-9A-F]{6}$/i.test(c));
+  if (typeof pc === "string") result.colors.primary = pc;
+  // Cards, lines and quiet words, between the page and its words: the
+  // builder's own pieces (product cards, a menu link pointed at, fields) then
+  // sit in the design's palette, dark or light, not the starter's light one.
+  const bg = result.colors.background, ink = result.colors.text;
+  if (bg && ink && /^#[0-9A-F]{6}$/i.test(bg) && /^#[0-9A-F]{6}$/i.test(ink.slice(0, 7))) {
+    result.colors.surface = mixHex(bg, ink, 0.06);
+    result.colors.border = mixHex(bg, ink, 0.16);
+    result.colors.muted = mixHex(bg, ink, 0.62);
+  }
 
   // Families the site will not have are taken off the elements: its own fonts stand in.
   const strip = (n: BuilderNode | null) => {
@@ -2285,6 +2304,7 @@ export function applyImport(doc: SiteDoc, d: ImportedDesign, choice: ApplyChoice
     if (d.colors.background && /^#[0-9A-F]{6}$/i.test(d.colors.background)) colors.background = d.colors.background;
     if (d.colors.text && /^#[0-9A-F]{6}$/i.test(d.colors.text)) colors.text = d.colors.text;
     if (d.colors.primary) colors.primary = d.colors.primary;
+    for (const k of ["surface", "border", "muted"] as const) if (d.colors[k]) colors[k] = d.colors[k];
     settings.colors = colors;
     next.settings = settings;
   } else {

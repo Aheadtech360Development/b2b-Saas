@@ -150,7 +150,8 @@ describe("the editor's own styles stay off the page being edited", () => {
     expect(EDITOR_CSS).toContain(".sbe button:where(:not(.bsite *)){font:inherit;color:inherit}");
     expect(EDITOR_CSS).toContain(".sbe :is(input,select,textarea):where(:not(.bsite *)){font:inherit;color:#14161B}");
     expect(EDITOR_CSS).not.toMatch(/^\.sbe button\{/m);
-    expect(BASE_CSS).toContain(".bsite :where(.b-btn-solid){background:var(--b-primary,#14161B);color:#fff}");
+    // White, or near-black on a light brand colour (style.ts onColour sets --b-on-primary).
+    expect(BASE_CSS).toContain(".bsite :where(.b-btn-solid){background:var(--b-primary,#14161B);color:var(--b-on-primary,#fff)}");
   });
 
   it("without outweighing the editor's own buttons — Publish keeps its white label", () => {

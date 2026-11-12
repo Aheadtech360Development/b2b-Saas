@@ -9,9 +9,10 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import {
-  applyImport, dropAsset, hexColour, inlineCode, liveRewards, localise, placeUpload, planFolder, prepareHtml, siteSize, sizeAfter,
+  applyImport, dropAsset, hexColour, inlineCode, liveRewards, localise, mixHex, placeUpload, planFolder, prepareHtml, siteSize, sizeAfter,
   type ImportedDesign,
 } from "@/lib/builder/importHtml";
+import { onColour, themeCss } from "@/lib/builder/style";
 import type { BuilderNode, SiteDoc } from "@/lib/builder/types";
 
 const section = (id: string, children: BuilderNode[] = []): BuilderNode => ({ id, type: "section", props: { width: "contained" }, style: {}, children });
@@ -161,6 +162,19 @@ describe("into the draft", () => {
     expect(doc.settings.colors!.primary).toBe("#3A2FC9");
     expect(doc.parts.header!.id).toBe("old-header");
     expect(doc.parts.announcement!.id).toBe("old-bar");
+  });
+
+  it("brings a dark design's cards, lines and quiet words with its colours, and reads words on a light brand colour as dark", () => {
+    const { doc } = applyImport(site(), design({ colors: { background: "#0A0A0A", text: "#EDEDE8", primary: "#B6FF00",
+      surface: mixHex("#0A0A0A", "#EDEDE8", 0.06), border: mixHex("#0A0A0A", "#EDEDE8", 0.16), muted: mixHex("#0A0A0A", "#EDEDE8", 0.62) } }),
+      { pages: ["home"], header: false, footer: false, look: true });
+    expect(doc.settings.colors).toMatchObject({ primary: "#B6FF00", background: "#0A0A0A", surface: mixHex("#0A0A0A", "#EDEDE8", 0.06) });
+    expect(mixHex("#0A0A0A", "#EDEDE8", 0)).toBe("#0A0A0A");
+    expect(mixHex("#0A0A0A", "#EDEDE8", 1)).toBe("#EDEDE8");
+    expect(doc.settings.colors!.border).toBe(mixHex("#0A0A0A", "#EDEDE8", 0.16));
+    expect(onColour("#B6FF00")).toBe("#14161B");
+    expect(onColour("#1C3557")).toBe("#fff");
+    expect(themeCss({ colors: { primary: "#B6FF00" } })).toContain("--b-on-primary:#14161B");
   });
 
   it("without the design's look, its elements use the site's own fonts", () => {

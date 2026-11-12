@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth.store";
 import { useBranding } from "@/components/providers/BrandingProvider";
+import { PoweredBy } from "@/components/storefront/PoweredBy";
 
 export function Footer() {
   const { isAuthenticated } = useAuthStore();
@@ -77,6 +78,7 @@ export function Footer() {
           ))}
         </div>
       </div>
+      <div style={{ borderTop: "1px solid #E2E2DE" }}><PoweredBy /></div>
     </footer>
   );
 }

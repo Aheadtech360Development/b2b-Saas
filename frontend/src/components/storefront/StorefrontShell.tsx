@@ -18,6 +18,7 @@
 import type { ReactNode } from "react";
 import { Header } from "@/components/layout/Header";
 import ShellGate from "@/components/storefront/ShellGate";
+import { PoweredBy } from "@/components/storefront/PoweredBy";
 import { SiteHead, SitePart } from "@/components/builder/SiteParts";
 import { loadBuilderChrome } from "@/lib/builder/load";
 import { loadStore } from "@/lib/store";
@@ -45,7 +46,7 @@ export default async function StorefrontShell({
             <SitePart payload={site} part="header" />
           </>
         }
-        after={<SitePart payload={site} part="footer" />}
+        after={<><SitePart payload={site} part="footer" /><PoweredBy builder /></>}
       >
         {children}
       </ShellGate>

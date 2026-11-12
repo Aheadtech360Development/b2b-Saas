@@ -116,7 +116,7 @@ export const BASE_CSS = `
 .bsite :where(.b-rich a:hover){color:var(--b-link-hover,var(--b-link,var(--b-primary,#14161B)))}
 
 .bsite :where(.b-btn){display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 24px;border-radius:var(--b-btn-radius);font-size:15px;line-height:1.1;text-decoration:none;cursor:pointer;border:1.5px solid var(--b-primary,#14161B);transition:filter .15s ease,background-color .15s ease,color .15s ease;white-space:normal;text-align:center;overflow-wrap:anywhere;max-width:100%}
-.bsite :where(.b-btn-solid){background:var(--b-primary,#14161B);color:#fff}
+.bsite :where(.b-btn-solid){background:var(--b-primary,#14161B);color:var(--b-on-primary,#fff)}
 .bsite :where(.b-btn-outline){background:transparent;color:var(--b-primary,#14161B)}
 .bsite :where(.b-btn-link){border-color:transparent;background:none;padding-inline:0;color:var(--b-primary,#14161B);text-decoration:underline;text-underline-offset:4px}
 .bsite :where(.b-btn:hover){filter:brightness(.92)}
@@ -320,7 +320,7 @@ export const BASE_CSS = `
 .bsite :where(.b-loyal-earn[hidden]){display:none}
 .bsite :where(.b-loyal-earn b){color:var(--b-text,#14161B)}
 .bsite :where(.b-loyal-earn svg){vertical-align:-3px;margin-right:6px;color:var(--b-primary,#14161B)}
-.bsite :where(.b-count){position:absolute;top:2px;right:0;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--b-primary,#14161B);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.bsite :where(.b-count){position:absolute;top:2px;right:0;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--b-primary,#14161B);color:var(--b-on-primary,#fff);font-size:11px;font-weight:700;line-height:18px;text-align:center}
 .bsite :where(.b-crumbs){display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--b-muted,#5B6170)}
 .bsite :where(.b-crumbs a){text-decoration:none}
 .bsite :where(.b-crumbs a:hover){text-decoration:underline}
@@ -378,7 +378,7 @@ export const BASE_CSS = `
 .bsite :where(.b-card-img){position:relative;aspect-ratio:1/1;border-radius:var(--b-radius);background:var(--b-surface,#FAFAF8);overflow:hidden}
 .bsite :where(.b-card-img img){width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
 .bsite :where(.b-card:hover .b-card-img img){transform:scale(1.035)}
-.bsite :where(.b-badge){position:absolute;top:10px;left:10px;background:var(--b-primary,#14161B);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px}
+.bsite :where(.b-badge){position:absolute;top:10px;left:10px;background:var(--b-primary,#14161B);color:var(--b-on-primary,#fff);font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px}
 .bsite :where(.b-card-title){font-weight:600;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
 .bsite :where(.b-card-meta){font-size:14px;color:var(--b-muted,#5B6170)}
 .bsite :where(.b-card-foot){display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
@@ -446,7 +446,7 @@ ${PHONE}{
 .bsite-layer .b-drawer-foot svg{flex:0 0 auto;color:var(--b-muted,#5B6170)}
 .bsite-layer .b-drawer-auth{display:flex;gap:10px;padding:8px 4px 12px}
 .bsite-layer .b-drawer .b-drawer-auth a{box-sizing:border-box;flex:1 1 0;min-width:0;justify-content:center;min-height:46px;padding:10px 12px;border:1.5px solid var(--b-primary,#14161B);border-radius:var(--b-btn-radius,10px);background:transparent;color:var(--b-primary,#14161B);font-size:15px;font-weight:600;text-align:center}
-.bsite-layer .b-drawer .b-drawer-auth a.solid{background:var(--b-primary,#14161B);color:#fff}
+.bsite-layer .b-drawer .b-drawer-auth a.solid{background:var(--b-primary,#14161B);color:var(--b-on-primary,#fff)}
 .bsite-layer .b-drawer .b-drawer-auth a:hover{filter:brightness(.92);background:transparent}
 .bsite-layer .b-drawer .b-drawer-auth a.solid:hover{background:var(--b-primary,#14161B)}
 /* The header's search icon opens the box across the top of the page. */

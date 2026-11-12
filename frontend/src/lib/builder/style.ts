@@ -384,6 +384,26 @@ export function treeCss(...trees: (BuilderNode | null | undefined)[]): string {
 
 const COLOR_OK = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
+/** How light a colour is to the eye (WCAG relative luminance, 0 to 1); null for what is not a hex. */
+function luminance(hex: string): number | null {
+  let h = hex.replace("#", "");
+  if (h.length === 3 || h.length === 4) h = h.slice(0, 3).split("").map((c) => c + c).join("");
+  if (h.length !== 6 && h.length !== 8) return null;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+/** The words' colour on a fill of this colour: white, or near-black when white would not read (a lime, a yellow). */
+export function onColour(hex: string): string {
+  const l = luminance(hex);
+  if (l === null) return "#fff";
+  const DARK = 0.0079; // #14161B
+  return (1.05) / (l + 0.05) >= (l + 0.05) / (DARK + 0.05) ? "#fff" : "#14161B";
+}
+
 /**
  * The site-wide look: colours as variables, the three fonts, and the type
  * scale at each breakpoint. Elements inherit all of it until they override.
@@ -396,6 +416,8 @@ export function themeCss(settings: SiteSettings): string {
   for (const [k, v] of Object.entries(colors)) {
     if (/^[a-z][a-z0-9-]{0,30}$/i.test(k) && typeof v === "string" && COLOR_OK.test(v)) vars.push(`--b-${k}:${v}`);
   }
+  // Words on the brand colour (a solid button, a count, a badge) stay readable on a light one.
+  if (typeof colors.primary === "string" && COLOR_OK.test(colors.primary)) vars.push(`--b-on-primary:${onColour(colors.primary)}`);
   const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
   vars.push(`--b-container:${num(layout.containerWidth, 1200)}px`);
   vars.push(`--b-radius:${num(layout.radius, 10)}px`);
