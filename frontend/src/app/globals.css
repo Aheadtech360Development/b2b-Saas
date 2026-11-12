@@ -847,6 +847,26 @@ a.ui-btn-ghost, a.ui-btn-ghost:hover, a.ui-btn-ghost:visited { color: var(--ui-i
   .ui-step span:not(.ui-step-n) { display: none; }
 }
 
+/* The app's own pieces drawn inside a website-builder site (its cart page) take
+   that site's colours, light or dark: cards of the page's own colour with a
+   line round them, words in the site's words colour, quiet words and lines
+   mixed from the two, buttons in the brand colour with readable words. On a
+   dark site the cart was white cards under the site's light words, which
+   could not be read (Sidequest, 2026-11-12). On a white site it looks as before. */
+.bsite {
+  --ui-ink: var(--b-text, #111318);
+  --ui-muted: color-mix(in srgb, var(--b-text, #111318) 62%, var(--b-background, #fff));
+  --ui-line: color-mix(in srgb, var(--b-text, #111318) 16%, var(--b-background, #fff));
+  --ui-paper: color-mix(in srgb, var(--b-text, #111318) 5%, var(--b-background, #fff));
+}
+.bsite .ui-card, .bsite .ui-field, .bsite .ui-btn-ghost, .bsite .ui-step-n { background: var(--b-background, #fff); color: var(--ui-ink); }
+.bsite .ui-h1 { color: var(--b-head, var(--ui-ink)); }
+.bsite .ui-btn, .bsite a.ui-btn, .bsite a.ui-btn:hover, .bsite a.ui-btn:visited {
+  background: var(--b-primary, var(--brand-primary, var(--ui-ink))); color: var(--b-on-primary, #fff);
+}
+.bsite a.ui-btn-ghost, .bsite a.ui-btn-ghost:hover, .bsite a.ui-btn-ghost:visited { color: var(--ui-ink); }
+.bsite .ui-btn:disabled { background: var(--ui-line); color: var(--ui-muted); }
+
 /* ── The thank-you page (/checkout/thank-you/<number>) ─────────────────────────
  * What happened and what comes next on the left, the order itself on the
  * right. On a phone the summary comes first, under the heading, the way a

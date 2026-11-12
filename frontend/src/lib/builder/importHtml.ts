@@ -25,6 +25,7 @@
 import { RESERVED_SLUGS } from "./doc";
 import { GOOGLE_FONTS } from "./fonts";
 import { BY_TYPE } from "./registry";
+import { TRACKS_OK } from "./style";
 import { cleanHtml, safeHref } from "./sanitize";
 import { newId } from "./tree";
 import type { BuilderNode, MenuItem, SiteDoc, Template } from "./types";
@@ -129,7 +130,7 @@ function escapeRe(s: string) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); 
 // from them (inline style first, then the matching rule with the most weight).
 
 const SIZE_PROPS = ["width", "max-width", "min-width", "height", "min-height", "flex-basis", "aspect-ratio",
-  "margin-left", "margin-right", "margin-top", "margin-bottom"];
+  "margin-left", "margin-right", "margin-top", "margin-bottom", "grid-template-columns"];
 
 function specificity(sel: string): number {
   const s = sel.replace(/::?(before|after|first-line|first-letter|placeholder|selection|marker)\b/g, "");
@@ -402,6 +403,15 @@ function resolveVars(v: string, cs: CSSStyleDeclaration): string {
       cs.getPropertyValue(name).trim() || (fallback ?? "").trim());
   }
   return v.trim();
+}
+
+/** A grid's columns as the design wrote them, when some are as wide as their content (auto); else null. */
+function declaredTracks(el: Element, cs: CSSStyleDeclaration, env: Env): string | null {
+  let v = resolveVars(env.declared.get(el, "grid-template-columns"), cs);
+  if (!v || !/\b(auto|min-content|max-content)\b/.test(v)) return null;
+  v = v.replace(/repeat\(\s*(\d+)\s*,\s*([^()]+?)\s*\)/g, (_m, n: string, t: string) => Array(Math.min(12, Number(n))).fill(t).join(" "));
+  v = v.replace(/\s+/g, " ").trim();
+  return TRACKS_OK.test(v) ? v : null;
 }
 
 /** Sizes the design set on purpose: a width, a cap, a least height, a shape. */
@@ -1210,6 +1220,10 @@ function box(el: Element, env: Env, w: Walk): BuilderNode | BuilderNode[] | null
   return record(env, el, node, (c) => {
     // Links and words in a line ("Track an order · Start a return"): a row that wraps.
     const lay = inlineRun(el, env) ? inlineRow(c) : layoutStyle(c);
+    // Columns "as wide as their content" (a header's auto 1fr auto) stay so:
+    // as fractions of the width, a narrower screen squeezed the logo in two.
+    const own = /grid/.test(c.display) ? declaredTracks(el, c, env) : null;
+    if (own) { lay.style.gridTemplate = own; delete lay.style.gridColumns; }
     // The direction is the computer's; a phone's own way down is a style of its own.
     if (env.at === "style") (node.props as Record<string, unknown>).direction = lay.direction;
     return { ...lay.style, ...boxStyle(c, env, node), ...sizeStyle(el, c, env), ...placeStyle(el, c, env) };

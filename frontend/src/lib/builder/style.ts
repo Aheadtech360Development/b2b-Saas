@@ -76,7 +76,7 @@ const ENUMS: Record<string, string[]> = {
 
 /** Column widths a merchant can type: 2fr 1fr, 240px 1fr, minmax(200px,1fr) … */
 const TRACK = String.raw`(?:\d+(?:\.\d+)?(?:fr|px|%|em|rem)|auto|min-content|max-content|minmax\(\s*\d+(?:\.\d+)?(?:px|%|em|rem)?\s*,\s*\d+(?:\.\d+)?(?:fr|px|%|em|rem)\s*\))`;
-const TRACKS_OK = new RegExp(`^\\s*${TRACK}(?:\\s+${TRACK}){0,11}\\s*$`);
+export const TRACKS_OK = new RegExp(`^\\s*${TRACK}(?:\\s+${TRACK}){0,11}\\s*$`);
 const SIZE_OK = /^\d+(?:\.\d+)?(?:px|rem|em|%)$/;
 
 function int(raw: unknown, min: number, max: number): number | null {

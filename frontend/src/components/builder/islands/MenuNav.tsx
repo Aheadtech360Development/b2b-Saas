@@ -25,6 +25,13 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, CircleUser, Menu as MenuIcon, Search, ShoppingCart, X } from "lucide-react";
 import type { MenuItem } from "@/lib/builder/types";
 import { safeHref } from "@/lib/builder/sanitize";
+import { whereWordsGo } from "@/lib/builder/whereWordsGo";
+
+/** A menu link's address; one that goes nowhere ("#") goes where its words say (lib/builder/whereWordsGo). */
+function liveHref(href: string | undefined, label: string): string {
+  const h = safeHref(href);
+  return h && h !== "#" ? h : whereWordsGo(label);
+}
 import { useAuthStore } from "@/stores/auth.store";
 
 /** What the header's Log in / Sign up element says and where it goes (AuthButtons writes these on itself). */
@@ -75,7 +82,7 @@ function Item({ item, depth, edit }: { item: MenuItem; depth: number; edit?: boo
   return (
     <li ref={ref} className="b-menu-item" data-open={open ? "" : undefined}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
-      <a className="b-menu-link" href={safeHref(item.href) || "#"}>{item.label}</a>
+      <a className="b-menu-link" href={liveHref(item.href, item.label)}>{item.label}</a>
       {kids.length > 0 && (
         <>
           <button type="button" className="b-menu-caret" aria-expanded={open}
@@ -98,7 +105,7 @@ function DrawerList({ items }: { items: MenuItem[] }) {
       {items.filter((i) => i && i.label).map((item, i) => {
         const kids = (item.children ?? []).filter((c) => c && c.label);
         if (!kids.length) {
-          return <li key={`${item.label}-${i}`}><a href={safeHref(item.href) || "#"}>{item.label}</a></li>;
+          return <li key={`${item.label}-${i}`}><a href={liveHref(item.href, item.label)}>{item.label}</a></li>;
         }
         return (
           <li key={`${item.label}-${i}`}>

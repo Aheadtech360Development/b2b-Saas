@@ -39,6 +39,7 @@ import { splitDescription } from "@/lib/builder/descSections";
 import { isVideoFile, videoEmbed } from "@/lib/videoUrl";
 import BulkOrderPicker, { type BulkVariant } from "@/components/storefront/BulkOrderPicker";
 import { PLATFORM_URL } from "@/components/storefront/PoweredBy";
+import { whereWordsGo } from "@/lib/builder/whereWordsGo";
 
 export interface RenderCtx {
   data: SitePayload["data"];
@@ -128,13 +129,14 @@ function announcePace(text: string): CSSProperties {
   } as CSSProperties;
 }
 
-function link(href: unknown, newTab?: unknown) {
+function link(href: unknown, newTab?: unknown, words?: unknown) {
   const h = safeHref(href);
   return {
-    href: h || "#",
+    href: h && h !== "#" ? h : typeof words === "string" ? whereWordsGo(words) : "#",
     ...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {}),
   };
 }
+
 
 function children(node: BuilderNode, ctx: RenderCtx): ReactNode {
   const kids = node.children ?? [];
@@ -373,10 +375,10 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       return <div data-b={id} className="b-rich" dangerouslySetInnerHTML={{ __html: platformLink(html(ctx, p.html)) }} />;
     case "button": {
       const variant = ["solid", "outline", "link"].includes(str(p.variant)) ? str(p.variant) : "solid";
-      return <a data-b={id} className={`b-btn b-btn-${variant}`} {...link(p.href, p.newTab)}>{str(p.text, "Button")}</a>;
+      return <a data-b={id} className={`b-btn b-btn-${variant}`} {...link(p.href, p.newTab, ctx.edit ? undefined : str(p.text))}>{str(p.text, "Button")}</a>;
     }
     case "link":
-      return <a data-b={id} className="b-link" {...link(p.href, p.newTab)}>{str(p.text, "Link")}</a>;
+      return <a data-b={id} className="b-link" {...link(p.href, p.newTab, ctx.edit ? undefined : str(p.text))}>{str(p.text, "Link")}</a>;
     case "image": {
       const src = safeSrc(p.src);
       if (!src) {
