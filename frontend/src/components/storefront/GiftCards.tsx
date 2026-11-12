@@ -29,28 +29,45 @@ export interface GiftCardOffer {
 }
 
 export const GIFT_CSS = `
-  .gc-page { background: #F8F8F6; min-height: 70vh; padding: 64px 24px; }
-  .gc-inner { max-width: 640px; margin: 0 auto; }
-  .gc-h1 { font-family: 'Fraunces', serif; font-size: 36px; font-weight: 600; color: #1A1A1A; margin: 0 0 8px; line-height: 1.15; }
-  .gc-sub { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6B6B6B; margin: 0 0 28px; line-height: 1.6; }
-  .gc-card { background: #fff; border: 1px solid #E8E6E1; padding: 26px; font-family: 'DM Sans', sans-serif; }
-  .gc-label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #1A1A1A; margin: 0 0 8px; }
-  .gc-input { width: 100%; padding: 12px 14px; border: 1px solid #DCD9D3; font-size: 15px; font-family: inherit; box-sizing: border-box; background: #fff; color: #1A1A1A; outline: none; }
-  .gc-input:focus { border-color: var(--brand-primary, #1C3557); }
+  .gc-page { background: #F6F6F3; min-height: 70vh; padding: 72px 24px; }
+  .gc-inner { max-width: 600px; margin: 0 auto; }
+  .gc-hero { text-align: center; margin-bottom: 28px; }
+  .gc-badge { width: 60px; height: 60px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 18px;
+    color: var(--brand-primary, #1C3557); background: color-mix(in srgb, var(--brand-primary, #1C3557) 10%, #fff); }
+  .gc-h1 { font-family: 'DM Sans', sans-serif; font-size: 34px; font-weight: 700; letter-spacing: -.02em; color: #17181C; margin: 0 0 8px; line-height: 1.15; }
+  .gc-sub { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6B6E78; margin: 0; line-height: 1.55; }
+  .gc-card { background: #fff; border: 1px solid #EAEAE6; border-radius: 20px; padding: 28px; font-family: 'DM Sans', sans-serif; color: #17181C;
+    box-shadow: 0 1px 2px rgba(20,22,27,.04), 0 12px 32px rgba(20,22,27,.06); }
+  .gc-label { display: block; font-size: 13px; font-weight: 600; color: #2A2C33; margin: 0 0 8px; }
+  .gc-input { width: 100%; min-height: 50px; padding: 13px 16px; border: 1px solid #E2E2DE; border-radius: 12px; font-size: 15px; font-family: inherit;
+    box-sizing: border-box; background: #FAFAF8; color: #17181C; outline: none; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+  .gc-input::placeholder { color: #A3A6AE; }
+  .gc-input:focus { background: #fff; border-color: var(--brand-primary, #1C3557);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary, #1C3557) 14%, transparent); }
+  textarea.gc-input { resize: vertical; line-height: 1.5; }
   .gc-amounts { display: flex; flex-wrap: wrap; gap: 10px; }
-  .gc-amount { min-width: 84px; padding: 12px 16px; border: 1.5px solid #DCD9D3; background: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; color: #1A1A1A; }
-  .gc-amount[aria-pressed="true"] { border-color: var(--brand-primary, #1C3557); background: #F3F5F8; }
+  .gc-amount { min-width: 96px; height: 50px; padding: 0 18px; border: 1.5px solid #E2E2DE; border-radius: 12px; background: #fff; font: inherit;
+    font-size: 15px; font-weight: 600; cursor: pointer; color: #17181C; transition: border-color .15s, background-color .15s; }
+  .gc-amount:hover { border-color: #C9C9C3; }
+  .gc-amount[aria-pressed="true"] { border-color: var(--brand-primary, #1C3557); color: var(--brand-primary, #1C3557);
+    background: color-mix(in srgb, var(--brand-primary, #1C3557) 7%, #fff); }
   .gc-row { margin-bottom: 18px; }
-  .gc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .gc-btn { width: 100%; padding: 15px; border: none; background: var(--brand-primary, #1C3557); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
-  .gc-btn:disabled { opacity: .6; cursor: not-allowed; }
-  .gc-err { margin: 0 0 14px; padding: 10px 14px; background: rgba(232,36,42,.07); border: 1px solid rgba(232,36,42,.25); color: #B42318; font-size: 13.5px; font-weight: 600; }
-  .gc-ok { margin: 0 0 14px; padding: 12px 14px; background: rgba(5,150,105,.07); border: 1px solid rgba(5,150,105,.25); color: #065F46; font-size: 14px; }
-  .gc-note { font-size: 13px; color: #6B6B6B; margin-top: 12px; line-height: 1.55; }
-  .gc-foot { text-align: center; font-family: 'DM Sans', sans-serif; font-size: 13.5px; margin-top: 18px; }
-  .gc-foot a { color: var(--brand-primary, #1C3557); font-weight: 500; text-decoration: none; }
-  .gc-balance { font-size: 34px; font-weight: 700; color: #1A1A1A; margin: 4px 0; }
-  @media (max-width: 600px) { .gc-page { padding: 32px 16px; } .gc-h1 { font-size: 26px; } .gc-two { grid-template-columns: 1fr; } .gc-card { padding: 18px; } }
+  .gc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .gc-btn { width: 100%; height: 52px; border: none; border-radius: 12px; background: var(--brand-primary, #1C3557); color: #fff; font: inherit;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+  .gc-btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .gc-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .gc-err { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: #FFF5F5; border: 1px solid #FED7D7; color: #B42318; font-size: 14px; font-weight: 600; }
+  .gc-ok { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: #F0FAF5; border: 1px solid #BFE6D2; color: #065F46; font-size: 14px; }
+  .gc-note { font-size: 13px; color: #6B6E78; margin-top: 14px; line-height: 1.55; text-align: center; }
+  .gc-foot { text-align: center; font-family: 'DM Sans', sans-serif; font-size: 14px; margin-top: 20px; color: #6B6E78; }
+  .gc-foot a { color: var(--brand-primary, #1C3557); font-weight: 600; text-decoration: none; }
+  .gc-foot a:hover { text-decoration: underline; }
+  .gc-balance { font-size: 36px; font-weight: 700; letter-spacing: -.02em; color: #17181C; margin: 4px 0; }
+  @media (max-width: 600px) {
+    .gc-page { padding: 40px 16px; } .gc-h1 { font-size: 26px; } .gc-two { grid-template-columns: 1fr; }
+    .gc-card { padding: 20px 16px; border-radius: 16px; } .gc-amount { flex: 1 1 0; min-width: 0; }
+  }
 `;
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -118,10 +135,10 @@ export function GiftCardBuy({ offer }: { offer: GiftCardOffer }) {
       <div className="gc-card" data-gift-added>
         <div className="gc-ok">Added to your cart. The code is emailed to them when you pay.</div>
         <div className="gc-two">
-          <button type="button" className="gc-btn" onClick={() => setAdded(false)} style={{ background: "#fff", color: "#1A1A1A", border: "1px solid #DCD9D3" }}>
+          <button type="button" className="gc-btn" onClick={() => setAdded(false)} style={{ background: "#fff", color: "#17181C", border: "1px solid #E2E2DE" }}>
             Send another
           </button>
-          <Link href="/cart" className="gc-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>Go to cart</Link>
+          <Link href="/cart" className="gc-btn" style={{ display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>Go to cart</Link>
         </div>
       </div>
     );
@@ -153,7 +170,7 @@ export function GiftCardBuy({ offer }: { offer: GiftCardOffer }) {
         </div>
         <div>
           <label className="gc-label" htmlFor="gc-to-email">Their email</label>
-          <input id="gc-to-email" className="gc-input" type="email" value={toEmail} maxLength={254} required onChange={(e) => setToEmail(e.target.value)} />
+          <input id="gc-to-email" className="gc-input" type="email" value={toEmail} maxLength={254} required placeholder="name@example.com" onChange={(e) => setToEmail(e.target.value)} />
         </div>
       </div>
       <div className="gc-row">
