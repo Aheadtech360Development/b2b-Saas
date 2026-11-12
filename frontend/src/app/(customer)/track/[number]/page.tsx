@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { PackageSearch } from "lucide-react";
 
 import { TRACKING_CSS, TrackingLookup, TrackingView, type TrackingPage } from "@/components/storefront/OrderTracking";
 import { apiClient } from "@/lib/api-client";
@@ -30,27 +31,22 @@ export default function TrackOneOrderPage() {
 
   return (
     <>
-      <style>{`${TRACKING_CSS}
-        .tk-page { background: #F8F8F6; min-height: 70vh; padding: 56px 24px; }
-        .tk-inner { max-width: 640px; margin: 0 auto; }
-        .tk-h1 { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600; color: #1A1A1A; margin: 0 0 20px; }
-        .tk-sub { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6B6B6B; margin: -8px 0 22px; }
-        .tk-back { text-align: center; font-family: 'DM Sans', sans-serif; font-size: 13px; }
-        .tk-back a { color: var(--brand-primary, #1C3557); font-weight: 500; text-decoration: none; }
-        @media (max-width: 600px) { .tk-page { padding: 32px 16px; } .tk-h1 { font-size: 24px; } }
-      `}</style>
-      <div className="tk-page">
-        <div className="tk-inner">
-          <h1 className="tk-h1">Track your order</h1>
+      <style>{TRACKING_CSS}</style>
+      <div className="trk-page">
+        <div className="trk-inner">
+          <div className="trk-hero">
+            <span className="trk-badge" aria-hidden><PackageSearch size={28} strokeWidth={1.8} /></span>
+            <h1 className="trk-h1">Track your order</h1>
+          </div>
           {data ? <TrackingView data={data} /> : ask ? (
             <>
-              <p className="tk-sub">Enter the email you used for order {number} to see where it is.</p>
+              <p className="trk-sub" style={{ textAlign: "center", marginBottom: 20 }}>Enter the email you used for order {number} to see where it is.</p>
               <TrackingLookup initialNumber={number} onFound={setData} />
             </>
           ) : (
-            <p className="tk-sub" aria-busy>Finding your order&hellip;</p>
+            <p className="trk-sub" style={{ textAlign: "center" }} aria-busy>Finding your order&hellip;</p>
           )}
-          <p className="tk-back"><Link href="/products">Keep shopping</Link></p>
+          <p className="trk-back"><Link href="/products">Keep shopping</Link></p>
         </div>
       </div>
     </>

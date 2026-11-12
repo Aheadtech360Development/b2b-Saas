@@ -42,34 +42,54 @@ export interface TrackingPage {
 }
 
 export const TRACKING_CSS = `
-.trk { font-family: 'DM Sans', sans-serif; color: #1A1A1A; }
-.trk-card { background: #fff; border: 1px solid #E2E2DE; padding: 24px; margin-bottom: 20px; }
-.trk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-.trk-num { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #6B6B6B; }
-.trk-status { font-size: 22px; font-weight: 600; }
-.trk-meta { font-size: 13px; color: #6B6B6B; margin: 0 0 18px; }
-.trk-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.trk-step { font-size: 12px; color: #9E9E9E; border-top: 4px solid #E2E2DE; padding-top: 8px; }
-.trk-step[data-done="true"] { color: #1A1A1A; border-top-color: var(--brand-primary, #1C3557); font-weight: 600; }
-.trk-parcel { border-top: 1px solid #E2E2DE; padding-top: 16px; margin-top: 16px; }
+.trk-page { background: #F6F6F3; min-height: 70vh; padding: 72px 24px; }
+.trk-inner { max-width: 600px; margin: 0 auto; }
+.trk-hero { text-align: center; margin-bottom: 28px; }
+.trk-badge { width: 60px; height: 60px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 18px;
+  color: var(--brand-primary, #1C3557); background: color-mix(in srgb, var(--brand-primary, #1C3557) 10%, #fff); }
+.trk-h1 { font-family: 'DM Sans', sans-serif; font-size: 34px; font-weight: 700; letter-spacing: -.02em; color: #17181C; margin: 0 0 8px; line-height: 1.15; }
+.trk-sub { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6B6E78; margin: 0; line-height: 1.55; }
+.trk-back { text-align: center; font-family: 'DM Sans', sans-serif; font-size: 14px; margin: 8px 0 0; }
+.trk-back a, .trk-back button { color: var(--brand-primary, #1C3557); font-weight: 600; text-decoration: none; background: none; border: none; cursor: pointer; font: inherit; }
+.trk-back a:hover, .trk-back button:hover { text-decoration: underline; }
+.trk { font-family: 'DM Sans', sans-serif; color: #17181C; }
+.trk-card { background: #fff; border: 1px solid #EAEAE6; border-radius: 20px; padding: 28px; margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(20,22,27,.04), 0 12px 32px rgba(20,22,27,.06); }
+.trk-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.trk-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6170; background: #F4F4F1; padding: 5px 11px; border-radius: 999px; }
+.trk-status { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.trk-meta { font-size: 13px; color: #6B6E78; margin: 0 0 20px; }
+.trk-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.trk-step { position: relative; font-size: 12px; color: #9A9DA6; padding-top: 14px; }
+.trk-step::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px; border-radius: 999px; background: #ECECE8; }
+.trk-step[data-done="true"] { color: #17181C; font-weight: 600; }
+.trk-step[data-done="true"]::before { background: var(--brand-primary, #1C3557); }
+.trk-parcel { border-top: 1px solid #EFEFEB; padding-top: 16px; margin-top: 18px; }
 .trk-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 6px 0; flex-wrap: wrap; }
-.trk-row span:first-child { color: #6B6B6B; }
+.trk-row span:first-child { color: #6B6E78; }
 .trk-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 .trk-link { color: var(--brand-primary, #1C3557); font-weight: 600; text-decoration: none; }
 .trk-link:hover { text-decoration: underline; }
-.trk-note { background: #F8F8F6; border-left: 3px solid var(--brand-primary, #1C3557); padding: 12px 14px; font-size: 14px; margin-bottom: 20px; }
-.trk-lbl { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px; }
-.trk-inp { width: 100%; border: 1px solid #E2E2DE; padding: 11px 14px; font-size: 14px; box-sizing: border-box; font-family: inherit; }
-.trk-inp:focus { outline: none; border-color: var(--brand-primary, #1C3557); }
-.trk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-.trk-btn { background: var(--brand-primary, #1C3557); color: #fff; border: none; padding: 12px 28px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.trk-note { background: #fff; border: 1px solid #EAEAE6; border-radius: 14px; padding: 14px 16px; font-size: 14px; margin-bottom: 20px; }
+.trk-lbl { display: block; font-size: 13px; font-weight: 600; color: #2A2C33; margin-bottom: 8px; }
+.trk-inp { width: 100%; height: 50px; border: 1px solid #E2E2DE; border-radius: 12px; padding: 0 16px; font-size: 15px; box-sizing: border-box;
+  font-family: inherit; color: #17181C; background: #FAFAF8; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+.trk-inp::placeholder { color: #A3A6AE; }
+.trk-inp:focus { outline: none; background: #fff; border-color: var(--brand-primary, #1C3557);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary, #1C3557) 14%, transparent); }
+.trk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.trk-btn { width: 100%; height: 52px; border-radius: 12px; background: var(--brand-primary, #1C3557); color: #fff; border: none; padding: 0 28px;
+  font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: filter .15s; }
+.trk-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .trk-btn:disabled { opacity: .5; cursor: not-allowed; }
-.trk-error { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 14px; font-size: 14px; margin-top: 14px; }
+.trk-help { font-size: 13px; color: #6B6E78; margin: 14px 0 0; text-align: center; }
+.trk-error { background: #FFF5F5; border: 1px solid #FED7D7; border-radius: 12px; color: #C53030; padding: 14px; font-size: 14px; margin-top: 14px; }
 @media (max-width: 600px) {
-  .trk-card { padding: 18px 14px; }
+  .trk-page { padding: 40px 16px; }
+  .trk-h1 { font-size: 26px; }
+  .trk-card { padding: 20px 16px; border-radius: 16px; }
   .trk-grid { grid-template-columns: 1fr; }
   .trk-steps { grid-template-columns: 1fr; }
-  .trk-btn { width: 100%; }
 }
 `;
 
@@ -155,16 +175,17 @@ export function TrackingLookup({ initialNumber = "", onFound }: { initialNumber?
         <label>
           <span className="trk-lbl">Order number</span>
           <input className="trk-inp" value={number} onChange={(e) => setNumber(e.target.value)} maxLength={50} required
-            autoComplete="off" />
+            autoComplete="off" placeholder="e.g. 1042" />
         </label>
         <label>
           <span className="trk-lbl">Email used for the order</span>
           <input className="trk-inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255}
-            required autoComplete="email" />
+            required autoComplete="email" placeholder="you@example.com" />
         </label>
       </div>
       <button className="trk-btn" type="submit" disabled={busy}>{busy ? "Looking…" : "Track order"}</button>
       {error ? <div className="trk-error" role="alert">{error}</div> : null}
+      <p className="trk-help">Your order number is in the confirmation email we sent you.</p>
     </form>
   );
 }
