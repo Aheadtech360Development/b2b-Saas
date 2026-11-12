@@ -102,9 +102,16 @@ function readText(el: Element, cs?: CSSStyleDeclaration): string {
       if (c.nodeType === 3) out += pre ? c.textContent ?? "" : (c.textContent ?? "").replace(/\s+/g, " ");
       else if (isEl(c)) {
         const t = tag(c);
-        if (t === "br") out += "\n";
-        else if (t === "script" || t === "style" || t === "svg" || t === "template") continue;
-        else walk(c);
+        if (t === "br") { out += "\n"; continue; }
+        if (t === "script" || t === "style" || t === "svg" || t === "template") continue;
+        // Words in boxes of their own ("Exit 1" over "Cards & mail") are apart, as
+        // a person reads them; words the design hides are not read at all.
+        const display = c.ownerDocument?.defaultView?.getComputedStyle(c).display ?? "";
+        if (display === "none") continue;
+        const apart = /^(block|flex|grid|list-item|table|flow-root)/.test(display);
+        if (apart) out += " ";
+        walk(c);
+        if (apart) out += " ";
       }
     }
   };
@@ -280,8 +287,17 @@ interface Rec {
 const GENERIC_FAMILIES = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif",
   "ui-serif", "-apple-system", "blinkmacsystemfont", "segoe ui", "inherit", "initial"]);
 
+/** Fonts a site can have: the design's own Google Fonts and the builder's catalogue. Set when a design is read. */
+let LOADABLE: Set<string> = new Set();
+
+/**
+ * The font an element is drawn in: the first in its stack the site can have.
+ * A design's stack often starts with a small local font for a few signs
+ * ("Sep", then Overpass): the words themselves are in the one after it.
+ */
 function familyOf(cs: CSSStyleDeclaration): string {
-  return (cs.fontFamily || "").split(",")[0]!.trim().replace(/^['"]|['"]$/g, "");
+  const stack = (cs.fontFamily || "").split(",").map((f) => f.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+  return stack.find((f) => LOADABLE.has(f)) ?? stack[0] ?? "";
 }
 
 function family(cs: CSSStyleDeclaration, env: Env): string | null {
@@ -1772,6 +1788,10 @@ export const SHOP_PAGES: Record<string, { path: string; label: string }> = {
   tracking: { path: "track-order", label: "Track order" }, account: { path: "account", label: "My account" },
   login: { path: "login", label: "Log in" }, signup: { path: "create-account?next=/account", label: "Sign up" },
   register: { path: "create-account?next=/account", label: "Sign up" }, search: { path: "search", label: "Search" },
+  // A trade shop's own pages: the buyer's orders and invoices, quick order, a quote.
+  orders: { path: "account/orders", label: "Your orders" }, invoices: { path: "account/invoices", label: "Invoices" },
+  "quick-buy": { path: "quick-order", label: "Quick order" }, "quick-order": { path: "quick-order", label: "Quick order" },
+  quote: { path: "quote", label: "Quote" }, quotes: { path: "quote", label: "Quote" }, "request-a-quote": { path: "quote", label: "Quote" },
 };
 
 const pageName = (f: File) => f.name.toLowerCase().replace(/\.html?$/, "");
@@ -2033,6 +2053,7 @@ export async function importDesign(html: string, frame: HTMLIFrameElement, files
   const assets = new Assets(new Map(files.map((f) => [f.name.toLowerCase(), f] as const)), warn, opts.blobs);
   const fonts = new Map<string, Set<number>>();
   const pageLinks = new Map<string, string>(Object.entries(opts.links ?? {}));
+  LOADABLE = new Set([...googleFonts(doc).keys(), ...GOOGLE_FONTS.map((f) => f.family)]);
   const env: Env = { win, doc, declared: new Declared(doc, win), assets, warn, fonts, link: linkMaker(pageLinks), recs: [], at: "style" };
 
   const plan = planPages(doc, env);

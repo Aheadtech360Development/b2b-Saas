@@ -84,6 +84,14 @@ describe("a design folder (the Sidequest demo store: index, contact, rewards, ch
     });
   });
 
+  it("sends a trade shop's orders, quick buy and quote pages to the shop's own (Milepost)", () => {
+    const plan = planFolder(["index.html", "orders.html", "quick-buy.html", "quote.html", "contact.html"].map((n) => file(n)));
+    expect(plan.pages.map((f) => f.name)).toEqual(["contact.html"]);
+    expect(Object.fromEntries(plan.shop.map((s) => [s.file.name, s.path]))).toEqual({
+      "orders.html": "/account/orders", "quick-buy.html": "/quick-order", "quote.html": "/quote",
+    });
+  });
+
   it("writes the folder's stylesheets and scripts into the page, leaving other sites' ones alone", () => {
     const html = `<head><link rel="stylesheet" href="assets/styles.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton">
       </head><body><script src="assets/app.js"></script><script src="https://cdn.example.com/x.js"></script></body>`;
