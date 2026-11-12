@@ -11,14 +11,19 @@
 import { useLock } from "@/lib/entitlements";
 import { PlanLock } from "@/components/admin/customers/CustomersFrame";
 
-export function UpgradeNotice({ feature, blurb, children }: {
+export function UpgradeNotice({ feature, blurb, addOn = false, children }: {
   feature: string;
   /** What the screen is for, in a sentence, for the shop deciding to upgrade. */
   blurb: string;
+  /** Sold on its own, in no plan (Inventory sync): the platform turns it on for a shop that buys it. */
+  addOn?: boolean;
   children?: React.ReactNode;
 }) {
   const lock = useLock(feature);
   if (!lock) return <>{children}</>;
+  if (addOn && !lock.upgrade_to) {
+    return <PlanLock title={`${lock.label} is an add-on`} blurb={`${blurb} Ask us to turn it on for your shop.`} cta={null} />;
+  }
 
   // No plan to send the shop to: the platform switched it off for this shop.
   if (!lock.upgrade_to) {

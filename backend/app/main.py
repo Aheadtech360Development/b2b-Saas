@@ -859,6 +859,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # expiry and its notices, referrals settled (10 min).
     from app.services.loyalty import scheduler_loop as _loyalty_loop
     _loyalty = _asyncio.create_task(_loyalty_loop())
+    # Inventory sync: a brand's AdvancePro stock written into its shop, on the
+    # schedule each brand chose (2 min ticks; services/inventory_sync).
+    from app.services.inventory_sync.engine import scheduler_loop as _inventory_sync_loop
+    _inventory_sync = _asyncio.create_task(_inventory_sync_loop())
     # Plan prices the console set: read before the first request is served,
     # then every minute, in every worker.
     from app.services import plan_prices as _plan_prices_svc
@@ -881,6 +885,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _tracking.cancel()
     _gift_cards.cancel()
     _loyalty.cancel()
+    _inventory_sync.cancel()
     _plan_prices.cancel()
 
 
@@ -1180,6 +1185,8 @@ from app.api.v1 import product_configurator  # noqa: E402
 app.include_router(product_configurator.router, prefix=_V1)
 from app.api.v1.admin import suppliers as admin_suppliers  # noqa: E402
 app.include_router(admin_suppliers.router, prefix=_V1)
+from app.api.v1.admin import inventory_sync as admin_inventory_sync  # noqa: E402
+app.include_router(admin_inventory_sync.router, prefix=_V1)
 from app.api.v1.admin import analytics_settings as admin_analytics_settings  # noqa: E402
 from app.api.v1.admin import collections as admin_collections  # noqa: E402
 from app.api.v1.admin import product_templates as admin_product_templates  # noqa: E402

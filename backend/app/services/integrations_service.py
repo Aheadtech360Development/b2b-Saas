@@ -99,6 +99,25 @@ PROVIDERS: dict[str, Provider] = {
                   "The FTP password SanMar gave you, not your sanmar.com password."),
         ],
     ),
+    # The brand's own inventory system: its stock written into the shop by SKU
+    # (Products → Inventory sync, services/inventory_sync). Sold as an add-on.
+    "advancepro": Provider(
+        key="advancepro",
+        name="AdvancePro",
+        category="inventory",
+        blurb="Keep your shop's stock in step with AdvancePro, the inventory system by AdvanceWare.",
+        docs_url="https://advanceware.net/restapibeta/documentation/ui/index.html",
+        logo="📊",
+        fields=[
+            Field("username", "API username", "text",
+                  "An AdvancePro user made for the API. Ask AdvancePro support to turn on API access for it. "
+                  "Two-factor sign-in must be off for this user."),
+            Field("password", "API password", "secret"),
+            Field("api_url", "API address", "text",
+                  "Leave empty unless AdvancePro gave you an address of your own.",
+                  required=False, placeholder="https://advanceware.net/restapibeta"),
+        ],
+    ),
     # Mail leaves through the platform's Resend account by default: a brand
     # that has not set anything up still sends, under its own name, with
     # replies coming back to it. But the address then reads @ the platform's
@@ -379,6 +398,25 @@ async def _verify_sanmar(values: dict) -> dict:
         return {"ok": False, "message": str(exc)}
     finally:
         await svc.close()
+
+
+@verifier("advancepro")
+async def _verify_advancepro(values: dict) -> dict:
+    """Sign the API user in and read its warehouses: proves the login works and can read stock."""
+    from app.services.inventory_sync.advancepro import AdvanceProError, from_connection
+
+    try:
+        client = from_connection(values, cache_tokens=False)
+    except AdvanceProError as exc:
+        return {"ok": False, "message": str(exc)}
+    try:
+        found = await client.check()
+        n = found["warehouses"]
+        return {"ok": True, "message": f"Connected to AdvancePro: {n} warehouse{'s' if n != 1 else ''} found."}
+    except AdvanceProError as exc:
+        return {"ok": False, "message": str(exc)}
+    finally:
+        await client.close()
 
 
 @verifier("resend")

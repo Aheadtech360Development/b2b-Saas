@@ -37,6 +37,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("supplier_catalog", "Supplier catalogue import", "Products and catalog"),
     # Buyers design their own shirt on the products the shop switched it on for.
     ("tshirt_designer", "T-shirt designer", "Products and catalog"),
+    ("inventory_sync", "Inventory sync with AdvancePro", "Products and catalog"),
     # Customers
     ("customers", "Customer records", "Customers"),
     ("segments", "Customer segments", "Customers"),
@@ -82,7 +83,9 @@ _SCALE_ONLY = {"mobile_app"}
 # In no plan: the platform turns these on brand by brand, from the brand's
 # Manage screen. "Build with AI" answers shoppers through a paid model, guests
 # included, so a brand has it only when the platform has said so.
-_GRANT_ONLY = {"gang_sheet_ai"}
+# The brand's own inventory system feeding its stock (AdvancePro) is sold as
+# an add-on: the platform turns it on for a brand that has bought it.
+_GRANT_ONLY = {"gang_sheet_ai", "inventory_sync"}
 
 # Every plan includes everything except what is reserved above.
 _BASE = [
@@ -160,6 +163,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/gift-cards", "gift_cards"),
     ("/api/v1/admin/loyalty", "loyalty"),
     ("/api/v1/admin/collections", "collections"),
+    ("/api/v1/admin/inventory-sync", "inventory_sync"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),
     ("/api/v1/admin/storefront", "storefront_theme"),
