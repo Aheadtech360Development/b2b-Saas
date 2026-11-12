@@ -4,6 +4,7 @@
   GET  /admin/inventory-sync/{connector}/warehouses the warehouses in the brand's AdvancePro company
   PUT  /admin/inventory-sync/{connector}            the setup: schedule, which location takes which stock, …
   POST /admin/inventory-sync/{connector}/run        sync now
+  POST /admin/inventory-sync/{connector}/preview    the same, writing nothing: what would change
   GET  /admin/inventory-sync/{connector}/job        how far the running sync is
 
 The login itself is saved through /admin/integrations/advancepro, with the
@@ -145,9 +146,7 @@ async def save_setup(connector: str, body: SyncSetup, _: None = Depends(require_
     return {"config": _public(cfg)}
 
 
-@router.post("/{connector}/run")
-async def run_now(connector: str, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
-                  __: None = Depends(require_brand)):
+async def _start(db: AsyncSession, connector: str, *, dry: bool) -> dict:
     from app.services.integrations_service import get_connection
 
     _known(connector)
@@ -157,10 +156,23 @@ async def run_now(connector: str, _: None = Depends(require_admin), db: AsyncSes
     if not (await cfgmod.load(db, connector, tenant_id=tid)).get("locations"):
         raise HTTPException(status_code=409, detail="Choose which store locations take AdvancePro's stock, and save, first.")
     try:
-        job = await engine.start(tid, connector, trigger="manual")
+        job = await engine.start(tid, connector, trigger="manual", dry=dry)
     except engine.JobBusy as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return {"job": job}
+
+
+@router.post("/{connector}/run")
+async def run_now(connector: str, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+                  __: None = Depends(require_brand)):
+    return await _start(db, connector, dry=False)
+
+
+@router.post("/{connector}/preview")
+async def preview(connector: str, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+                  __: None = Depends(require_brand)):
+    """Everything a sync does except writing: what would change, before a first sync touches live stock."""
+    return await _start(db, connector, dry=True)
 
 
 @router.get("/{connector}/job")

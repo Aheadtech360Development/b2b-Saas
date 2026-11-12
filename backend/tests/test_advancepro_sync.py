@@ -192,6 +192,12 @@ def test_the_run_reads_plainly():
     assert text == "40 of your SKUs matched AdvancePro, 5 stock numbers changed, 1 AdvancePro SKU not in your shop, 4 of your sizes not in AdvancePro."
 
 
+def test_a_preview_says_nothing_was_changed():
+    text = message({"preview": True, "matched": 40, "updated": 3, "created": 2, "to_zero": 2, "count_stock_on": 6})
+    assert text == ("Preview, nothing was changed: 40 of your SKUs matched AdvancePro, 5 stock numbers would change (2 to 0), "
+                    "6 products would start counting stock.")
+
+
 # ── The setup ────────────────────────────────────────────────────────────────
 def test_the_setup_is_checked():
     prev = cfgmod.default()

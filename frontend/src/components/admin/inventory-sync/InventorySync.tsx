@@ -301,24 +301,35 @@ function Runs({ connector, job, onStarted }: { connector: SyncConnector; job: Sy
   const last = job && job.status !== "running" ? job : null;
   const s = (last?.summary ?? cfg.history[0]?.summary) || null;
 
-  const run = async () => {
+  const start = async (dry: boolean) => {
+    // The first real sync writes AdvancePro's numbers over a live shop's stock: said once, plainly.
+    if (!dry && !cfg.last_sync_at && !await ask(
+      "This replaces your shop's stock with AdvancePro's numbers for every matched SKU. If you have not looked at a Preview yet, run one first. Sync now?",
+      { ok: "Sync now" })) return;
     setBusy(true); setError("");
     try {
-      const { job: j } = await api.run(KEY);
+      const { job: j } = dry ? await api.preview(KEY) : await api.run(KEY);
       onStarted(j);
     } catch (e) { setError(errText(e)); }
     setBusy(false);
   };
+  const ready = Object.keys(cfg.locations ?? {}).length > 0;
+  const preview = last?.preview || last?.summary?.preview ? last?.summary : null;
 
   return (
     <section style={CARD} data-runs>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, flex: 1 }}>Sync</h2>
-        <Btn onClick={run} busy={busy || running} disabled={!Object.keys(cfg.locations ?? {}).length}>
-          {running ? "Syncing…" : "Sync now"}
+        <Btn kind="ghost" onClick={() => start(true)} busy={busy || (running && !!job?.preview)} disabled={!ready || running}
+          title="Everything a sync does, without writing anything">Preview</Btn>
+        <Btn onClick={() => start(false)} busy={busy || (running && !job?.preview)} disabled={!ready || running}>
+          {running && !job?.preview ? "Syncing…" : "Sync now"}
         </Btn>
       </div>
-      {!Object.keys(cfg.locations ?? {}).length && <p style={{ ...MUTED, marginTop: 6 }}>Choose where the stock goes, and save, first.</p>}
+      {!ready && <p style={{ ...MUTED, marginTop: 6 }}>Choose where the stock goes, and save, first.</p>}
+      {ready && !cfg.last_sync_at && !preview && (
+        <p style={{ ...MUTED, marginTop: 6 }}>First time? Run a Preview: it shows every number a sync would change, and changes nothing.</p>
+      )}
       {error && <p role="alert" style={{ ...MUTED, color: "#C8321F", marginTop: 8 }}>{error}</p>}
       {job && (
         <div role="status" data-job={job.status} style={{
@@ -332,7 +343,8 @@ function Runs({ connector, job, onStarted }: { connector: SyncConnector; job: Sy
       {s && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }} data-summary>
           <Badge text={`${s.matched ?? 0} matched`} color="#0F7B4B" />
-          <Badge text={`${(s.updated ?? 0) + (s.created ?? 0)} changed`} color="#1D5FD6" />
+          <Badge text={`${(s.updated ?? 0) + (s.created ?? 0)} ${s.preview ? "would change" : "changed"}`} color="#1D5FD6" />
+          {!!s.to_zero && <Badge text={`${s.to_zero} ${s.preview ? "would go" : "went"} to 0`} color="#B42318" />}
           <Badge text={`${s.unchanged ?? 0} unchanged`} />
           {!!s.not_in_shop && (
             <button type="button" className="pc-link" onClick={() => setOpen(open === "shop" ? "" : "shop")}
@@ -345,6 +357,38 @@ function Runs({ connector, job, onStarted }: { connector: SyncConnector; job: Sy
               style={{ background: "none", border: 0, padding: 0, cursor: "pointer", fontSize: 12.5 }}>
               {s.not_in_advancepro} of your SKU{s.not_in_advancepro === 1 ? "" : "s"} not in AdvancePro
             </button>
+          )}
+        </div>
+      )}
+      {preview?.changes_sample && preview.changes_sample.length > 0 && (
+        <div style={{ marginTop: 12, overflowX: "auto" }} data-preview>
+          <p style={{ ...MUTED, marginBottom: 6 }}>
+            What a sync would change{(preview.updated ?? 0) + (preview.created ?? 0) > preview.changes_sample.length
+              ? ` (the first ${preview.changes_sample.length}, emptied shelves first)` : ""}:
+          </p>
+          <table className="pc-table" style={{ width: "100%", fontSize: 12.5 }}>
+            <thead><tr>
+              <th style={{ textAlign: "left" }}>SKU</th><th style={{ textAlign: "left" }}>Location</th>
+              <th style={{ textAlign: "right" }}>Now</th><th style={{ textAlign: "right" }}>After the sync</th>
+            </tr></thead>
+            <tbody>
+              {preview.changes_sample.map((c) => {
+                const emptied = c.after === 0 && (c.before ?? 0) > 0;
+                return (
+                  <tr key={`${c.sku}-${c.location}`} data-emptied={emptied ? "" : undefined}>
+                    <td style={{ fontFamily: "var(--pc-mono, monospace)" }}>{c.sku}</td>
+                    <td>{c.location}</td>
+                    <td style={{ textAlign: "right" }}>{c.before ?? "none"}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700, color: emptied ? "#B42318" : undefined }}>{c.after}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!!preview.count_stock_on && (
+            <p style={{ ...MUTED, marginTop: 8 }}>
+              {preview.count_stock_on} product{preview.count_stock_on === 1 ? "" : "s"} would start counting stock: shoppers could then buy only what AdvancePro has.
+            </p>
           )}
         </div>
       )}

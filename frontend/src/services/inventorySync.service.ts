@@ -18,6 +18,11 @@ export interface SyncSummary {
   count_stock_on: number;
   duplicate_skus: number;
   zeroed: boolean;
+  /** Numbers that would go (or went) from some to 0. */
+  to_zero: number;
+  /** A preview: nothing was written; these are the changes a sync would make (emptied shelves first). */
+  preview?: boolean;
+  changes_sample?: { sku: string; location: string; before: number | null; after: number }[];
 }
 
 export interface SyncRun {
@@ -38,6 +43,8 @@ export interface SyncJob {
   started_at: string;
   finished_at?: string;
   summary?: Partial<SyncSummary>;
+  /** A preview run: it writes nothing. */
+  preview?: boolean;
 }
 
 export type LocationSource = "all" | "none" | string;
@@ -85,6 +92,7 @@ export const inventorySyncService = {
   save: (key: string, body: Partial<Pick<SyncConfig, "active" | "every_minutes" | "locations" | "safety_stock" | "count_stock" | "missing">>) =>
     apiClient.put<{ config: SyncConfig }>(`${BASE}/${key}`, body),
   run: (key: string) => apiClient.post<{ job: SyncJob }>(`${BASE}/${key}/run`),
+  preview: (key: string) => apiClient.post<{ job: SyncJob }>(`${BASE}/${key}/preview`),
   job: (key: string) => apiClient.get<{ job: SyncJob | null }>(`${BASE}/${key}/job`),
   // The login, through the brand's connected accounts: tested before it is kept.
   test: (key: string, values: Record<string, string>) =>

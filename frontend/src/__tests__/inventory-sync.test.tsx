@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const api = vi.hoisted(() => ({
-  overview: vi.fn(), warehouses: vi.fn(), save: vi.fn(), run: vi.fn(), job: vi.fn(),
+  overview: vi.fn(), warehouses: vi.fn(), save: vi.fn(), run: vi.fn(), preview: vi.fn(), job: vi.fn(),
   test: vi.fn(), connect: vi.fn(), disconnect: vi.fn(),
 }));
 vi.mock("@/services/inventorySync.service", () => ({ inventorySyncService: api }));
@@ -100,6 +100,27 @@ describe("Inventory sync with AdvancePro", () => {
     expect(screen.getByText("5 changed")).toBeTruthy();
     fireEvent.click(screen.getByText("2 AdvancePro SKUs not in your shop"));
     expect(screen.getByText(/AP-1/)).toBeTruthy();
+  });
+
+  it("previews a sync: what would change, emptied shelves first, nothing written", async () => {
+    const summary = { preview: true, matched: 3, updated: 2, created: 0, unchanged: 1, to_zero: 1, count_stock_on: 2,
+      changes_sample: [{ sku: "TEE-BLK-M", location: "Main store", before: 12, after: 0 },
+                       { sku: "TEE-WHT-M", location: "Main store", before: 5, after: 9 }] };
+    api.overview.mockResolvedValue(overview(true, config({ locations: { "loc-main": "all" } }),
+      { status: "completed", preview: true, message: "Preview, nothing was changed: 3 of your SKUs matched AdvancePro.",
+        done: 3, total: 3, started_at: "x", trigger: "manual", summary }));
+    render(<InventorySync />);
+    expect(await screen.findByText("2 would change")).toBeTruthy();
+    expect(screen.getByText("1 would go to 0")).toBeTruthy();
+    const rows = document.querySelectorAll("[data-preview] tbody tr");
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.hasAttribute("data-emptied")).toBe(true);
+    expect(screen.getByText(/2 products would start counting stock/)).toBeTruthy();
+
+    api.preview.mockResolvedValue({ job: { status: "running", preview: true, message: "Reading AdvancePro's products…", done: 0, total: 3, started_at: "y", trigger: "manual" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(api.preview).toHaveBeenCalledWith("advancepro"));
+    expect(api.run).not.toHaveBeenCalled();
   });
 
   it("will not sync before the stock has somewhere to go", async () => {

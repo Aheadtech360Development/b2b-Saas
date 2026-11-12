@@ -25,7 +25,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.core.redis import get_redis_pool, redis_delete_pattern, tenant_cache_key
 from app.core.tenant_context import set_bypass_scoping, set_current_tenant
@@ -104,8 +104,12 @@ def plan_stock(variants: list[dict], inventory: list[dict], locations: dict[str,
 
 
 # ── Writing them ─────────────────────────────────────────────────────────────
-async def apply(db, plan: dict[str, dict[str, int]], facts: dict, cfg: dict) -> dict:
-    """Write the plan into this brand's locations. The caller commits."""
+async def apply(db, plan: dict[str, dict[str, int]], facts: dict, cfg: dict, *, dry: bool = False) -> dict:
+    """Write the plan into this brand's locations. The caller commits.
+
+    `dry` (Preview): nothing is written; the summary says what would change,
+    with the changes themselves (the ones that empty a shelf first), so a
+    brand can see its first sync before it touches a live shop's stock."""
     from app.models.inventory import InventoryAdjustment, InventoryRecord, Warehouse
     from app.models.product import Product, ProductVariant
 
@@ -117,6 +121,9 @@ async def apply(db, plan: dict[str, dict[str, int]], facts: dict, cfg: dict) -> 
     if not locs:
         raise RuntimeError("None of the chosen store locations exist any more. Choose them again in Inventory sync.")
     loc_ids = {loc: uuid.UUID(loc) for loc in locs}
+    loc_names = {w.id: w.name for w in (await db.execute(
+        select(Warehouse).where(Warehouse.id.in_(list(loc_ids.values())))
+    )).scalars().all()}
 
     shop = (await db.execute(select(ProductVariant.id, ProductVariant.sku, ProductVariant.product_id))).all()
     by_sku: dict[str, tuple[uuid.UUID, uuid.UUID, str]] = {}
@@ -150,26 +157,43 @@ async def apply(db, plan: dict[str, dict[str, int]], facts: dict, cfg: dict) -> 
         )).scalars().all():
             existing[(rec.variant_id, rec.warehouse_id)] = rec
 
-    updated = created = unchanged = 0
+    sku_of = {vid: shown for vid, pid, shown in by_sku.values()}
+    updated = created = unchanged = to_zero = 0
+    changes: list[dict] = []
     for vid, nums in targets.items():
         for lid, qty in nums.items():
             rec = existing.get((vid, lid))
+            before = None if rec is None else rec.quantity
+            if rec is not None and rec.quantity == qty:
+                unchanged += 1
+                continue
+            if rec is None:
+                created += 1
+            else:
+                updated += 1
+            if qty == 0 and (before or 0) > 0:
+                to_zero += 1
+            if dry:
+                changes.append({"sku": sku_of.get(vid, ""), "location": loc_names.get(lid, ""), "before": before, "after": qty})
+                continue
             if rec is None:
                 db.add(InventoryRecord(variant_id=vid, warehouse_id=lid, quantity=qty, low_stock_threshold=10))
-                created += 1
-            elif rec.quantity != qty:
+            else:
                 db.add(InventoryAdjustment(inventory_record_id=rec.id, quantity_before=rec.quantity, quantity_after=qty,
                                            reason="correction", notes="Synced from AdvancePro"))
                 rec.quantity = qty
-                updated += 1
-            else:
-                unchanged += 1
 
     counting = 0
     if cfg.get("count_stock", True) and managed:
-        res = await db.execute(update(Product).where(Product.id.in_(list(managed)), Product.track_inventory.is_(False))
-                               .values(track_inventory=True))
-        counting = res.rowcount or 0
+        if dry:
+            counting = (await db.execute(select(func.count()).select_from(Product).where(
+                Product.id.in_(list(managed)), Product.track_inventory.is_(False)))).scalar() or 0
+        else:
+            res = await db.execute(update(Product).where(Product.id.in_(list(managed)), Product.track_inventory.is_(False))
+                                   .values(track_inventory=True))
+            counting = res.rowcount or 0
+    # The changes that empty a shelf first, then the biggest moves.
+    changes.sort(key=lambda c: (not (c["after"] == 0 and (c["before"] or 0) > 0), -abs((c["before"] or 0) - c["after"]), c["sku"]))
 
     return {
         "advancepro_skus": len(plan),
@@ -179,20 +203,34 @@ async def apply(db, plan: dict[str, dict[str, int]], facts: dict, cfg: dict) -> 
         "not_in_advancepro": len(not_in_ap), "not_in_advancepro_sample": not_in_ap[:SAMPLE],
         "count_stock_on": counting, "duplicate_skus": facts.get("duplicate_skus", 0),
         "zeroed": cfg.get("missing") == "zero",
+        "to_zero": to_zero,
+        **({"preview": True, "changes_sample": changes[:100]} if dry else {}),
     }
 
 
 def message(summary: dict) -> str:
     if not summary:
         return "Nothing to do."
+    preview = bool(summary.get("preview"))
     parts = [f"{summary.get('matched', 0)} of your SKUs matched AdvancePro"]
     changed = summary.get("updated", 0) + summary.get("created", 0)
-    parts.append(f"{changed} stock number{'s' if changed != 1 else ''} changed" if changed else "no stock changed")
+    zero = summary.get("to_zero", 0)
+    if preview:
+        if changed:
+            parts.append(f"{changed} stock number{'s' if changed != 1 else ''} would change" + (f" ({zero} to 0)" if zero else ""))
+        else:
+            parts.append("no stock would change")
+        if summary.get("count_stock_on"):
+            n = summary["count_stock_on"]
+            parts.append(f"{n} product{'s' if n != 1 else ''} would start counting stock")
+    else:
+        parts.append(f"{changed} stock number{'s' if changed != 1 else ''} changed" if changed else "no stock changed")
     if summary.get("not_in_shop"):
         parts.append(f"{summary['not_in_shop']} AdvancePro SKU{'s' if summary['not_in_shop'] != 1 else ''} not in your shop")
     if summary.get("not_in_advancepro"):
         parts.append(f"{summary['not_in_advancepro']} of your sizes not in AdvancePro")
-    return ", ".join(parts) + "."
+    text = ", ".join(parts) + "."
+    return f"Preview, nothing was changed: {text}" if preview else text
 
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
@@ -223,22 +261,22 @@ async def progress(tenant_id, connector: str) -> dict | None:
     return data
 
 
-async def start(tenant_id, connector: str, *, trigger: str = "manual") -> dict:
-    """Begin a sync in the background. Raises JobBusy if one is running."""
+async def start(tenant_id, connector: str, *, trigger: str = "manual", dry: bool = False) -> dict:
+    """Begin a sync (or, `dry`, a preview of one) in the background. Raises JobBusy if one is running."""
     r = get_redis_pool()
     token = uuid.uuid4().hex
     if not await r.set(_lock_key(tenant_id, connector), token, nx=True, ex=LOCK_TTL):
         raise JobBusy("A sync is already running.")
     state = {"trigger": trigger, "status": "running", "done": 0, "total": 3, "message": "Starting…",
-             "started_at": datetime.now(UTC).isoformat()}
+             "started_at": datetime.now(UTC).isoformat(), "preview": dry}
     await _write_progress(tenant_id, connector, state)
-    task = asyncio.create_task(_run(str(tenant_id), connector, trigger, token, state))
+    task = asyncio.create_task(_run(str(tenant_id), connector, trigger, token, state, dry))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
     return state
 
 
-async def _run(tenant_id: str, connector: str, trigger: str, token: str, state: dict) -> None:
+async def _run(tenant_id: str, connector: str, trigger: str, token: str, state: dict, dry: bool = False) -> None:
     from app.core.database import AsyncSessionLocal
     from app.services.integrations_service import get_connection
 
@@ -266,10 +304,13 @@ async def _run(tenant_id: str, connector: str, trigger: str, token: str, state: 
         await step(1, f"Reading stock for {len(variants):,} AdvancePro variants…")
         inventory = await client.warehouse_inventory()
         plan, facts = plan_stock(variants, inventory, cfg["locations"], int(cfg.get("safety_stock") or 0))
-        await step(2, "Writing stock into your shop…")
+        await step(2, "Working out what would change…" if dry else "Writing stock into your shop…")
         async with AsyncSessionLocal() as db:
-            summary = await apply(db, plan, facts, cfg)
-            await db.commit()
+            summary = await apply(db, plan, facts, cfg, dry=dry)
+            if dry:
+                await db.rollback()
+            else:
+                await db.commit()
         text = message(summary)
     except AdvanceProError as exc:
         status, text = "failed", str(exc)
@@ -286,6 +327,10 @@ async def _run(tenant_id: str, connector: str, trigger: str, token: str, state: 
     finished = datetime.now(UTC).isoformat()
     state.update(status=status, message=text, finished_at=finished, summary=summary, done=3 if status == "completed" else state.get("done", 0))
     await _write_progress(tenant_id, connector, state)
+    if dry:
+        # A preview changed nothing: no history entry, no schedule moved, no cache to clear.
+        await _release(tenant_id, connector, token)
+        return
     try:
         async with AsyncSessionLocal() as db:
             cfg = await cfgmod.load(db, connector)
@@ -299,6 +344,11 @@ async def _run(tenant_id: str, connector: str, trigger: str, token: str, state: 
         await redis_delete_pattern(tenant_cache_key("products:*"))
     except Exception:
         pass
+    await _release(tenant_id, connector, token)
+
+
+async def _release(tenant_id: str, connector: str, token: str) -> None:
+    """Release only our own lock."""
     try:
         r = get_redis_pool()
         if await r.get(_lock_key(tenant_id, connector)) in (token, token.encode()):
