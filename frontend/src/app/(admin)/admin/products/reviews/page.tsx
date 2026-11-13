@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
 import { GoogleReviewsConnect } from "@/components/admin/GoogleReviewsConnect";
+import { ReviewSources } from "@/components/admin/reviews/ReviewSources";
 import { MarketingFrame } from "@/components/admin/marketing/MarketingFrame";
 
 const thStyle: React.CSSProperties = {
@@ -18,7 +19,7 @@ interface AdminReview {
   // Null for a store review — every review imported from Google is one.
   product_name: string | null;
   product_slug: string | null;
-  source?: "site" | "google";
+  source?: "site" | "google" | "judgeme";
   source_url?: string | null;
   reviewed_at?: string | null;
   reviewer_name: string | null;
@@ -26,6 +27,7 @@ interface AdminReview {
   rating: number;
   body: string;
   is_approved: boolean;
+  is_verified?: boolean;
   image_url: string | null;
   created_at: string;
 }
@@ -47,7 +49,7 @@ function AdminReviewsPageBody() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [approvedFilter, setApprovedFilter] = useState<"" | "true" | "false">("");
-  const [sourceFilter, setSourceFilter] = useState<"" | "site" | "google">("");
+  const [sourceFilter, setSourceFilter] = useState<"" | "site" | "google" | "judgeme">("");
   const pageSize = 20;
 
   async function load(p = page) {
@@ -91,6 +93,7 @@ function AdminReviewsPageBody() {
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
       <p className="pc-sub-line" style={{ margin: "0 0 14px" }} data-review-total>{total} {total === 1 ? "review" : "reviews"} in all</p>
 
+      <ReviewSources onChanged={() => load(1)} />
       <GoogleReviewsConnect onChanged={() => load(1)} />
 
       {/* Filters */}
@@ -117,12 +120,13 @@ function AdminReviewsPageBody() {
         </select>
         <select
           value={sourceFilter}
-          onChange={e => setSourceFilter(e.target.value as "" | "site" | "google")}
+          onChange={e => setSourceFilter(e.target.value as "" | "site" | "google" | "judgeme")}
           style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
         >
           <option value="">All sources</option>
           <option value="site">Written on your store</option>
           <option value="google">From Google</option>
+          <option value="judgeme">From Judge.me</option>
         </select>
       </div>
 
@@ -194,6 +198,16 @@ function AdminReviewsPageBody() {
                         Google
                       </span>
                     </div>
+                  )}
+                  {review.source === "judgeme" && (
+                    <div style={{ marginTop: "4px" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "10.5px", fontWeight: 700, background: "rgba(16,24,40,.06)", color: "#344054" }}>
+                        Judge.me
+                      </span>
+                    </div>
+                  )}
+                  {review.is_verified && (
+                    <div style={{ marginTop: "4px", fontSize: "11px", color: "#067647", fontWeight: 600 }}>Verified buyer</div>
                   )}
                 </td>
 
@@ -285,7 +299,7 @@ function AdminReviewsPageBody() {
 /** This screen as one of the Marketing tabs (components/admin/marketing/MarketingFrame). */
 export default function AdminReviewsPage() {
   return (
-    <MarketingFrame active="reviews" title="Reviews" sub="What buyers say about your products. Approve or remove each one.">
+    <MarketingFrame active="reviews" title="Reviews" sub="What buyers say about your products, and where your reviews come from. Approve or remove each one.">
       <AdminReviewsPageBody />
     </MarketingFrame>
   );

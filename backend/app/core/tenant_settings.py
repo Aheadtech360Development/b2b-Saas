@@ -59,6 +59,8 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "brand_logos",  # brands on product cards: shown or not, each brand's logo (JSON) — see services/brand_logos
     "sourcing_rule",  # which supplier a product with sources takes from once own stock runs out — see services/suppliers/sourcing
     "tshirt_designer",  # the t-shirt designer's decoration prices (JSON) — see services/tshirt_designer
+    "inventory_sync",  # stock pulled from the brand's AdvancePro: setup, schedule, history (JSON) — see services/inventory_sync
+    "review_sources",  # Judge.me, Google place, Yelp and who may write reviews (JSON) — see services/review_sources
 })
 
 _SEP = "@"
@@ -100,6 +102,27 @@ async def get_setting(
         select(Settings).where(Settings.key == key)
     )).scalar_one_or_none()
     return row.value if row is not None else default
+
+
+async def get_own_setting(
+    db: AsyncSession,
+    key: str,
+    *,
+    tenant_id: uuid.UUID | str | None = None,
+) -> str | None:
+    """This brand's own row for a scoped key, with no fallback to a global row.
+
+    For settings that only ever mean something per brand (a connection, its
+    schedule, its history): a stray plain row must never be read as every
+    brand's value. None when the brand has saved nothing, or there is no brand.
+    """
+    tid = tenant_id if tenant_id is not None else get_current_tenant_id()
+    if not tid or key not in TENANT_SCOPED_KEYS:
+        return None
+    row = (await db.execute(
+        select(Settings).where(Settings.key == scoped_key(key, tid))
+    )).scalar_one_or_none()
+    return row.value if row is not None else None
 
 
 async def set_setting(

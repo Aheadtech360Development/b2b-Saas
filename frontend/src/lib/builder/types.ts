@@ -123,6 +123,34 @@ export interface ReviewItem {
   verified: boolean; image: string; reply: string; date: string;
 }
 
+/** A review on a "Reviews from…" block: any product's, or the store's. */
+export interface ShopReviewItem extends ReviewItem {
+  /** The product it is about, when it is about one. */
+  product: string; productUrl: string;
+}
+
+/** The business on Google, read live: Google's rating, count and picked reviews. */
+export interface GooglePlaceInfo {
+  name: string; rating: number | null; total: number | null; maps_url: string | null;
+  reviews: {
+    rating: number; text: string; author: string; author_url: string | null; author_photo: string | null;
+    when: string; url: string | null; report_url: string | null;
+  }[];
+}
+
+/** The shop's Yelp page, and the reviews Yelp's own embed draws. */
+export interface YelpInfo {
+  url: string | null;
+  reviews: { id: string; author: string | null; author_url: string | null; review_url: string; business: string | null }[];
+}
+
+/** What "Reviews from…" blocks show (backend resolve._store_reviews), per source. */
+export interface StoreReviewsInfo {
+  shop: { total: number; avg: number; items: ShopReviewItem[] } | null;
+  google: GooglePlaceInfo | null;
+  yelp: YelpInfo | null;
+}
+
 /** The shop's rewards program, as its website shows it (backend resolve._loyalty). */
 export interface LoyaltyInfo {
   /** The program runs: in the shop's plan and turned on in Marketing, Loyalty. */
@@ -169,6 +197,8 @@ export interface SitePayload {
     reviews?: { total: number; avg: number; items: ReviewItem[] } | null;
     /** The rewards program, on a page that shows it. Only `on` when it is off. */
     loyalty?: LoyaltyInfo | { on: false } | null;
+    /** Reviews from the shop, Google or Yelp, on a page with a "Reviews from…" block. */
+    storeReviews?: StoreReviewsInfo | null;
   };
 }
 

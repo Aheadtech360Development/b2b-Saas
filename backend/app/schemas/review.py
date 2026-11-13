@@ -22,9 +22,11 @@ class ProductReviewOut(BaseModel):
     reviewer_name: str
     reviewer_company: str | None
     is_verified: bool
+    # False while a new review waits for the shop's approval.
+    is_approved: bool = True
     image_url: str | None = None
     created_at: datetime
-    # 'site' or 'google', and what Google requires shown alongside its reviews.
+    # 'site', 'google' or 'judgeme', and what Google requires shown alongside its reviews.
     source: str = "site"
     reviewer_photo_url: str | None = None
     source_url: str | None = None

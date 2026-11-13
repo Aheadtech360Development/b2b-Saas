@@ -562,6 +562,19 @@ export const REGISTRY: ComponentDef[] = [
     create: () => node("product_reviews", { heading: "Customer reviews", limit: 6, allowWrite: true }),
   },
   {
+    type: "store_reviews", label: "Reviews from…", category: "store", icon: "Star",
+    blurb: "Reviews on any page: your customers' (and Judge.me's), your Google rating and reviews, or your Yelp reviews. Connect them in Marketing, Reviews.",
+    fields: [
+      { key: "heading", label: "Heading", kind: "text" },
+      { key: "source", label: "Reviews from", kind: "select", options: [
+        { value: "shop", label: "Your customers" }, { value: "google", label: "Google" }, { value: "yelp", label: "Yelp" }] },
+      { key: "limit", label: "Reviews shown", kind: "number", min: 1, max: 12,
+        help: "Google shows up to 5, the ones Google picks." },
+    ],
+    styles: ["typography", "spacing", "background", "border"],
+    create: () => node("store_reviews", { heading: "What our customers say", source: "shop", limit: 6 }),
+  },
+  {
     type: "loyalty_points", label: "Points it earns", category: "commerce", icon: "Coins", context: ["product"],
     blurb: "“Earn 25 points with this purchase”: what this product earns in your rewards program. It follows the price as options are picked.",
     fields: [],

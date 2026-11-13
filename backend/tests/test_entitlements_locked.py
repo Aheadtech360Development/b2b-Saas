@@ -32,4 +32,6 @@ def test_a_feature_switched_off_on_its_own_plan_names_no_plan():
 def test_only_what_the_shop_lacks_is_listed():
     have = plan_defaults("scale")
     locked = locked_features(have, "scale")
-    assert [item["feature"] for item in locked] == ["gang_sheet_ai"]
+    # The top plan lacks only the add-ons no plan sells, and names no plan for them.
+    assert sorted(item["feature"] for item in locked) == ["gang_sheet_ai", "inventory_sync"]
+    assert all(item["upgrade_to"] is None for item in locked)

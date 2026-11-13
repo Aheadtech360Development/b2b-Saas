@@ -835,6 +835,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Brands' Google reviews, re-imported every few hours.
     from app.services.google_reviews import scheduler_loop as _google_reviews_loop
     _google_reviews_scheduler = _asyncio.create_task(_google_reviews_loop())
+    # Brands' Judge.me reviews, re-imported every few hours.
+    from app.services.review_sources.judgeme import scheduler_loop as _judgeme_loop
+    _judgeme_scheduler = _asyncio.create_task(_judgeme_loop())
     # A card on file with no plan behind it: the plan is started (hourly).
     from app.services.billing_autostart import scheduler_loop as _billing_autostart_loop
     _billing_autostart = _asyncio.create_task(_billing_autostart_loop())
@@ -878,6 +881,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     _supplier_scheduler.cancel()
     _google_reviews_scheduler.cancel()
+    _judgeme_scheduler.cancel()
     _billing_autostart.cancel()
     _trial_notices.cancel()
     _partner_retry.cancel()
@@ -1205,6 +1209,9 @@ app.include_router(_builder_public.router, prefix=_V1)
 app.include_router(_admin_builder.router, prefix=_V1)
 app.include_router(admin_google_reviews.router, prefix=_V1)
 app.include_router(admin_google_reviews.callback_router, prefix=_V1)
+# Judge.me, Google business, Yelp and the review rules (Marketing → Reviews).
+from app.api.v1.admin import review_sources as admin_review_sources  # noqa: E402
+app.include_router(admin_review_sources.router, prefix=_V1)
 from app.api.v1 import copilot as copilot_api  # noqa: E402
 app.include_router(copilot_api.admin_router, prefix=_V1)
 app.include_router(copilot_api.public_router, prefix=_V1)

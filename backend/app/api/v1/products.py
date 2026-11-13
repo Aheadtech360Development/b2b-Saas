@@ -423,6 +423,32 @@ async def list_product_reviews(
     )
 
 
+@router.get("/{product_id}/reviews/can-write")
+async def can_write_review(product_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)):
+    """Asked before the review form opens: may this visitor write one, and why not.
+
+    So a customer who may not review the product is told before writing, not after.
+    """
+    from app.models.user import User
+    from app.services.review_sources import rules as review_rules
+    from app.services.review_sources import store as review_store
+
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and getattr(request.state, "is_admin", False):
+        return {"ok": False, "reason": "Shop accounts can't write reviews. Reviews come from customers.",
+                "verified": False, "held": False}
+    user = None
+    if user_id:
+        try:
+            user = (await db.execute(select(User).where(User.id == uuid.UUID(str(user_id))))).scalar_one_or_none()
+        except (TypeError, ValueError):
+            user = None
+    is_buyer = bool(user) and await review_rules.bought(db, product_id=product_id, user_id=user.id, email=user.email)
+    setup = await review_store.load(db)
+    reason = review_rules.refusal(setup["rules"], signed_in=user is not None, is_buyer=is_buyer)
+    return {"ok": reason is None, "reason": reason, "verified": is_buyer, "held": bool(setup["rules"]["hold"])}
+
+
 @router.post("/{product_id}/reviews", status_code=201)
 async def create_product_review(
     product_id: uuid.UUID,
@@ -433,22 +459,45 @@ async def create_product_review(
     from app.models.product import Product, ProductReview
     from app.schemas.review import ProductReviewOut
 
+    from app.models.user import User
+    from app.services.review_sources import rules as review_rules
+    from app.services.review_sources import store as review_store
+
     product_result = await db.execute(select(Product).where(Product.id == product_id))
     if not product_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Product not found")
 
     user_id = getattr(request.state, "user_id", None)
+    # Reviews are the shop's customers' words. Its own staff cannot add any,
+    # and nobody can without signing in (the path is public for reading).
+    if user_id and getattr(request.state, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Shop accounts can't write reviews. Reviews come from customers.")
+
+    user = None
+    if user_id:
+        try:
+            user = (await db.execute(select(User).where(User.id == uuid.UUID(str(user_id))))).scalar_one_or_none()
+        except (TypeError, ValueError):
+            user = None
+    is_buyer = bool(user) and await review_rules.bought(
+        db, product_id=product_id, user_id=user.id, email=user.email,
+    )
+    setup = await review_store.load(db)
+    refusal = review_rules.refusal(setup["rules"], signed_in=user is not None, is_buyer=is_buyer)
+    if refusal:
+        raise HTTPException(status_code=401 if user is None else 403, detail=refusal)
 
     review = ProductReview(
         product_id=product_id,
-        user_id=uuid.UUID(user_id) if user_id else None,
+        user_id=user.id,
         rating=payload.rating,
         title=payload.title,
         body=payload.body,
         reviewer_name=payload.reviewer_name,
         reviewer_company=payload.reviewer_company,
-        is_verified=user_id is not None,
-        is_approved=True,
+        # "Verified buyer" means bought it, not signed in.
+        is_verified=is_buyer,
+        is_approved=not setup["rules"]["hold"],
         image_url=payload.image_url,
     )
     db.add(review)

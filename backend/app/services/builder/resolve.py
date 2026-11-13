@@ -296,6 +296,70 @@ async def _reviews(db: AsyncSession, tenant_id: uuid.UUID, product_id: str,
     return {"total": total, "avg": avg, "items": items}
 
 
+STORE_REVIEW_SOURCES = ("shop", "google", "yelp")
+
+
+async def _store_reviews(db: AsyncSession, tenant_id: uuid.UUID,
+                         nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """What a "Reviews from…" block shows, read only for the sources the page uses.
+
+    shop:   the newest reviews the shop's own customers wrote or Judge.me
+            brought in, any product or the store, with their average and count.
+            Every rating, newest first: nothing is picked by its stars.
+    google: the business found on Google, read live (services/review_sources).
+    yelp:   the Yelp page and the reviews Yelp's own embed draws.
+    """
+    wanted = {str((n.get("props") or {}).get("source") or "shop") for n in nodes
+              if n.get("type") == "store_reviews"}
+    out: dict[str, Any] = {"shop": None, "google": None, "yelp": None}
+
+    if wanted & {"google", "yelp"}:
+        from app.services.review_sources.shop import sources
+
+        found = await sources(db, tenant_id)
+        out["google"] = found.get("google") if "google" in wanted else None
+        out["yelp"] = found.get("yelp") if "yelp" in wanted else None
+
+    if "shop" in wanted:
+        args = {"t": str(tenant_id)}
+        where = ("WHERE r.tenant_id = CAST(:t AS uuid) AND r.is_approved = true "
+                 "AND r.source IN ('site', 'judgeme')")
+        stats = (await db.execute(text(
+            f"SELECT COUNT(*) AS n, AVG(r.rating) AS avg FROM product_reviews r {where}"), args)).first()
+        total = int(stats.n or 0) if stats else 0
+        limit = max((min(MAX_REVIEWS, _limit(n.get("props") or {}, 6)) for n in nodes
+                     if n.get("type") == "store_reviews"
+                     and str((n.get("props") or {}).get("source") or "shop") == "shop"), default=6)
+        items: list[dict[str, Any]] = []
+        if total:
+            rows = (await db.execute(text(
+                "SELECT r.rating, r.title, r.body, r.reviewer_name, r.reviewer_company, r.is_verified, "
+                "r.image_url, r.reply_text, COALESCE(r.reviewed_at, r.created_at) AS at, "
+                "p.name AS product_name, p.slug AS product_slug "
+                f"FROM product_reviews r LEFT JOIN products p ON p.id = r.product_id AND p.status = 'active' {where} "
+                "ORDER BY COALESCE(r.reviewed_at, r.created_at) DESC LIMIT :n"
+            ), {**args, "n": limit})).all()
+            items = [{
+                "rating": max(1, min(5, int(r.rating or 0))),
+                "title": r.title or "",
+                "body": r.body or "",
+                "name": r.reviewer_name or "",
+                "company": r.reviewer_company or "",
+                "verified": bool(r.is_verified),
+                "image": r.image_url or "",
+                "reply": r.reply_text or "",
+                "date": r.at.date().isoformat() if r.at else "",
+                "product": r.product_name or "",
+                "productUrl": f"/products/{r.product_slug}" if r.product_slug else "",
+            } for r in rows]
+        out["shop"] = {
+            "total": total,
+            "avg": round(float(stats.avg), 1) if stats and stats.avg else 0.0,
+            "items": items,
+        }
+    return out
+
+
 async def _cards_for_ids(db: AsyncSession, tenant_id: uuid.UUID, ids: list[str]) -> dict[str, dict[str, Any]]:
     """Product cards by product id, for hand-picked grids: one lookup for the
     slugs, then the cards in batches of what the card loader takes at once."""
@@ -557,7 +621,7 @@ async def render_payload(
     parts = {k: (doc.get("parts") or {}).get(k) for k in PART_KEYS}
     data: dict[str, Any] = {"product": None, "collection": None, "collectionPage": None,
                             "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}, "reviews": None,
-                            "search": None, "loyalty": None}
+                            "search": None, "loyalty": None, "storeReviews": None}
     page_data: dict[str, Any] | None = None
     not_found = False
     ttype = route
@@ -653,6 +717,9 @@ async def render_payload(
 
     if any(n.get("type") in ("loyalty_program", "loyalty_referral", "loyalty_points") for n in nodes):
         data["loyalty"] = await _loyalty(db, tenant_id)
+
+    if any(n.get("type") == "store_reviews" for n in nodes):
+        data["storeReviews"] = await _store_reviews(db, tenant_id, nodes)
 
     # Descriptions are written in the product and collection editors and can
     # carry markup. A builder page puts them in as HTML, so they leave here

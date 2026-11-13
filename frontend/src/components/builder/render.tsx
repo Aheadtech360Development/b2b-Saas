@@ -30,6 +30,7 @@ import CartLink from "./islands/CartLink";
 import AuthButtons from "./islands/AuthButtons";
 import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
+import { GoogleReviewList, ShopReviewList, YelpReviewList } from "./islands/StoreReviews";
 import BlockScript from "./islands/BlockScript";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 import { ContactForm } from "./islands/ContactForm";
@@ -671,6 +672,24 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       return <Reviews id={id} productId={String(product.id ?? "")} heading={str(p.heading)} items={r?.items ?? []}
                       total={r?.total ?? 0} avg={r?.avg ?? 0} allowWrite={p.allowWrite !== false} edit={ctx.edit}
                       loading={!!ctx.edit && !r} />;
+    }
+    case "store_reviews": {
+      const source = str(p.source, "shop");
+      const heading = str(p.heading);
+      const limit = Math.max(1, Math.min(12, Math.round(num(p.limit, 6))));
+      const sr = data.storeReviews;
+      // In the editor the reviews arrive a moment after the block is placed.
+      if (!sr) return ctx.edit ? <div data-b={id} className="b-note">Loading reviews…</div> : null;
+      if (source === "google") {
+        if (!sr.google) return note(ctx, id, "Your Google rating and reviews show here once you find your business: Marketing, Reviews.");
+        return <GoogleReviewList id={id} heading={heading} place={sr.google} limit={Math.min(limit, 5)} />;
+      }
+      if (source === "yelp") {
+        if (!sr.yelp) return note(ctx, id, "Your Yelp reviews show here once you add them: Marketing, Reviews.");
+        return <YelpReviewList id={id} heading={heading} yelp={sr.yelp} limit={limit} edit={ctx.edit} />;
+      }
+      if (!sr.shop || !sr.shop.total) return note(ctx, id, "Your customers' reviews show here, newest first, once they write some.");
+      return <ShopReviewList id={id} heading={heading} total={sr.shop.total} avg={sr.shop.avg} items={sr.shop.items.slice(0, limit)} />;
     }
     case "loyalty_points": {
       if (!product) return note(ctx, id, "What this product earns in your rewards program shows here.");

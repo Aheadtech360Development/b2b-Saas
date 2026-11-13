@@ -244,6 +244,10 @@ class Settings(BaseSettings):
     # Must match an authorised redirect URI on that OAuth client exactly, e.g.
     # https://api.example.com/api/v1/integrations/google-reviews/callback
     GOOGLE_OAUTH_REDIRECT_URI: str = ""
+    # Places API (New) key: brands find their business on Google and the shop
+    # shows its rating and Google's picked reviews (services/review_sources/
+    # google_place). The platform's key, so calls bill to the platform.
+    GOOGLE_PLACES_API_KEY: str = ""
 
     # ── AWS S3 ────────────────────────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""

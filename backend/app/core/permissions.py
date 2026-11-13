@@ -88,6 +88,7 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/catalog", "products"),
     ("/api/v1/admin/reviews", "products"),
     ("/api/v1/admin/google-reviews", "products"),
+    ("/api/v1/admin/review-sources", "products"),
     ("/api/v1/admin/supplier-catalog", "products"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),

@@ -167,7 +167,10 @@ export function GoogleReviewsConnect({ onChanged }: { onChanged?: () => void }) 
     setBusy(null);
   }
 
-  if (!status) return null;
+  // Importing every review needs the platform's Google sign-in (and Google's
+  // approval). Until it is set up there is nothing here a shop can do; the
+  // Google card above shows the rating and Google's picked reviews instead.
+  if (!status || (!status.configured && !status.connected)) return null;
 
   return (
     <div style={CARD}>
@@ -177,9 +180,9 @@ export function GoogleReviewsConnect({ onChanged }: { onChanged?: () => void }) 
             <GoogleMark />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830" }}>Google Reviews</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830" }}>Google Business Profile</div>
             <div style={{ fontSize: "12.5px", color: "#7A7880", marginTop: "2px" }}>
-              {!status.connected && "Show the reviews from your Google Business Profile on your store."}
+              {!status.connected && "Import every review from your Google Business Profile: sign in with the Google account that manages it."}
               {status.connected && !status.location && `Connected as ${status.google_email ?? "your Google account"} — choose your business below.`}
               {status.connected && status.location && (
                 <>
@@ -236,11 +239,6 @@ export function GoogleReviewsConnect({ onChanged }: { onChanged?: () => void }) 
         </div>
       )}
 
-      {!status.configured && !status.connected && (
-        <div style={{ marginTop: "12px", fontSize: "12px", color: "#D97706" }}>
-          Google sign-in is not set up on this platform yet — the platform administrator needs to add it.
-        </div>
-      )}
       {status.last_error && !note && (
         <div style={{ marginTop: "12px", fontSize: "12px", color: "#D97706" }}>{status.last_error}</div>
       )}

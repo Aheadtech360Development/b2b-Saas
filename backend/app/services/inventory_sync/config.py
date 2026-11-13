@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tenant_settings import get_setting, set_setting
+from app.core.tenant_settings import get_own_setting, set_setting
 
 KEY = "inventory_sync"
 FEATURE = "inventory_sync"
@@ -62,7 +62,8 @@ def _merge(base: dict, over: dict) -> dict:
 
 
 async def _load_all(db: AsyncSession, tenant_id=None) -> dict:
-    raw = await get_setting(db, KEY, tenant_id=tenant_id)
+    # The brand's own row only: a setup is never shared between brands.
+    raw = await get_own_setting(db, KEY, tenant_id=tenant_id)
     try:
         data = json.loads(raw) if raw else {}
     except (TypeError, ValueError):

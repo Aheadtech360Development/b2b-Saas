@@ -128,7 +128,7 @@ function ReviewsTab({ productId, isAuthenticated }: { productId: string; isAuthe
         }
       }
 
-      await apiClient.post(`/api/v1/products/${productId}/reviews`, {
+      const saved = await apiClient.post<{ is_approved?: boolean }>(`/api/v1/products/${productId}/reviews`, {
         rating: form.rating,
         title: form.title || null,
         body: form.body,
@@ -136,7 +136,10 @@ function ReviewsTab({ productId, isAuthenticated }: { productId: string; isAuthe
         reviewer_company: form.reviewer_company || null,
         image_url,
       });
-      setSubmitMsg({ type: "success", text: "Review submitted! Thank you." });
+      // A shop that checks reviews first shows this one once it has read it.
+      setSubmitMsg({ type: "success", text: saved?.is_approved === false
+        ? "Thanks, your review will show once the shop has read it."
+        : "Review submitted! Thank you." });
       setForm({ rating: 5, title: "", body: "", reviewer_name: "", reviewer_company: "" });
       setImageFile(null);
       setImagePreview(null);

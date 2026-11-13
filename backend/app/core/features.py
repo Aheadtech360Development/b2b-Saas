@@ -156,6 +156,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/supplier-catalog", "supplier_catalog"),
     ("/api/v1/admin/suppliers", "supplier_catalog"),
     ("/api/v1/admin/google-reviews", "reviews"),
+    ("/api/v1/admin/review-sources", "reviews"),
     ("/api/v1/admin/reviews", "reviews"),
     ("/api/v1/admin/blog-posts", "blog"),
     ("/api/v1/admin/pages-seo", "pages"),

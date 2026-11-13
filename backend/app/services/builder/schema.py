@@ -139,6 +139,10 @@ COMPONENTS: dict[str, Component] = {
     # from the reviews customers already write; nothing new is stored.
     "product_rating": _c(context=("product",)),
     "product_reviews": _c(context=("product",)),
+    # Reviews from one place, on any page: the shop's own customers (and
+    # Judge.me), the business on Google, or Yelp. Set up in Marketing → Reviews
+    # (services/review_sources); the block only chooses which and how many.
+    "store_reviews": _c(),
     # ── Commerce: lists of products and collections ──
     "product_grid": _c(refs=(("collectionId", "collection", False), ("productIds", "product", True))),
     "collection_grid": _c(refs=(("collectionIds", "collection", True),)),

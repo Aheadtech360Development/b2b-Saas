@@ -42,28 +42,52 @@ export default function Reviews({ id, productId, heading, items, total, avg, all
   const count = total + added.length;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ rating: 5, title: "", body: "", name: "" });
-  const [state, setState] = useState<{ busy: boolean; error: string; done: boolean }>({ busy: false, error: "", done: false });
+  const [state, setState] = useState<{ busy: boolean; error: string; done: "" | "posted" | "held" }>({ busy: false, error: "", done: "" });
+  // Why this customer may not review the product (the shop's rules), asked
+  // when they press Write a review, so they are told before they write.
+  const [refused, setRefused] = useState("");
+  const [checking, setChecking] = useState(false);
   const signedIn = mounted && !!user && !user.is_admin;
   const signedOut = mounted && !authLoading && !user;
+
+  async function startWriting() {
+    if (edit) return;
+    setChecking(true);
+    try {
+      const r = await apiClient.get<{ ok: boolean; reason: string | null }>(`/api/v1/products/${productId}/reviews/can-write`);
+      if (r && r.ok === false) { setRefused(r.reason || "You can't review this product."); return; }
+      setRefused("");
+      setOpen(true);
+    } catch {
+      // Not known: let them write; the shop still checks when it is sent.
+      setOpen(true);
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (edit) return;
     const name = form.name.trim() || [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
-    if (form.body.trim().length < 10) { setState({ busy: false, error: "Write at least a sentence (10 characters or more).", done: false }); return; }
-    if (!name) { setState({ busy: false, error: "Add the name to show with your review.", done: false }); return; }
-    setState({ busy: true, error: "", done: false });
+    if (form.body.trim().length < 10) { setState({ busy: false, error: "Write at least a sentence (10 characters or more).", done: "" }); return; }
+    if (!name) { setState({ busy: false, error: "Add the name to show with your review.", done: "" }); return; }
+    setState({ busy: true, error: "", done: "" });
     try {
-      await apiClient.post(`/api/v1/products/${productId}/reviews`, {
+      const saved = await apiClient.post<{ is_verified?: boolean; is_approved?: boolean }>(`/api/v1/products/${productId}/reviews`, {
         rating: form.rating, title: form.title.trim() || null, body: form.body.trim(), reviewer_name: name,
       });
-      setAdded((l) => [{ rating: form.rating, title: form.title.trim(), body: form.body.trim(), name, company: "", verified: true,
-                         image: "", reply: "", date: new Date().toISOString().slice(0, 10) }, ...l]);
+      const held = saved?.is_approved === false;
+      // A review waiting for the shop's approval is not on the page yet.
+      if (!held) {
+        setAdded((l) => [{ rating: form.rating, title: form.title.trim(), body: form.body.trim(), name, company: "",
+                           verified: !!saved?.is_verified, image: "", reply: "", date: new Date().toISOString().slice(0, 10) }, ...l]);
+      }
       setForm({ rating: 5, title: "", body: "", name: "" });
       setOpen(false);
-      setState({ busy: false, error: "", done: true });
+      setState({ busy: false, error: "", done: held ? "held" : "posted" });
     } catch (err) {
-      setState({ busy: false, error: err instanceof ApiClientError ? err.message : "That did not send. Try again.", done: false });
+      setState({ busy: false, error: err instanceof ApiClientError ? err.message : "That did not send. Try again.", done: "" });
     }
   }
 
@@ -81,15 +105,17 @@ export default function Reviews({ id, productId, heading, items, total, avg, all
         ) : (
           <div className="b-rev-sum"><span className="b-rcount">{loading ? "Loading this product’s reviews…" : "No reviews yet."}</span></div>
         )}
-        {allowWrite && !open && (edit || signedIn) && (
-          <button type="button" className="b-btn b-btn-outline" onClick={() => { if (!edit) setOpen(true); }}>Write a review</button>
+        {allowWrite && !open && !refused && (edit || signedIn) && (
+          <button type="button" className="b-btn b-btn-outline" disabled={checking} onClick={startWriting}>Write a review</button>
         )}
         {allowWrite && !edit && signedOut && (
           <a className="b-rev-signin" href="/login">Sign in to write a review</a>
         )}
       </div>
 
-      {state.done && <p className="b-rev-done" role="status">Thanks — your review is posted.</p>}
+      {refused && <p className="b-rev-err" role="status">{refused}</p>}
+      {state.done === "posted" && <p className="b-rev-done" role="status">Thanks, your review is posted.</p>}
+      {state.done === "held" && <p className="b-rev-done" role="status">Thanks, your review will show once the shop has read it.</p>}
 
       {open && (
         <form className="b-rev-form" onSubmit={submit}>

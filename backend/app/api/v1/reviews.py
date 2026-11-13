@@ -69,7 +69,38 @@ async def list_recent_reviews(
     except Exception:
         google = None
 
-    return {"reviews": reviews, "total": total, "avg_rating": avg_rating, "google": google}
+    # The business found on Google (Marketing → Reviews), when the Business
+    # Profile is not connected: Google's rating and count, read live.
+    yelp = None
+    try:
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services.review_sources.shop import sources as _sources
+
+        _tid = get_current_tenant_id()
+        if _tid:
+            found = await _sources(db, _tid)
+            place = found.get("google")
+            if google is None and place and place.get("rating") is not None:
+                google = {"rating": place.get("rating"), "total": place.get("total"),
+                          "maps_url": place.get("maps_url"), "name": place.get("name")}
+            yelp = found.get("yelp")
+    except Exception:
+        yelp = None
+
+    return {"reviews": reviews, "total": total, "avg_rating": avg_rating, "google": google, "yelp": yelp}
+
+
+@router.get("/sources")
+async def review_sources(db: AsyncSession = Depends(get_db)):
+    """The shop's Google business (rating, count, Google's picked reviews, read
+    live) and its Yelp page and embedded reviews. Empty for a shop without them."""
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services.review_sources.shop import sources as _sources
+
+    tid = get_current_tenant_id()
+    if not tid:
+        return {"google": None, "yelp": None}
+    return await _sources(db, tid)
 
 
 @router.post("/upload-image")
