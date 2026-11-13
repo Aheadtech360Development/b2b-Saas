@@ -14,10 +14,10 @@ import { Fraunces_400Regular, Fraunces_600SemiBold } from "@expo-google-fonts/fr
 
 import { readSession, type Session } from "@/session/store";
 import { refresh } from "@/api/client";
-import { AccountScreen } from "@/screens/AccountScreen";
 import { AdminApp } from "@/admin/AdminApp";
 import { ApplyScreen } from "@/screens/ApplyScreen";
 import { SignInScreen } from "@/screens/SignInScreen";
+import { ShopApp } from "@/shop/ShopApp";
 import { palette } from "@/ui/theme";
 
 type Screen = "loading" | "signIn" | "apply" | "home";
@@ -77,7 +77,7 @@ export default function App() {
             onSignedOut={() => { setSession(null); setScreen("signIn"); }}
           />
         ) : (
-          <AccountScreen
+          <ShopApp
             session={session}
             onSignedOut={() => { setSession(null); setScreen("signIn"); }}
           />

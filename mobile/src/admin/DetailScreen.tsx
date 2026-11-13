@@ -22,11 +22,13 @@ import { TAB_BAR_SPACE } from "@/admin/tabs";
 import { palette, radius, space, type } from "@/ui/theme";
 
 export function DetailScreen({
-  section, row, onBack,
+  section, row, onBack, onEdit,
 }: {
   section: Section;
   row: Row;
   onBack: () => void;
+  /** Present when this record can be changed. */
+  onEdit?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [blocks, setBlocks] = useState<DetailBlock[]>([]);
@@ -137,6 +139,17 @@ export function DetailScreen({
             <Text style={s.empty}>Nothing more to show for this one.</Text>
           ) : null}
 
+          {onEdit ? (
+            <Pressable
+              onPress={onEdit}
+              style={({ pressed }) => [s.editButton, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="create-outline" size={16} color={palette.ink} />
+              <Text style={s.editButtonText}>Edit</Text>
+            </Pressable>
+          ) : null}
+
           {actions.length ? (
             <Pressable
               onPress={() => setActing(true)}
@@ -226,6 +239,13 @@ const s = StyleSheet.create({
   text: { ...type.small, color: palette.ink, lineHeight: 21, paddingVertical: 4 },
   empty: { ...type.small, color: palette.muted, textAlign: "center", marginTop: space.lg },
 
+  editButton: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs,
+    backgroundColor: palette.paper, borderRadius: radius.md,
+    borderWidth: 1, borderColor: palette.line,
+    paddingVertical: 14, marginTop: space.sm,
+  },
+  editButtonText: { ...type.bodyMedium, fontSize: 15.5, color: palette.ink },
   actionButton: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs,
     backgroundColor: palette.ink, borderRadius: radius.md,

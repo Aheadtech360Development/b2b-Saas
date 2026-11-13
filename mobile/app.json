@@ -21,7 +21,8 @@
       "expo-font",
       "expo-splash-screen",
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@stripe/stripe-react-native"
     ]
   }
 }

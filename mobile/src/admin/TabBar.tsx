@@ -10,13 +10,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { palette, space, type } from "@/ui/theme";
-import { isTabActive, TABS } from "@/admin/tabs";
+import { isTabActive, TABS, type Tab } from "@/admin/tabs";
 
 export function TabBar({
-  current, onPick,
+  current, onPick, tabs = TABS, isActive = isTabActive, badges,
 }: {
   current: string;
   onPick: (key: string) => void;
+  /** The buyer's app has its own four; the console's are the default. */
+  tabs?: Tab[];
+  isActive?: (tabKey: string, current: string) => boolean;
+  /** A count on a tab, like the items in the cart. Nothing shown at 0. */
+  badges?: Record<string, number>;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -25,8 +30,9 @@ export function TabBar({
       pointerEvents="box-none"
     >
       <View style={s.bar}>
-        {TABS.map((tab) => {
-          const active = isTabActive(tab.key, current);
+        {tabs.map((tab) => {
+          const active = isActive(tab.key, current);
+          const count = badges?.[tab.key] ?? 0;
           return (
             <Pressable
               key={tab.key}
@@ -42,6 +48,11 @@ export function TabBar({
                   size={20}
                   color={active ? "#fff" : palette.ink70}
                 />
+                {count > 0 ? (
+                  <View style={s.badge} accessibilityLabel={`${count} in ${tab.label}`}>
+                    <Text style={s.badgeText}>{count > 99 ? "99+" : count}</Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[s.label, active && s.labelOn]} numberOfLines={1}>{tab.label}</Text>
             </Pressable>
@@ -79,4 +90,9 @@ const s = StyleSheet.create({
   iconWrapOn: { backgroundColor: palette.ink },
   label: { ...type.small, fontSize: 10, color: palette.muted },
   labelOn: { color: palette.ink, fontFamily: type.label.fontFamily },
+  badge: {
+    position: "absolute", top: -4, right: -2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    backgroundColor: palette.bad, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: palette.paper,
+  },
+  badgeText: { ...type.small, fontSize: 10, lineHeight: 12, color: "#fff", fontFamily: type.label.fontFamily },
 });

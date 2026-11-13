@@ -59,6 +59,16 @@ async def list_wholesale_applications(
     return [WholesaleApplicationOut.model_validate(a) for a in applications]
 
 
+@router.get("/wholesale-applications/{application_id}", response_model=WholesaleApplicationOut)
+async def get_wholesale_application(
+    application_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> WholesaleApplicationOut:
+    """One application, as the list has it. The phone app opens one before
+    approving it; there was no way to read a single application, so it 404'd."""
+    return WholesaleApplicationOut.model_validate(await WholesaleService(db).get_application(application_id))
+
+
 @router.post("/wholesale-applications/{application_id}/approve", status_code=200)
 async def approve_application(
     application_id: uuid.UUID,

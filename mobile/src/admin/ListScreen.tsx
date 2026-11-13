@@ -204,6 +204,9 @@ export function ListScreen({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          // Without this the row is a flex child of a column and stretches to
+          // fill what is left, which turned the chips into full height pills.
+          style={s.chipRow}
           contentContainerStyle={s.chips}
           keyboardShouldPersistTaps="handled"
         >
@@ -247,10 +250,10 @@ export function ListScreen({
           ListHeaderComponent={
             section.desktopOnly ? <Notice tone="warn">{section.desktopOnly}</Notice>
             : error ? <Notice tone="warn">{error}</Notice>
-            : null
+            : undefined
           }
           ListEmptyComponent={
-            error || section.desktopOnly ? null : (
+            error || section.desktopOnly ? undefined : (
               <Text style={s.empty}>
                 {searching ? "Nothing matches that." : section.empty ?? "Nothing here yet."}
               </Text>
@@ -261,7 +264,7 @@ export function ListScreen({
               <View style={s.footer}><ActivityIndicator size="small" color={palette.muted} /></View>
             ) : !more && rows.length >= PAGE_SIZE ? (
               <Text style={s.footerText}>That is all of them.</Text>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) =>
             item.kind === "header" ? (
@@ -404,7 +407,8 @@ const s = StyleSheet.create({
   },
   clear: { paddingLeft: 8 },
 
-  chips: { paddingHorizontal: space.lg, gap: space.xs, paddingBottom: space.sm },
+  chipRow: { flexGrow: 0, flexShrink: 0 },
+  chips: { paddingHorizontal: space.lg, gap: space.xs, paddingBottom: space.sm, alignItems: "center" },
   chip: {
     borderWidth: 1, borderColor: palette.line, borderRadius: 100,
     paddingHorizontal: 14, paddingVertical: 7, backgroundColor: palette.paper,

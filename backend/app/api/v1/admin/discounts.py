@@ -106,6 +106,18 @@ async def create_discount(
     return _code_out(dc, 0)
 
 
+@router.get("/{discount_id}")
+async def get_discount(discount_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """One code, as the list has it: the phone app's edit form reads it first."""
+    dc = (await db.execute(select(DiscountCode).where(DiscountCode.id == discount_id))).scalar_one_or_none()
+    if not dc:
+        raise HTTPException(status_code=404, detail="Discount code not found.")
+    usage_count = (await db.execute(
+        select(func.count(DiscountUsage.id)).where(DiscountUsage.discount_code_id == dc.id)
+    )).scalar_one()
+    return _code_out(dc, usage_count)
+
+
 @router.patch("/{discount_id}")
 async def update_discount(
     discount_id: UUID,

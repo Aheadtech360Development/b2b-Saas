@@ -36,6 +36,11 @@ const LOOK: Record<string, { icon: IconName; tint: Tint }> = {
   users: { icon: "shield-outline", tint: "slate" },
   "audit-log": { icon: "time-outline", tint: "slate" },
   billing: { icon: "card-outline", tint: "green" },
+  "settings-general": { icon: "settings-outline", tint: "slate" },
+  "settings-taxes": { icon: "calculator-outline", tint: "amber" },
+  "settings-shipping": { icon: "airplane-outline", tint: "blue" },
+  analytics: { icon: "bar-chart-outline", tint: "violet" },
+  security: { icon: "lock-closed-outline", tint: "red" },
   theme: { icon: "brush-outline", tint: "violet" },
 };
 

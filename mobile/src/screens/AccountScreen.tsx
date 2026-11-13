@@ -18,7 +18,14 @@ import type { Session } from "@/session/store";
 import { Button, Card, Hero, Notice, Pill, Row, SectionLabel } from "@/ui/components";
 import { accentFor, palette, space, type } from "@/ui/theme";
 
-export function AccountScreen({ session, onSignedOut }: { session: Session; onSignedOut: () => void }) {
+export function AccountScreen({ session, onSignedOut, bottomSpace = 0, hideOrders = false }: {
+  session: Session;
+  onSignedOut: () => void;
+  /** Room for a tab bar floating over the bottom of the screen. */
+  bottomSpace?: number;
+  /** Inside the shop app the orders have a tab of their own. */
+  hideOrders?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const [shop, setShop] = useState<Shop | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -64,7 +71,7 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
   return (
     <ScrollView
       style={s.page}
-      contentContainerStyle={{ paddingBottom: space.xl + insets.bottom }}
+      contentContainerStyle={{ paddingBottom: space.xl + Math.max(insets.bottom, bottomSpace) }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -98,6 +105,7 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
           {profile?.phone ? <Row label="Phone" value={profile.phone} /> : null}
         </Card>
 
+        {hideOrders ? null : <>
         <View style={s.gap} />
         <SectionLabel>Your orders</SectionLabel>
 
@@ -119,6 +127,7 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
             </Card>
           ))
         )}
+        </>}
 
         <View style={s.gap} />
         <Button

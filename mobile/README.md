@@ -1,6 +1,7 @@
 # PrintCopilot mobile
 
-React Native (Expo). Phase 1: signing in and your own account.
+React Native (Expo SDK 58). A buyer gets the shop: browse, cart, checkout
+(card or cash on delivery), orders. A shop's own people get the console.
 
 ## Running it
 
@@ -33,16 +34,32 @@ so this app sends `X-Client-Type: native` and is handed the token to store in
 ## What is here
 
 ```
-src/api/client.ts     every call: tokens, refresh-and-replay, error messages
-src/api/auth.ts       sign in, 2FA, sign out, password reset
-src/api/shop.ts       find a shop by code; the current shop's branding
-src/api/account.ts    profile and recent orders
-src/session/store.ts  the session, in the Keychain / Keystore
-src/ui/               palette, and the pieces every screen is built from
-src/screens/          sign in, apply, account
+src/api/client.ts      every call: tokens, refresh-and-replay, error messages
+src/api/auth.ts        sign in, 2FA, sign out, password reset
+src/api/shop.ts        find a shop by code; the current shop's branding
+src/api/account.ts     profile and recent orders
+src/api/shopping.ts    the buyer's shop: products, cart, checkout, orders
+src/session/store.ts   the session, in the Keychain / Keystore
+src/shop/              the buyer's app: Shop, Cart, Orders, Account tabs,
+                       product, checkout (pay.ts: Stripe's payment sheet), order
+src/admin/             the console: Home, lists, records, actions, edit forms
+src/ui/                palette, and the pieces every screen is built from
+src/screens/           sign in, apply, account
 ```
 
-## Next
+## Paying by card
 
-Phase 2 is browsing and the cart, which is when a navigation library earns its
-place — there are three screens here and one rule between them.
+Checkout asks the server for the payment (`/checkout/intent`), which answers
+with the shop's own Stripe account and key, and opens Stripe's payment sheet
+for that account (`@stripe/stripe-react-native`, included in Expo Go). The
+order is placed (`/checkout/confirm`) only once the card is charged; if that
+fails, the button finishes the same order rather than charging again. Cash on
+delivery is offered when the shop has it on.
+
+What the app does not build itself (products from options, gang sheets, the
+t-shirt designer) opens on the shop's website.
+
+## Checks
+
+`npm run typecheck` here, and `backend/tests/test_mobile_app_routes.py`,
+which fails when the app calls a path or method the API does not have.

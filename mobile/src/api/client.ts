@@ -44,7 +44,7 @@ function messageFrom(body: unknown, fallback: string): string {
 }
 
 interface CallOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Skip the access token — for signing in, and for a shop code lookup. */
   anonymous?: boolean;

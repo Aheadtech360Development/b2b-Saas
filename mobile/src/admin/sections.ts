@@ -70,6 +70,8 @@ export interface Section {
   desktopOnly?: string;
   /** Opening a row, for the sections that have a record behind it. */
   detail?: Detail;
+  /** A settings screen: a form with no record behind it. */
+  form?: string;
   /** Chips above the list. The first is always everything. */
   filters?: Filter[];
   /** Whether search goes to the server. For a paged list it has to, or it
@@ -400,16 +402,34 @@ export const SECTIONS: Section[] = [
     }),
   },
 
-  // ── Admin ──────────────────────────────────────────────────────────────────
+  // -- Admin ------------------------------------------------------------------
+  {
+    key: "settings-general", label: "General & Email", group: "Admin",
+    form: "settings-general",
+  },
+  {
+    key: "settings-taxes", label: "Taxes & Duties", group: "Admin",
+    form: "settings-taxes",
+  },
+  {
+    key: "settings-shipping", label: "Shipping", group: "Admin",
+    form: "settings-shipping",
+  },
+  {
+    key: "analytics", label: "Analytics", group: "Admin",
+    desktopOnly: "Analytics is a set of charts built for a wide screen. The "
+      + "numbers that matter on a phone are on the Home screen.",
+  },
   {
     key: "users", label: "Users", group: "Admin",
     path: "/api/v1/admin/users", pick: items,
     empty: "No staff users.",
     row: (u) => ({
       id: str(u.id),
-      title: `${str(u.first_name)} ${str(u.last_name)}`.trim() || str(u.email),
+      title: [str(u.first_name), str(u.last_name)].filter(Boolean).join(" ") || str(u.email),
       subtitle: str(u.email),
-      pills: pills(u.role, u.is_active === false ? "inactive" : ""),
+      badge: str(u.role),
+      pills: pills(u.is_active === false ? "inactive" : ""),
     }),
   },
   {
@@ -418,15 +438,20 @@ export const SECTIONS: Section[] = [
     empty: "Nothing recorded yet.",
     row: (a) => ({
       id: str(a.id),
-      title: `${str(a.action)} ${str(a.entity_type)}`.trim() || "Event",
+      title: [str(a.action), str(a.entity_type)].filter(Boolean).join(" ") || "Event",
       subtitle: str(a.actor_email) || str(a.user_email),
-      meta: [{ label: "When", value: date(a.created_at) }],
+      group: dayOf(a.created_at),
     }),
   },
   {
     key: "billing", label: "Billing & Payouts", group: "Admin",
     desktopOnly: "Connecting a payment account opens a Stripe page that needs a "
-      + "desktop browser. Everything else about billing is here.",
+      + "desktop browser. Your plan and your payout status are on the website.",
+  },
+  {
+    key: "security", label: "Security (2FA)", group: "Admin",
+    desktopOnly: "Setting up two factor sign-in means scanning a code with this "
+      + "phone, so it has to be done on a computer.",
   },
   {
     key: "theme", label: "Edit theme", group: "Admin",

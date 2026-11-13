@@ -309,6 +309,9 @@ class OrderUpdateRequest(BaseModel):
     courier: str | None = None
     courier_service: str | None = None
     notes: str | None = None
+    # The same note, under the name the order's detail gives it (the phone
+    # app's edit form reads and writes one key).
+    order_notes: str | None = None
     payment_terms: str | None = None
 
 

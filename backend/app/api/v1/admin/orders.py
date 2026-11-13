@@ -1346,7 +1346,12 @@ async def update_admin_order(
         raise NotFoundError(f"Order {order_id} not found")
 
     old_status = order.status
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    # The order's own read of its note is `order_notes` (what the detail
+    # sends); the column is `notes`. Taken under either name.
+    if "order_notes" in changes:
+        changes["notes"] = changes.pop("order_notes")
+    for field, value in changes.items():
         setattr(order, field, value)
 
     from_draft = None
@@ -2359,6 +2364,54 @@ async def list_admin_rma(
         page_size=page_size,
         pages=(total + page_size - 1) // page_size,
     )
+
+
+@router.get("/rma/{rma_id}")
+async def get_admin_rma(rma_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """One return: the list's fields, its customer, and what is coming back.
+
+    The phone app opens a return from the list; there was no way to read one,
+    so it answered 405 and the return could not be looked at before approving.
+    """
+    from decimal import Decimal
+
+    from sqlalchemy.orm import selectinload
+
+    from app.models.company import Company
+    from app.models.rma import RMAItem
+
+    rma = (await db.execute(
+        select(RMARequest).where(RMARequest.id == rma_id)
+        .options(selectinload(RMARequest.items).selectinload(RMAItem.order_item))
+    )).scalar_one_or_none()
+    if not rma:
+        raise NotFoundError(f"RMA {rma_id} not found")
+    order = (await db.execute(select(Order).where(Order.id == rma.order_id))).scalar_one_or_none()
+    company = None
+    if order is not None and order.company_id:
+        company = (await db.execute(select(Company.name).where(Company.id == order.company_id))).scalar_one_or_none()
+    items = []
+    refund = Decimal("0")
+    for it in rma.items or []:
+        oi = it.order_item
+        amount = Decimal(str(it.refund_amount)) if it.refund_amount is not None else None
+        if amount is not None:
+            refund += amount
+        items.append({
+            "id": str(it.id), "product_name": oi.product_name if oi else None, "sku": oi.sku if oi else None,
+            "color": oi.color if oi else None, "size": oi.size if oi else None, "quantity": it.quantity,
+            "reason": it.reason, "refund_amount": float(amount) if amount is not None else None,
+            "line_total": float(Decimal(str(oi.unit_price)) * it.quantity) if oi else None,
+        })
+    return {
+        "id": str(rma.id), "rma_number": rma.rma_number, "order_id": str(rma.order_id),
+        "order_number": order.order_number if order else None,
+        "company_name": company or (order.guest_name if order else None),
+        "status": rma.status, "reason": rma.reason, "notes": rma.notes, "admin_notes": rma.admin_notes,
+        "refund_amount": float(refund) if items and any(i["refund_amount"] is not None for i in items) else None,
+        "items": items,
+        "created_at": rma.created_at.isoformat() if rma.created_at else None,
+    }
 
 
 @router.patch("/rma/{rma_id}", response_model=dict)
