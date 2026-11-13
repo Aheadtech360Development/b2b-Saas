@@ -25,14 +25,16 @@ vi.mock("@/lib/api-client", () => {
 
 let program: Record<string, unknown> | null = null;
 const applied: unknown[] = [];
+let programFails = false;
 vi.mock("@/lib/partnerApi", () => ({
   papi: (path: string, opts: { body?: unknown } = {}) => {
-    if (path === "/partners/program") return Promise.resolve(program);
+    if (path === "/partners/program") return programFails ? Promise.reject(new Error("down")) : Promise.resolve(program);
     if (path === "/partners/apply") { applied.push(opts.body); return Promise.resolve({ ok: true, status: "waiting" }); }
     return Promise.reject(new Error(`no answer for ${path}`));
   },
 }));
 
+import ContactPage from "@/components/marketing/pages/Contact";
 import DemoPage from "@/components/marketing/pages/Demo";
 import PartnersPage from "@/components/marketing/pages/Partners";
 
@@ -42,6 +44,7 @@ const field = (container: HTMLElement, name: string) =>
 beforeEach(() => {
   posted.length = 0;
   applied.length = 0;
+  programFails = false;
   program = {
     accepting_applications: true, accepting_referrals: true, standard_rate: "20%", standard_rate_bps: 2000,
     examples: [], hold_days: 30, minimum_payout_cents: 5000, cookie_days: 90, support_email: null,
@@ -80,7 +83,7 @@ describe("the affiliate page", () => {
     fireEvent.change(field(container, "promote"), { target: { value: "My newsletter for 4,000 print shops" } });
     const send = screen.getByRole("button", { name: "Apply to join" });
     expect(send).toBeDisabled();
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(await screen.findByRole("checkbox"));
     fireEvent.submit(send.closest("form")!);
 
     await waitFor(() => expect(applied).toHaveLength(1));
@@ -93,10 +96,35 @@ describe("the affiliate page", () => {
     expect(posted).toHaveLength(0);
   }, 15000);
 
+  it("never shows Coming Soon or a loading line, even before the program has answered", () => {
+    const { container } = render(<PartnersPage />);
+    expect(container.textContent).not.toMatch(/Coming Soon|Loading the program/);
+    expect(screen.getByRole("link", { name: "Apply to join" })).toHaveAttribute("href", "#apply");
+    expect(field(container, "email")).toBeTruthy();
+  });
+
+  it("says what to do when the program cannot be read", async () => {
+    programFails = true;
+    render(<PartnersPage />);
+    expect(await screen.findByText(/The partner terms did not load/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply to join" })).toBeDisabled();
+  });
+
   it("says so when the program is not taking applications", async () => {
     program = { ...program, accepting_applications: false };
     render(<PartnersPage />);
     expect(await screen.findByText("We are not taking applications right now. Please check back soon.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Apply to join" })).toBeNull();
+  });
+});
+
+describe("the contact page", () => {
+  it("gives the company address, the support email and the hours", () => {
+    const { container } = render(<ContactPage />);
+    // One line each, as an address is written.
+    const lines = container.querySelector("[data-company-address]")!.innerHTML.split(/<br\s*\/?>/).map((l) => l.trim());
+    expect(lines).toEqual(["AheadTech360 LLC", "30 N Gould St, Ste N", "Sheridan, WY 82801, USA"]);
+    expect(screen.getAllByRole("link", { name: "support@printcopilot.co" })[0]).toHaveAttribute("href", "mailto:support@printcopilot.co");
+    expect(container.querySelector("[data-support-hours]")?.textContent).toBe("Monday to Friday, 9am to 5pm US Eastern Time");
   });
 });

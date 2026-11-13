@@ -203,6 +203,9 @@ export default function ContactPage() {
                     support@printcopilot.co
                   </a>
                 </p>
+                <p style={{ marginTop: "8px", fontSize: "14px", lineHeight: "20px", color: "#5A6A7E" }} data-support-hours>
+                  Monday to Friday, 9am to 5pm US Eastern Time
+                </p>
               </div>
             </div>
             <div
@@ -263,6 +266,60 @@ export default function ContactPage() {
                 >
                   Affiliate and Partners
                 </Link>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                alignItems: "flex-start",
+                background: "#FFFFFF",
+                border: "1px solid #E3E8EF",
+                borderRadius: "12px",
+                padding: "24px",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  flex: "none",
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "10px",
+                  background: "#EAF3FF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0B66E4"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"></path>
+                  <circle cx="12" cy="9.5" r="2.5"></circle>
+                </svg>
+              </span>
+              <div>
+                <h3 className={s["d"]} style={{ fontSize: "20px", lineHeight: "26px", color: "#0C1E35" }}>
+                  Address
+                </h3>
+                <address
+                  data-company-address
+                  style={{ marginTop: "6px", fontSize: "15px", lineHeight: "22px", color: "#3A4A5E", fontStyle: "normal" }}
+                >
+                  AheadTech360 LLC
+                  <br />
+                  30 N Gould St, Ste N
+                  <br />
+                  Sheridan, WY 82801, USA
+                </address>
               </div>
             </div>
           </div>

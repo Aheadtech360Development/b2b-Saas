@@ -19,13 +19,17 @@ import type { ProgramInfo } from "@/components/partners/AuthFrame";
 type Applied = "waiting" | "info_requested" | "approved";
 type Program = ProgramInfo & { application_response_days?: number };
 
-/** The program as it stands: whether it takes applications, and its terms. */
-function useProgramInfo(): Program | null {
+/** The program as it stands: whether it takes applications, and its terms.
+ *  `failed` when it could not be read, so the page can say what to do. */
+function useProgramInfo(): { program: Program | null; failed: boolean } {
   const [info, setInfo] = useState<Program | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
-    papi<Program>("/partners/program", { auth: false }).then(setInfo).catch(() => setInfo(null));
+    papi<Program>("/partners/program", { auth: false })
+      .then((p) => { setInfo(p); setFailed(false); })
+      .catch(() => { setInfo(null); setFailed(true); });
   }, []);
-  return info;
+  return { program: info, failed };
 }
 
 export default function PartnersPage() {
@@ -33,8 +37,11 @@ export default function PartnersPage() {
   // The example month: one Wholesale shop at 20% of the price in force.
   const exampleMonth = "$" + ((usePlanCents().wholesale * 0.2) / 100)
     .toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const program = useProgramInfo();
-  const open = Boolean(program?.accepting_applications && program.terms);
+  const { program, failed } = useProgramInfo();
+  // Closed only once the program says so (Platform console, Affiliates,
+  // settings). Until it has answered, the page reads as open: the form shows,
+  // and it can be sent once the terms have arrived and are accepted.
+  const closed = program !== null && !(program.accepting_applications && program.terms);
   const [agree, setAgree] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,8 +155,9 @@ export default function PartnersPage() {
             Share your link. When a business you referred subscribes to PrintCoPilot, you earn every month they stay.
           </p>
           <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px" }}>
-            {/* Open when the program takes applications (Platform console, Affiliates, settings). */}
-            {open ? (
+            {/* Left out only when the program is not taking applications
+                (Platform console, Affiliates, settings). */}
+            {!closed && (
               <a
                 href="#apply"
                 style={{
@@ -168,25 +176,6 @@ export default function PartnersPage() {
               >
                 Apply to join
               </a>
-            ) : (
-              <span
-                aria-disabled="true"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: "56px",
-                  padding: "0 32px",
-                  borderRadius: "8px",
-                  background: "#0B66E4",
-                  color: "#FFFFFF",
-                  fontSize: "17px",
-                  fontWeight: "600",
-                  cursor: "default",
-                }}
-              >
-                Coming Soon
-              </span>
             )}
             <a
               className={s["btn-ghost"]}
@@ -836,17 +825,17 @@ export default function PartnersPage() {
                 color: "#3A4A5E",
               }}
             >
-              {notDone && !open && (
+              {notDone && closed && (
                 <div style={{ textAlign: "center", padding: "24px 0" }}>
                   <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
-                    {program ? "Applications are closed right now" : "Apply to join"}
+                    Applications are closed right now
                   </h2>
                   <p style={{ marginTop: "12px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                    {program ? "We are not taking applications right now. Please check back soon." : "Loading the program…"}
+                    We are not taking applications right now. Please check back soon.
                   </p>
                 </div>
               )}
-              {notDone && open && (
+              {notDone && !closed && (
                 <form onSubmit={submit}>
                   <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
                     Apply to join
@@ -1038,6 +1027,12 @@ export default function PartnersPage() {
                       >
                         {sending ? "Sending…" : "Apply to join"}
                       </button>
+                      {failed && (
+                        <p role="alert" style={{ margin: 0, fontSize: "14px", lineHeight: "20px", color: "#B42318" }}>
+                          The partner terms did not load, so the form cannot be sent. Refresh the page, or email{" "}
+                          <a href="mailto:support@printcopilot.co" style={{ color: "#B42318", fontWeight: 600 }}>support@printcopilot.co</a>.
+                        </p>
+                      )}
                       {error && (
                         <p
                           role="alert"
