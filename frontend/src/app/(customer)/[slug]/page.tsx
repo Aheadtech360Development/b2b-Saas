@@ -4,12 +4,17 @@ import StorefrontPage from "@/components/storefront/StorefrontPage";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/lib/builder/load";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { loadStore } from "@/lib/store";
+import SitePage from "@/components/marketing/site/SitePage";
+import { siteMetadata, siteSlugPage } from "@/components/marketing/site/registry";
 
 export const dynamic = "force-dynamic";
 
 /** A builder page's own title and description. Nothing for any other shop, as before. */
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const design = siteSlugPage(slug);
+  if (design && !(await loadStore()).brand) return siteMetadata(design);
   return (await builderPageMetadata(slug)) ?? {};
 }
 
@@ -17,6 +22,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 // Specific routes (products, account, about, contact, …) take priority.
 export default async function CustomStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  // printcopilot.co's own pages from the design (Brands, DTF, Examples, Help,
+  // Print shops, Wholesale). On a shop these addresses stay the shop's.
+  const design = siteSlugPage(slug);
+  if (design && !(await loadStore()).brand) return <SitePage page={design} />;
   // A page made in the visual builder, on a shop that has switched to it. A
   // slug the builder has no page for still finds the shop's existing page.
   const site = await loadBuilderSitePage(slug);

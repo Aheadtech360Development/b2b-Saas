@@ -5,7 +5,7 @@ import { BuilderPage } from "@/components/builder/SiteParts";
 import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/lib/builder/load";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { loadStore } from "@/lib/store";
-import MarketingShell from "@/components/marketing/MarketingShell";
+import SiteShell from "@/components/marketing/site/SiteShell";
 import MarketingPrivacy from "@/components/marketing/pages/Privacy";
 import { MARKETING_META } from "@/components/marketing/meta";
 
@@ -28,9 +28,9 @@ export default async function PrivacyPolicyPage() {
   // The platform's own address: the marketing site's page. Every shop gets what it always did, below.
   if (!(await loadStore()).brand) {
     return (
-      <MarketingShell>
+      <SiteShell>
         <MarketingPrivacy />
-      </MarketingShell>
+      </SiteShell>
     );
   }
   const site = await loadBuilderSitePage("privacy-policy");

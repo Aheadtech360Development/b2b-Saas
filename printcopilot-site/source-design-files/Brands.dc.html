@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PrintCoPilot Brands</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#fff;color:#0C1E35;font-family:Inter,sans-serif;font-size:16px;line-height:24px}
+a{color:#0B5ED7;text-decoration:none}a:hover{text-decoration:underline}
+h1,h2,h3{font-family:Outfit,sans-serif;font-weight:600;margin:0;color:#0C1E35;letter-spacing:-.01em}
+p{margin:0}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+.sec{padding:112px 0}
+.alt{background:#F4F6F9}
+.dark{background:#0C1E35;color:#C9D3E3}
+.dark h1,.dark h2,.dark h3{color:#fff}
+.dots{background-image:radial-gradient(rgba(255,255,255,.09) 1px,transparent 1px);background-size:24px 24px}
+.head{max-width:780px;margin:0 auto;text-align:center}
+.head h2{font-size:44px;line-height:52px;margin-top:12px}
+.head p.sub{color:#475467;font-size:18px;line-height:28px;margin:16px auto 0;max-width:58ch}
+.dark .head p.sub{color:#C9D3E3}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 24px;border-radius:10px;font-weight:600;font-size:16px;box-sizing:border-box;gap:8px;white-space:nowrap}
+.btn-p{background:#0B5ED7;color:#fff}.btn-p:hover{background:#0A53BD;text-decoration:none}
+.btn-s{background:#fff;color:#0C1E35;border:1px solid #C7D0DD}.btn-s:hover{background:#F4F6F9;text-decoration:none}
+.btn-g{background:transparent;color:#fff;border:1px solid #5BA3FF}.btn-g:hover{background:rgba(91,163,255,.12);text-decoration:none}
+.btn-w{background:#fff;color:#0C1E35}.btn-w:hover{background:#E8EEF7;text-decoration:none}
+.card{background:#fff;border:1px solid #D9DFE8;border-radius:16px;box-sizing:border-box}
+.eyebrow{font-size:13px;line-height:20px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#0B5ED7}
+.dark .eyebrow{color:#5BA3FF}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(91,163,255,.45);background:rgba(14,114,251,.14);color:#CFE3FF;border-radius:999px;padding:6px 14px;font-size:14px;line-height:20px;font-weight:500}
+.pill i{width:8px;height:8px;border-radius:50%;background:#5BA3FF;display:inline-block}
+.wordmark{font-family:Outfit,sans-serif;font-weight:600;font-size:26px;line-height:32px;letter-spacing:-.02em;color:#fff}
+.nav{display:flex;align-items:center;justify-content:space-between;height:76px;gap:24px}
+.navlinks{display:flex;gap:32px;align-items:center}
+.navlinks a{color:#DCE6F5;font-weight:500;font-size:15px}.navlinks a:hover{color:#fff;text-decoration:none}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:56px;align-items:center}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:500;font-size:15px;background:rgba(255,255,255,.05)}
+.seg a:hover{background:#fff;color:#0C1E35;text-decoration:none}
+.bf{background:#fff;border-radius:14px;overflow:hidden;border:1px solid rgba(12,30,53,.14);box-shadow:0 24px 60px rgba(3,10,22,.35)}
+.bf-bar{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:#E9EDF3;border-bottom:1px solid #D9DFE8}
+.bf-bar b{width:10px;height:10px;border-radius:50%;background:#C3CCD9;display:block;flex:none}
+.bf-bar span{margin-left:10px;background:#fff;border-radius:6px;font-size:12px;line-height:20px;padding:0 10px;color:#475467;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bf img,.bf svg{display:block;width:100%;height:auto}
+.bleed{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0;margin-top:auto;box-shadow:none}
+.light .bf{box-shadow:0 12px 32px rgba(12,30,53,.12)}
+.light .bf.bleed{box-shadow:none}
+.stage{position:relative;padding-bottom:80px}
+.stage .b2{position:absolute;width:50%;left:-7%;bottom:0;z-index:2}
+.stage .ph{position:absolute;width:22%;right:-2%;bottom:-28px;z-index:3;filter:drop-shadow(0 24px 36px rgba(3,10,22,.5))}
+.stage .ph svg{display:block;width:100%;height:auto}
+.stage .chip{position:absolute;right:-6px;top:-20px;background:#fff;color:#0C1E35;border-radius:12px;padding:10px 14px;font-size:14px;line-height:20px;font-weight:600;box-shadow:0 12px 28px rgba(3,10,22,.3);display:flex;gap:8px;align-items:center;z-index:4}
+.chip i{width:8px;height:8px;border-radius:50%;background:#12B76A;display:block}
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
+.c7{grid-column:span 7}.c5{grid-column:span 5}.c12{grid-column:span 12}
+.bcard{padding:36px 36px 0;display:flex;flex-direction:column;gap:20px;overflow:hidden}
+.bcard h3{font-size:28px;line-height:36px}
+.bcard p.t{color:#475467;max-width:54ch}
+.bcard.dark p.t{color:#C9D3E3}
+.ico{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#E7F0FF;flex:none}
+.dark .ico{background:rgba(91,163,255,.16)}
+.pad{padding-bottom:36px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 28px}
+.gal .tile{display:flex;flex-direction:column;gap:14px;color:inherit}
+.gal .tile:hover{text-decoration:none}
+.gal .tile:hover .bf{transform:translateY(-4px)}
+.gal .bf{transition:transform .15s ease;box-shadow:0 10px 26px rgba(12,30,53,.12)}
+.gal .meta{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.tag{display:block;font-size:12px;line-height:18px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#475467}
+.arrow{font-weight:600;font-size:15px;color:#0B5ED7;white-space:nowrap}
+.seg-card{display:flex;flex-direction:column;overflow:hidden}
+.seg-card .art{padding:16px 16px 0}
+.seg-card .art .bf{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0;box-shadow:none}
+.seg-card .txt{padding:24px;display:flex;flex-direction:column;flex:1}
+.seg-card .plan-tag{margin-top:16px;font-size:13px;line-height:20px;font-weight:600;letter-spacing:.03em;color:#475467;text-transform:uppercase}
+.step{text-align:center;border-top:1px solid #2A4268;padding-top:32px}
+.step .n{width:64px;height:64px;border-radius:50%;border:1px solid #2F5DA3;background:rgba(14,114,251,.14);display:flex;align-items:center;justify-content:center;margin:0 auto;font-family:Outfit,sans-serif;font-weight:600;font-size:28px;color:#5BA3FF}
+.price{font-family:Outfit,sans-serif;font-weight:600;font-size:48px;line-height:52px;color:#fff}
+.plan{display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.plan .top{padding:28px;background:#0C1E35;color:#fff}
+.plan .top h3{color:#fff;font-size:22px;line-height:30px}
+.plan .per{font-size:16px;font-weight:400;color:#9FB0C8}
+.plan .best{margin:24px 24px 0;padding:14px 16px;background:#EEF4FF;border:1px solid #D5E3FA;border-radius:12px;font-size:14px;line-height:21px;color:#0C1E35}
+.plan .best b{display:block;font-size:12px;line-height:16px;letter-spacing:.08em;text-transform:uppercase;color:#0B5ED7;margin-bottom:4px}
+.plan .body{padding:20px 24px 28px;display:flex;flex-direction:column;flex:1}
+.plan ul{align-content:start;list-style:none;margin:0;padding:0;display:grid;gap:12px;flex:1;font-size:15px;line-height:22px;color:#344054}
+.plan li{display:flex;gap:10px;align-items:flex-start}
+.plan li svg{flex:none;margin-top:2px}
+.plan li.no{color:#667085}
+.tbl-wrap{overflow-x:auto;border:1px solid #D9DFE8;border-radius:16px;background:#fff}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px;line-height:22px}
+th,td{padding:16px 20px;text-align:center;border-bottom:1px solid #E4E8EF}
+thead th{background:#F4F6F9;font-family:Outfit,sans-serif;font-weight:600;font-size:17px;color:#0C1E35}
+tbody th{text-align:left;font-weight:500;color:#344054}
+td{color:#0C1E35}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+.yes{color:#067647;font-weight:600}
+.dash{color:#98A2B3}
+.bi{padding:28px;display:flex;flex-direction:column;gap:18px}
+.bi h3{font-size:22px;line-height:30px}
+.bi ul{list-style:none;margin:0;padding:0;display:grid;gap:12px;font-size:15px;line-height:22px;color:#344054}
+.bi li{position:relative;padding-left:26px}
+.bi li:before{content:"";position:absolute;left:5px;top:5px;width:6px;height:11px;border:solid #067647;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.app-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
+.float{position:absolute;background:#fff;border:1px solid #D9DFE8;border-radius:14px;padding:12px 16px;box-shadow:0 16px 36px rgba(12,30,53,.14);font-size:14px;line-height:20px;font-weight:600;display:flex;gap:10px;align-items:center}
+.float i{width:10px;height:10px;border-radius:50%;display:block;flex:none}
+details{border-bottom:1px solid #D9DFE8;padding:18px 0}
+summary{cursor:pointer;font-family:Outfit,sans-serif;font-weight:600;font-size:18px;line-height:28px;color:#0C1E35;list-style:none;display:flex;justify-content:space-between;gap:16px;min-height:44px;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";font-size:26px;color:#0B5ED7}
+details[open] summary:after{content:"\2212"}
+details p{color:#475467;margin-top:8px;max-width:64ch}
+.foot{background:#071223;color:#B8C5DA;font-size:15px;line-height:24px}
+.foot a{color:#B8C5DA}.foot a:hover{color:#fff;text-decoration:none}
+.foot a.wordmark,.foot a.wordmark:hover{color:#fff}
+.foot a.btn-w,.foot a.btn-w:hover{color:#0C1E35}
+.foot a.btn-g,.foot a.btn-g:hover{color:#fff}
+.nav a{white-space:nowrap}
+.foot h4{font-family:Outfit,sans-serif;font-weight:600;font-size:14px;line-height:20px;letter-spacing:.08em;text-transform:uppercase;color:#fff;margin:0 0 18px}
+.foot ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.fgrid{display:grid;grid-template-columns:minmax(0,1.8fr) repeat(3,minmax(0,1fr));gap:48px}
+.legal{display:flex;flex-wrap:wrap;gap:8px 24px}
+.ftrust{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.ftrust span{display:inline-flex;align-items:center;gap:8px;border:1px solid #1F3558;border-radius:999px;padding:6px 12px;font-size:13px;line-height:18px;color:#CFE0F7;background:#0B1B33}
+.fbar{display:flex;flex-wrap:wrap;gap:12px 32px;justify-content:space-between;align-items:center;padding-top:24px;padding-bottom:24px;font-size:14px;line-height:20px;color:#8FA2BF}
+@media (max-width:1000px){
+.hero,.grid2,.grid3,.app-grid{grid-template-columns:minmax(0,1fr);gap:48px}
+.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.gal{grid-template-columns:repeat(2,minmax(0,1fr))}
+.c7,.c5{grid-column:span 12}
+.navlinks{display:none}
+.sec{padding:72px 0}
+.h-display{font-size:42px!important;line-height:48px!important}
+.stage{padding-bottom:56px}
+.stage .b2{display:none}
+.stage .ph{width:30%;right:2%;bottom:0}
+.stage .chip{position:static;width:max-content;max-width:100%;margin-bottom:14px}
+.herow{padding-top:32px!important;padding-bottom:56px!important}
+.appvis{padding:56px 0 24px!important}
+.app-grid .float.f1{top:0!important;left:0!important}
+.app-grid .float.f2{top:auto!important;bottom:10%!important;right:0!important}
+.fgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:40px 32px}
+.fgrid>div:first-child{grid-column:span 2}
+.dark.dots[style*="border-radius"]{padding:56px 20px!important}
+.aff{grid-template-columns:minmax(0,1fr)!important;padding:40px 24px!important}
+}
+@media (max-width:560px){
+.grid4,.gal{grid-template-columns:minmax(0,1fr)}
+.login{display:none}
+.h-display{font-size:36px!important;line-height:42px!important}
+.head h2{font-size:30px!important;line-height:38px!important}
+.cta-h{font-size:36px!important;line-height:44px!important}
+.bcard{padding:28px 24px 0}
+.pad{padding-bottom:28px}
+}
+</style>
+
+<style>
+.stp{padding:28px;display:flex;flex-direction:column;gap:12px}
+.stp .n{width:40px;height:40px;border-radius:50%;background:#E7F0FF;color:#0B5ED7;display:flex;align-items:center;justify-content:center;font-family:Outfit,sans-serif;font-weight:600;font-size:18px}
+.stp h3{font-size:20px;line-height:28px}
+.stp p{color:#475467;font-size:15px;line-height:22px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.pan{padding:36px;display:flex;flex-direction:column;gap:20px}
+.pan h3{font-size:28px;line-height:36px}
+.pan ul{list-style:none;margin:0;padding:0;display:grid;gap:14px;font-size:16px;line-height:24px;color:#344054}
+.pan li{position:relative;padding-left:30px}
+.pan li:before{content:"";position:absolute;left:7px;top:5px;width:6px;height:12px;border:solid #067647;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lad{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lad span{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid #D9DFE8;background:#fff;font-size:13px;font-weight:600;color:#475467}
+.lad span.on{background:#0B5ED7;border-color:#0B5ED7;color:#fff}
+.ai{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
+.chat{background:#fff;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(3,10,22,.35);color:#0C1E35}
+.chat .me{align-self:flex-end;background:#0B5ED7;color:#fff;border-radius:14px 14px 4px 14px;padding:12px 16px;font-size:15px;line-height:22px;max-width:88%}
+.chat .bot{align-self:flex-start;background:#F4F6F9;border:1px solid #E4E8EF;border-radius:14px 14px 14px 4px;padding:12px 16px;font-size:15px;line-height:22px;max-width:92%;color:#0C1E35}
+.chat .bot b{display:block;font-size:12px;line-height:16px;letter-spacing:.08em;text-transform:uppercase;color:#0B5ED7;margin-bottom:4px}
+.chat .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.chat .acts i{font-style:normal;display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid #C7D0DD;background:#fff;color:#0C1E35}
+.chat .acts i.p{background:#0B5ED7;border-color:#0B5ED7;color:#fff}
+.real{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:center}
+.grid3 .plan .body ul{flex:none}
+@media (max-width:1000px){.two,.ai,.real{grid-template-columns:minmax(0,1fr);gap:40px}.pan{padding:28px 24px}.hp{padding-top:24px!important;padding-bottom:64px!important}.hp .stage{padding-bottom:0}.hp .stage .chip{position:static;width:max-content;max-width:100%;margin-bottom:14px}}
+@media (max-width:560px){.hp h1{font-size:36px!important;line-height:42px!important}.h2s,.ai h2,.real h2{font-size:30px!important;line-height:38px!important}.pan h3{font-size:24px;line-height:32px}}
+</style>
+
+<style>
+.pg3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.mx{background:#fff;border:1px solid #E4E8EF;border-radius:12px;padding:16px;font-size:13px;line-height:18px;color:#344054}
+.mx table{min-width:0;width:100%;font-size:13px;line-height:18px}
+.mx th,.mx td{padding:8px 6px;border-bottom:1px solid #EEF1F6}
+.mx thead th{background:transparent;font-size:12px;font-family:Inter,sans-serif;color:#667085;font-weight:600}
+.mx td span{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:28px;border:1px solid #C7D0DD;border-radius:6px;color:#0C1E35;font-weight:600;background:#fff}
+.mx td span.z{color:#98A2B3;font-weight:400}
+.sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tier{display:flex;flex-direction:column;gap:10px}
+.tier div{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #E4E8EF;border-radius:10px;background:#fff;font-size:14px;line-height:20px;color:#344054}
+.tier div b{color:#0C1E35}
+.one{max-width:460px;margin:56px auto 0}
+.one .plan{box-shadow:0 16px 40px rgba(12,30,53,.10)}
+@media (max-width:1000px){.pg3,.pg2{grid-template-columns:minmax(0,1fr)}}
+.pg2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;max-width:820px;margin-left:auto;margin-right:auto}
+.gal2{grid-template-columns:repeat(2,minmax(0,1fr))!important;max-width:880px;margin-left:auto;margin-right:auto}
+@media (max-width:560px){.gal2{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+
+<style>
+.vs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px;align-items:stretch}
+.vs .col{border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:18px}
+.vs .old{background:#fff;border:1px solid #D9DFE8}
+.vs .new{background:#EEF4FF;border:1px solid #BFD5F7}
+.vs h3{font-size:22px;line-height:30px}
+.vs .old h3{color:#475467}
+.vs ul{list-style:none;margin:0;padding:0;display:grid;gap:14px;font-size:16px;line-height:24px}
+.vs li{position:relative;padding-left:30px}
+.vs .old li{color:#667085}
+.vs .old li:before{content:"";position:absolute;left:4px;top:11px;width:12px;height:2px;background:#98A2B3;border-radius:2px}
+.vs .new li{color:#0C1E35}
+.vs .new li:before{content:"";position:absolute;left:7px;top:5px;width:6px;height:12px;border:solid #067647;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.shift{background:#fff;border:1px solid #D9DFE8;border-radius:16px;margin-top:56px;overflow:hidden}
+.shift .r{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1.2fr);gap:16px;align-items:center;padding:20px 32px;border-bottom:1px solid #E4E8EF}
+.shift .r:last-child{border-bottom:0}
+.shift .o{color:#667085;text-decoration:line-through;text-decoration-color:#C7D0DD;font-size:16px;line-height:24px}
+.shift .a{color:#0B5ED7;font-weight:600;text-align:center;font-size:20px}
+.shift .n{color:#0C1E35;font-weight:600;font-size:16px;line-height:24px}
+.shift .n small{display:block;font-weight:400;color:#475467;font-size:14px;line-height:20px;margin-top:2px}
+.sw4{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px}
+.sw4 a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid #C7D0DD;background:#fff;color:#0C1E35;font-weight:600;font-size:15px}
+.sw4 a:hover{border-color:#0B5ED7;color:#0B5ED7;text-decoration:none}
+@media (max-width:1000px){.vs{grid-template-columns:minmax(0,1fr)}.shift .r{grid-template-columns:minmax(0,1fr);gap:6px;padding:18px 20px}.shift .a{text-align:left;font-size:16px}.shift .a:before{content:"\2193"}.shift .a{font-size:0}.shift .a:before{font-size:18px}.vs .col{padding:24px}}
+</style>
+<style>.stk{margin-top:56px;background:#fff;border:1px solid #D9DFE8;border-radius:16px;overflow:hidden}
+.stk .row{display:grid;grid-template-columns:1.3fr 1fr 1fr;border-top:1px solid #E4E8EF}
+.stk .row:first-child{border-top:0}
+.stk .row>div{padding:16px 24px;font-size:16px;line-height:24px;display:flex;align-items:center;gap:10px;min-width:0}
+.stk .hd>div{font-family:Outfit,Inter,sans-serif;font-weight:600;font-size:17px;color:#0C1E35;padding-top:20px;padding-bottom:20px;background:#F4F6F9}
+.stk .hd>div:last-child{background:#EAF3FF;font-weight:600}
+.stk .row>div:nth-child(2){color:#667085;border-left:1px solid #E4E8EF}
+.stk .row>div:nth-child(3){background:#F5F9FF;color:#0C1E35;font-weight:500;border-left:1px solid #D9E6FB}
+.stk .tot>div{font-weight:600;padding-top:20px;padding-bottom:20px}
+.stk .tot>div:first-child{color:#0C1E35}
+.stk .ok{flex:none;width:20px;height:20px}
+.stk-note{margin-top:20px;font-size:14px;line-height:20px;color:#667085;text-align:center}
+@media (max-width:560px){.stk .row{grid-template-columns:1.15fr .9fr .95fr}.stk .row>div{padding:12px 10px;font-size:13px;line-height:18px;gap:6px}.stk .hd>div{font-size:13px;line-height:18px;padding-top:14px;padding-bottom:14px}.stk .ok{width:16px;height:16px}.stk .tot>div{padding-top:14px;padding-bottom:14px}}
+</style>
+<style>
+.hn{position:relative;z-index:60}
+.hn-t{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.hn-bar{position:relative}
+.hn-links{display:flex;align-items:center;gap:4px;height:76px}
+.hn-i{display:flex;align-items:center;height:76px}
+.hn-links>a,.hn-b{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:10px;color:#DCE6F5;font:500 15px/20px Inter,sans-serif;background:none;border:0;cursor:pointer;text-decoration:none}
+.hn-links>a:hover,.hn-b:hover,.hn-i:hover>.hn-b,.hn-i:focus-within>.hn-b{color:#fff;background:rgba(255,255,255,.09);text-decoration:none}
+.hn-chev{transition:transform .15s}.hn-i:hover .hn-chev,.hn-i:focus-within .hn-chev,.hn.f-prod .hn-p .hn-chev,.hn.f-sol .hn-s .hn-chev{transform:rotate(180deg)}
+.hn-dd{position:absolute;left:24px;right:24px;top:76px;padding-top:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .15s,transform .15s,visibility .15s}
+.hn-i:hover>.hn-dd,.hn-i:focus-within>.hn-dd,.hn.f-prod .hn-p>.hn-dd,.hn.f-sol .hn-s>.hn-dd{opacity:1;visibility:visible;transform:none}
+.hn-panel{background:#fff;border:1px solid #E4E8EF;border-radius:20px;box-shadow:0 28px 70px rgba(5,14,28,.40);padding:28px;color:#0C1E35}
+.hn-rs{position:relative}
+.hn-dd.hn-sm{left:0;right:auto;width:340px}
+.hn-small{padding:12px}
+.hn-i:hover>.hn-dd.hn-sm,.hn-i:focus-within>.hn-dd.hn-sm{opacity:1;visibility:visible;transform:none}
+.hn-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.hn-col p,.hn-sols>p{margin:0 0 8px;padding:0 12px;font:600 12px/16px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#667085}
+.hn-it,.hn-sol{display:flex;gap:14px;align-items:flex-start;padding:12px;border-radius:12px;color:#0C1E35;text-decoration:none}
+.hn-it:hover,.hn-sol:hover{background:#F4F6F9;text-decoration:none}
+.hn-ic{flex:none;width:40px;height:40px;border-radius:10px;background:#EAF3FF;display:flex;align-items:center;justify-content:center}
+.hn-it b,.hn-sol b{display:block;font:600 15px/22px Inter,sans-serif;color:#0C1E35}
+.hn-it small,.hn-sol small{display:block;font:400 14px/20px Inter,sans-serif;color:#667085;margin-top:2px}
+.hn-sol em{display:block;font:600 13px/18px Inter,sans-serif;color:#0B5ED7;margin-top:6px;font-style:normal}
+.hn-foot{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px;padding:16px 12px 0;border-top:1px solid #E4E8EF;font:400 14px/20px Inter,sans-serif;color:#667085}
+.hn-foot span:last-child{display:flex;gap:24px}.hn-foot a{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#0B5ED7}
+.hn-solp{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px}
+.hn-solg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.hn-side{background:#0C1E35;border-radius:16px;padding:28px;color:#C9D3E3;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.hn-side h3{margin:0;font:600 22px/28px Outfit,sans-serif;color:#fff}.hn-side p{margin:0;font:400 15px/22px Inter,sans-serif;color:#C9D3E3}
+.hn-side .btn{margin-top:8px}.hn-sl{display:inline-flex;align-items:center;gap:6px;color:#5BA3FF;font-weight:600;font-size:15px}
+.hn-r{display:flex;align-items:center;gap:20px}
+.hn-login{color:#DCE6F5;font:500 15px/20px Inter,sans-serif}.hn-login:hover{color:#fff;text-decoration:none}
+.hn-cta{height:44px}
+.hn-burger{display:none;width:44px;height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.25);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.hn-burger i{display:block;width:18px;height:2px;background:#fff;border-radius:2px;transition:transform .15s,opacity .15s}
+.hn-drawer{display:none}
+@media (max-width:1000px){
+.hn-links,.hn-login{display:none}
+.hn-burger{display:flex}
+.hn-r{gap:10px}.hn-cta{height:40px;padding:0 14px;font-size:14px}
+.hn-t:checked~.hn-bar .hn-burger i:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hn-t:checked~.hn-bar .hn-burger i:nth-child(2){opacity:0}
+.hn-t:checked~.hn-bar .hn-burger i:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.hn-t:checked~.hn-drawer,.hn.f-open .hn-drawer{display:block}
+.hn.f-open .hn-burger i:nth-child(1){transform:translateY(7px) rotate(45deg)}.hn.f-open .hn-burger i:nth-child(2){opacity:0}.hn.f-open .hn-burger i:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.hn-drawer{position:absolute;left:0;right:0;top:76px;background:#fff;color:#0C1E35;border-top:1px solid #E4E8EF;box-shadow:0 28px 60px rgba(5,14,28,.4);max-height:calc(100vh - 76px);overflow:auto;padding:8px 24px 24px;box-sizing:border-box}
+.hn-drawer details{border-bottom:1px solid #E4E8EF;padding:0}
+.hn-drawer summary:after,.hn-drawer details[open] summary:after{content:none!important}
+.hn-drawer summary{gap:0;display:flex;align-items:center;justify-content:space-between;list-style:none;min-height:56px;font:600 17px/24px Inter,sans-serif;color:#0C1E35;cursor:pointer}
+.hn-drawer summary::-webkit-details-marker{display:none}
+.hn-drawer details[open] .hn-chev{transform:rotate(180deg)}
+.hn-sub{padding:0 0 12px}.hn-sub a{display:flex;flex-direction:column;justify-content:center;min-height:44px;padding:0 0 0 12px;font:500 16px/22px Inter,sans-serif;color:#344054}
+.hn-sub a small{font:400 13px/18px Inter,sans-serif;color:#667085}
+.hn-mh{margin:12px 0 4px 12px;font:600 12px/16px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#667085}
+.hn-ml{display:flex;align-items:center;min-height:56px;border-bottom:1px solid #E4E8EF;font:600 17px/24px Inter,sans-serif;color:#0C1E35}
+.hn-act{display:grid;gap:12px;margin-top:20px}.hn-act .btn{width:100%}.hn-act p{margin:0;text-align:center;font:400 14px/20px Inter,sans-serif;color:#667085}
+}
+@media (max-width:560px){.hn-drawer{padding:8px 16px 24px}.hn-cta{padding:0 12px}}
+</style>
+<style>
+.foot .soc{display:flex;gap:12px;margin-top:20px}.foot .soc a{width:40px;height:40px;border:1px solid #1F3558;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#B8C5DA}.foot .soc a:hover{border-color:#5BA3FF;color:#fff}.foot .comm{margin-top:16px;font-size:14px;line-height:22px}.foot .comm a{text-decoration:underline;text-underline-offset:3px}
+</style>
+</helmet>
+
+<div style="width:100%;background:#fff">
+
+
+<section id="top" class="dark dots" style="position:relative;background-color:#0C1E35;overflow-x:clip"><div style="position:absolute;inset:0;background:radial-gradient(900px 520px at 78% 40%,rgba(14,114,251,.30),transparent 70%);pointer-events:none"></div><header class="hn "><input type="checkbox" id="hn-t" class="hn-t" aria-label="Open menu"><div class="wrap nav hn-bar"><a href="#" class="wordmark" aria-label="PrintCoPilot home">PrintCoPilot</a>
+<nav class="hn-links" aria-label="Main">
+<div class="hn-i hn-p"><button type="button" class="hn-b" aria-haspopup="true">Product<svg class="hn-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="hn-dd"><div class="hn-panel hn-prod"><div class="hn-cols"><div class="hn-col"><p>Sell</p><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></span><span><b>Gang sheet builder</b><small>Print-ready sheets, built by your customers</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3L3 6l2 4 3-1v12h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0z"/></svg></span><span><b>Product designer</b><small>Custom apparel designed on your store</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17v4M17 19h4"/></svg></span><span><b>Build with AI</b><small>Describe it. Get the design.</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9v11h16V9"/><path d="M4 9c0 2 3 2 4 0 1 2 3 2 4 0 1 2 3 2 4 0 1 2 4 2 4 0"/></svg></span><span><b>Storefront and website</b><small>Your brand, domain and blog</small></span></a></div><div class="hn-col"><p>Run</p><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span><b>Production queue</b><small>Quotes, proofs and jobs in one place</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l9 4 9-4M3 12l9 4 9-4M12 3L3 7l9 4 9-4z"/></svg></span><span><b>Wholesale tools</b><small>Tiers, net terms and Quick Buy</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></span><span><b>Supplier catalogs and stock</b><small>S&amp;S Activewear, SanMar, inventory sync</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><span><b>Owner app</b><small>Run the shop from your phone</small></span></a></div><div class="hn-col"><p>Grow</p><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><span><b>Reviews and loyalty</b><small>Reviews, rewards and referrals</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 7H6"/></svg></span><span><b>Upsell, bundles, gift cards</b><small>Raise what each order is worth</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z"/></svg></span><span><b>Live chat</b><small>Answer buyers while they browse</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span><b>Copilot AI analytics</b><small>Ask your store a question</small></span></a></div></div><div class="hn-foot"><span>One login and one subscription for the whole store.</span><span><a href="#">Explore all features <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a href="#">Compare plans</a></span></div></div></div></div>
+<div class="hn-i hn-s"><button type="button" class="hn-b" style="color:#fff">Solutions<svg class="hn-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="hn-dd"><div class="hn-panel hn-solp"><div class="hn-sols"><p>Who it is for</p><div class="hn-solg"><a class="hn-sol" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></span><span><b>DTF and gang sheet shops</b><small>Let customers build their own sheets</small><em>Starter, from $97/mo</em></span></a><a class="hn-sol" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span><b>Custom print shops</b><small>Run quotes, proofs and jobs from one screen</small><em>Starter, from $97/mo</em></span></a><a class="hn-sol" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l9 4 9-4M3 12l9 4 9-4M12 3L3 7l9 4 9-4z"/></svg></span><span><b>Wholesalers and blank suppliers</b><small>Let trade buyers order themselves</small><em>Wholesale, from $297/mo</em></span></a><a class="hn-sol" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9v11h16V9"/><path d="M4 9c0 2 3 2 4 0 1 2 3 2 4 0 1 2 3 2 4 0 1 2 4 2 4 0"/></svg></span><span><b>Brands selling direct</b><small>One store that brings buyers back</small><em>Retail, $79/mo</em></span></a></div></div><div class="hn-side"><h3>Not sure which fits?</h3><p>Book a demo and we will point you to the right plan.</p><a class="btn btn-w" href="#" style="height:44px">Book a demo</a><a class="hn-sl" href="#">Compare plans <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></div></div></div>
+<a href="#">Examples</a><a href="#">Pricing</a><a href="#">Affiliate</a>
+<div class="hn-i hn-rs"><button type="button" class="hn-b">Resources<svg class="hn-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="hn-dd hn-sm"><div class="hn-panel hn-small"><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z"/></svg></span><span><b>Help center</b><small>Answers to common questions</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg></span><span><b>Blog</b><small>Guides for people who make and sell</small></span></a><a class="hn-it" href="#"><span class="hn-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.2.6 3.5 2.6 3.5 6"/></svg></span><span><b>Contact</b><small>Talk to a real person</small></span></a></div></div></div></nav>
+<div class="hn-r"><a class="hn-login" href="#">Log in</a><a class="btn btn-w hn-cta" href="#">Start free trial</a><label class="hn-burger" for="hn-t" aria-label="Menu"><i></i><i></i><i></i></label></div></div>
+<div class="hn-drawer"><details><summary>Product<svg class="hn-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="hn-sub"><p class="hn-mh">Sell</p><a href="#">Gang sheet builder</a><a href="#">Product designer</a><a href="#">Build with AI</a><a href="#">Storefront and website</a><p class="hn-mh">Run</p><a href="#">Production queue</a><a href="#">Wholesale tools</a><a href="#">Supplier catalogs and stock</a><a href="#">Owner app</a><p class="hn-mh">Grow</p><a href="#">Reviews and loyalty</a><a href="#">Upsell, bundles, gift cards</a><a href="#">Live chat</a><a href="#">Copilot AI analytics</a></div></details><details><summary>Solutions<svg class="hn-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="hn-sub"><a href="#">DTF and gang sheet shops<small>Starter, from $97/mo</small></a><a href="#">Custom print shops<small>Starter, from $97/mo</small></a><a href="#">Wholesalers and blank suppliers<small>Wholesale, from $297/mo</small></a><a href="#">Brands selling direct<small>Retail, $79/mo</small></a></div></details><a class="hn-ml" href="#">Examples</a><a class="hn-ml" href="#">Pricing</a><a class="hn-ml" href="#">Affiliate</a><a class="hn-ml" href="#">Help center</a><a class="hn-ml" href="#">Blog</a><a class="hn-ml" href="#">Contact</a><a class="hn-ml" href="#">Log in</a><div class="hn-act"><a class="btn btn-p" href="#">Start free trial</a><a class="btn btn-s" href="#">Book a demo</a><p>14 days free. No card needed.</p></div></div></header>
+<div class="wrap hero hp" style="position:relative;padding-top:56px;padding-bottom:104px"><div><span class="pill"><i></i>For brands selling direct</span><h1 class="h-display" style="font-size:56px;line-height:62px;margin-top:24px">A store that brings buyers back, <span style="color:#5BA3FF">without a stack of apps</span>.</h1><p style="font-size:20px;line-height:32px;color:#C9D3E3;margin-top:24px;max-width:50ch">One login and one subscription. Reviews, loyalty, gift cards, returns, tracking and an AI assistant are already in it, so you are not paying for a stack of apps.</p><div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:16px"><a class="btn btn-w" href="#plans">Start free trial</a><a class="btn btn-g" href="https://hue-wick.printcopilot.co/">See a demo store</a></div><p style="font-size:14px;line-height:20px;color:#9FB0C8;margin-top:16px">Retail plan, $79/mo. 14 day free trial, no card.</p></div><div class="stage" style="padding-bottom:0"><div class="chip"><i></i>Hue &amp; Wick is a demo store</div><div class="bf"><div class="bf-bar"><b></b><b></b><b></b><span>hue-wick.printcopilot.co</span></div><img src="/_blob/a8088f8bc6aab741a751e939f652fb4e" alt="Hue and Wick candle store" width="800" height="502"></div></div></div></section><section class="sec"><div class="wrap"><div class="head"><p class="eyebrow">Your day, before and after</p><h2>Less plumbing. More brand.</h2><p class="sub">The tools that keep buyers coming back live in one place, under your brand.</p></div><div class="vs"><div class="col old"><h3>Today</h3><ul><li>Reviews, loyalty, gift cards and returns are each a separate paid app</li><li>"Where is my order?" and return requests fill your inbox</li><li>Abandoned carts and out of stock pages quietly lose sales</li><li>Buyers do not come back unless you chase them</li><li>Every app has its own login and its own look</li></ul></div><div class="col new"><h3>With PrintCoPilot</h3><ul><li>Reviews, loyalty, gift cards and returns are built in, under your brand</li><li>Buyers track orders and start returns and exchanges themselves</li><li>Abandoned cart and back in stock emails win those sales back</li><li>Loyalty, rewards and referrals bring buyers back and bring friends</li><li>One dashboard, and one owner app on your phone</li></ul></div></div></div></section><section class="sec alt"><div class="wrap"><div class="head"><p class="eyebrow">The full system</p><h2>One platform for the whole store, not a stack of apps.</h2><p class="sub">Everything a direct brand needs to sell, support and retain customers.</p></div><div class="grid4" style="margin-top:56px;align-items:stretch"><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9v11h16V9"/><path d="M4 9c0 2 3 2 4 0 1 2 3 2 4 0 1 2 3 2 4 0 1 2 4 2 4 0"/></svg></div><h3>Storefront and website builder</h3><p>Your brand, your domain, blog and content pages, built to rank.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 7H6"/></svg></div><h3>Cart upsell and bundles</h3><p>Raise order value with upsells, bundles and a free shipping bar.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4"/><path d="M12 8v13M5 12v9h14v-9M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 1 1 0 5"/></svg></div><h3>Gift cards</h3><p>Sell gift cards on your store and bring in new buyers.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div><h3>Reviews management</h3><p>Collect and show reviews right on your product pages.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg></div><h3>Loyalty, rewards and referrals</h3><p>Points and rewards that bring buyers back and send their friends.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg></div><h3>Returns, exchanges and tracking</h3><p>Buyers track orders and start returns themselves. Connect your couriers.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z"/></svg></div><h3>Live chat, and email and SMS popup</h3><p>Answer questions live and grow your list from the same store.</p></div><div class="card stp"><div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B5ED7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17v4M17 19h4"/></svg></div><h3>Copilot AI analytics</h3><p>Ask what sold, who came back and where orders came from.</p></div></div><div style="margin-top:32px;background:#fff;border:1px solid #D9DFE8;border-radius:16px;padding:24px 28px;font-size:16px;line-height:26px;color:#475467"><b style="color:#0C1E35">Also included. </b>Discount codes, abandoned cart emails, back in stock and pre-orders, size guide, wishlist, inventory sync, bulk product import, staff roles, notification emails and the owner mobile app.</div></div></section><section class="sec"><div class="wrap"><div class="head"><p class="eyebrow">What you stop paying for</p><h2>Other platforms charge for the store, then for every app.</h2><p class="sub">Reviews, loyalty, returns and the rest usually mean another app, another login and another bill. Here it is one login and one subscription, with an AI assistant included.</p></div><div class="stk"><div class="row hd"><div>What you need</div><div>On most platforms</div><div>PrintCoPilot Retail</div></div><div class="row"><div>Online store and checkout</div><div>Platform plan</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Reviews</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Loyalty, rewards and referrals</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Returns and exchanges portal</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Cart upsell and bundles</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Email and SMS popup</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Back in stock alerts</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>Live chat</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Included</span></div></div><div class="row"><div>AI assistant for your store data</div><div>Extra app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Copilot included</span></div></div><div class="row tot"><div>Logins</div><div>One per app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>One</span></div></div><div class="row tot"><div>Bills</div><div>Platform plus every app</div><div><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="#067647" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>One, $79/mo</span></div></div></div><p class="stk-note">Based on how most hosted store platforms work. Exact apps and prices vary by platform.</p></div></section><section class="sec alt"><div class="wrap"><div class="head"><p class="eyebrow">What stops being your job</p><h2>Five chores you hand off.</h2></div><div class="shift"><div class="r"><span class="o">Answering "where is my order?"</span><span class="a" aria-hidden="true">&rarr;</span><span class="n">Order tracking page<small>Buyers see where their order is.</small></span></div><div class="r"><span class="o">Handling returns by email</span><span class="a" aria-hidden="true">&rarr;</span><span class="n">Returns and exchanges portal<small>Buyers start a return or exchange themselves.</small></span></div><div class="r"><span class="o">Collecting reviews by hand</span><span class="a" aria-hidden="true">&rarr;</span><span class="n">Reviews management<small>Collect reviews and show them on your store.</small></span></div><div class="r"><span class="o">Chasing abandoned carts</span><span class="a" aria-hidden="true">&rarr;</span><span class="n">Abandoned cart emails<small>Plus back in stock and pre-orders.</small></span></div><div class="r"><span class="o">Stitching apps together</span><span class="a" aria-hidden="true">&rarr;</span><span class="n">One platform, one plan<small>Storefront, checkout and follow-up in one place.</small></span></div></div></div></section><section class="sec"><div class="wrap"><div class="head"><p class="eyebrow">How it works for a brand</p><h2>Get the first order. Earn the second.</h2></div><div class="pg3" style="margin-top:56px;align-items:stretch"><div class="card stp"><span class="n">1</span><h3>Win the first order</h3><p>A store under your brand, discount codes, a free shipping bar, cart upsell and bundles, and an email and SMS popup.</p></div><div class="card stp"><span class="n">2</span><h3>Make it easy to trust</h3><p>Reviews on your store, live chat when buyers have a question, and order tracking.</p></div><div class="card stp"><span class="n">3</span><h3>Bring them back</h3><p>Loyalty, rewards and referrals, gift cards, abandoned cart emails and back in stock.</p></div></div></div></section><section class="sec alt"><div class="wrap"><div class="head"><p class="eyebrow">Not just apparel</p><h2>Any brand can have the same store.</h2><p class="sub">These demo stores sell candles, skincare and activewear on the same platform. Open one and use it like a customer.</p></div><div class="gal light" style="margin-top:56px"><a class="tile" href="https://hue-wick.printcopilot.co/"><div class="bf"><div class="bf-bar"><b></b><b></b><b></b><span>hue-wick.printcopilot.co</span></div><img src="/_blob/a8088f8bc6aab741a751e939f652fb4e" alt="Hue and Wick candle store" width="800" height="502" loading="lazy"></div><div class="meta"><div><span class="tag">Demo store, candles</span><h3 style="font-size:22px;line-height:30px;margin-top:2px">Hue &amp; Wick</h3></div><span class="arrow">Open store</span></div></a><a class="tile" href="https://titre.printcopilot.co/"><div class="bf"><div class="bf-bar"><b></b><b></b><b></b><span>titre.printcopilot.co</span></div><img src="/_blob/44d0db859c3d091c19f284a6acd4b08e" alt="titre skincare store" width="800" height="502" loading="lazy"></div><div class="meta"><div><span class="tag">Demo store, skincare</span><h3 style="font-size:22px;line-height:30px;margin-top:2px">titre</h3></div><span class="arrow">Open store</span></div></a><a class="tile" href="https://fixer.printcopilot.co/"><div class="bf"><div class="bf-bar"><b></b><b></b><b></b><span>fixer.printcopilot.co</span></div><img src="/_blob/afa76f7ab68f9d27fb7037455fbfe513" alt="fixer activewear store" width="800" height="502" loading="lazy"></div><div class="meta"><div><span class="tag">Demo store, activewear</span><h3 style="font-size:22px;line-height:30px;margin-top:2px">fixer</h3></div><span class="arrow">Open store</span></div></a></div></div></section><section id="plans" class="sec"><div class="wrap"><div class="head"><p class="eyebrow">Pricing</p><h2>One plan for brands that sell direct.</h2><p class="sub">Start free for 14 days. No card.</p></div><div class="one"><div class="card plan"><div class="top"><h3>Retail</h3><p class="price" style="margin-top:8px">$79<span class="per">/mo</span></p></div><div class="best"><b>Best for</b>Brands that sell their own products direct and do not need custom printing tools.</div><div class="body"><ul><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>200 orders a month</li><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>2 staff accounts</li><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No commission on orders</li><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Storefront and website builder</li><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reviews, loyalty, gift cards and returns</li><li><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="#067647" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Owner mobile app</li></ul><a class="btn btn-p" href="#" style="margin-top:28px">Start free trial</a></div></div></div><div style="margin:32px auto 0;display:grid;gap:6px;font-size:14px;line-height:20px;color:#475467;max-width:70ch;text-align:center"><p>Card processing fees from the payment provider apply. AI tools are included, subject to fair use.</p><p>Need a gang sheet builder, a designer or more orders? See the <a href="#" style="font-weight:600">print plans</a> or <a href="#" style="font-weight:600">compare every plan</a>.</p></div></div></section><section class="sec alt"><div class="wrap" style="max-width:860px"><div class="head"><p class="eyebrow">FAQ</p><h2>Questions from brands</h2></div><div style="border-top:1px solid #D9DFE8;margin-top:48px"><details><summary>Do I need separate apps for reviews and loyalty?</summary><p>No. Reviews, loyalty and referrals, gift cards, returns and exchanges, and an order tracking page are built in.</p></details><details><summary>Can I sell things other than print?</summary><p>Yes. The demo stores sell candles, skincare and activewear on the same platform.</p></details><details><summary>Is there a commission on my orders?</summary><p>No. The Retail plan has no commission. Card processing fees from the payment provider apply.</p></details><details><summary>Does Retail include the gang sheet builder or designer?</summary><p>No. Those are on the print plans. You can upgrade any time you need them.</p></details><details><summary>Can I use my own domain?</summary><p>Yes. Your store runs under your brand and your domain.</p></details><details><summary>Can I run the shop from my phone?</summary><p>Yes. The owner mobile app is included.</p></details></div></div></section><section class="sec"><div class="wrap" style="text-align:center"><p class="eyebrow">Selling something else?</p><h2 style="font-size:32px;line-height:40px;margin-top:12px">See how it works for other kinds of shops.</h2><div class="sw4"><a href="#">DTF and gang sheet shops</a><a href="#">Custom print shops</a><a href="#">Wholesalers and blank suppliers</a></div></div></section><section class="sec alt" style="padding-top:80px;padding-bottom:80px"><div class="wrap"><div class="dark dots" style="border-radius:24px;padding:80px 32px;position:relative;overflow:hidden;text-align:center"><div style="position:absolute;inset:0;background:radial-gradient(700px 320px at 50% 100%,rgba(14,114,251,.30),transparent 70%);pointer-events:none"></div><div style="position:relative"><h2 class="cta-h" style="font-size:44px;line-height:52px;max-width:20ch;margin:0 auto">Spend your time on the brand, not the plumbing.</h2><p style="margin:16px auto 0;max-width:50ch;font-size:18px;line-height:28px">Start the 14 day trial, add your products and share your link.</p><div style="margin-top:32px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center"><a class="btn btn-w" href="#plans">Start free trial</a><a class="btn btn-g" href="#">Book a demo</a></div><p style="font-size:14px;line-height:20px;color:#9FB0C8;margin-top:16px">14 days free. No card needed.</p></div></div></div></section>
+
+<!-- FOOTER -->
+<footer class="foot">
+<div class="wrap" style="padding-top:64px;padding-bottom:48px">
+<div class="fgrid">
+<div>
+<a href="#" class="wordmark" aria-label="PrintCoPilot home">PrintCoPilot</a>
+<p style="margin-top:14px;max-width:34ch">The store, gang sheet builder and designer for print shops, suppliers and brands.</p>
+<p style="margin-top:14px"><a href="mailto:support@printcopilot.co">support@printcopilot.co</a></p>
+<div class="soc"><a href="https://www.youtube.com/@printcopilot" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M22 8.5a3 3 0 0 0-2.1-2.1C18.2 6 12 6 12 6s-6.2 0-7.9.4A3 3 0 0 0 2 8.5 31 31 0 0 0 1.6 12c0 1.2.1 2.4.4 3.5a3 3 0 0 0 2.1 2.1C5.8 18 12 18 12 18s6.2 0 7.9-.4a3 3 0 0 0 2.1-2.1c.3-1.1.4-2.3.4-3.5s-.1-2.4-.4-3.5z"/><path d="m10 15 5-3-5-3z"/></svg></a><a href="https://www.instagram.com/printcopilot/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/></svg></a><a href="https://www.tiktok.com/@printcopilot" target="_blank" rel="noopener" aria-label="TikTok"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.4 2.6 2.1 4.3 5 4.5"/></svg></a><a href="https://www.linkedin.com/company/printcopilot" target="_blank" rel="noopener" aria-label="LinkedIn"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg></a><a href="https://www.facebook.com/printcopilot/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a></div>
+<p class="comm">Join the community: <a href="https://www.facebook.com/groups/printcopilot" target="_blank" rel="noopener">Facebook group</a> · <a href="https://www.linkedin.com/groups/42828589/" target="_blank" rel="noopener">LinkedIn group</a></p>
+</div>
+<div>
+<h4>Product</h4>
+<ul>
+<li><a href="#">Features</a></li>
+<li><a href="#plans">Pricing</a></li>
+<li><a href="#">Live stores</a></li>
+<li><a href="#">Help center</a></li>
+<li><a href="#">Blog</a></li>
+<li><a href="#">Log in</a></li>
+</ul>
+</div>
+<div>
+<h4>Solutions</h4>
+<ul>
+<li><a href="#">DTF and gang sheets</a></li>
+<li><a href="#">Wholesale and blanks</a></li>
+<li><a href="#">Custom print shops</a></li>
+<li><a href="#">Brands selling direct</a></li>
+</ul>
+</div>
+<div>
+<h4>Company</h4>
+<ul>
+<li><a href="#">About</a></li>
+<li><a href="#">Affiliate program</a></li>
+<li><a href="#">Book a demo</a></li>
+<li><a href="#">Contact</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div style="border-top:1px solid #172A47">
+<div class="wrap fbar">
+<span>&copy; 2026 PrintCoPilot. All rights reserved.</span>
+<span class="legal"><a href="#">Terms of Service</a><a href="#">Privacy Policy</a><a href="#">Cookie Policy</a><a href="#">Affiliate Terms</a><a href="#">Acceptable Use and IP</a><a href="#">Data Processing</a></span>
+</div>
+</div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":7200}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}</script>
+</body>
+</html>

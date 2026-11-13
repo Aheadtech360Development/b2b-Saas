@@ -29,14 +29,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
-KINDS = {"demo": "Demo request", "contact": "Contact"}
+KINDS = {"demo": "Demo request", "contact": "Contact", "newsletter": "Newsletter sign-up"}
 # What a form may send beside the name and email: a few short answers.
 MAX_FIELDS = 12
 MAX_VALUE = 2000
 
 
 class LeadIn(BaseModel):
-    kind: Literal["demo", "contact"]
+    # newsletter: the blog's subscribe box (printcopilot.co/blog), an email and nothing else.
+    kind: Literal["demo", "contact", "newsletter"]
     name: str = Field(min_length=1, max_length=160)
     email: EmailStr
     data: dict[str, str] = Field(default_factory=dict)

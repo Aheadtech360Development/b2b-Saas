@@ -3,6 +3,9 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { loadStore } from "@/lib/store";
+import SitePage from "@/components/marketing/site/SitePage";
+import { siteBlogPost, siteMetadata } from "@/components/marketing/site/registry";
 import { titleWithBrand } from "@/lib/brand";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -52,6 +55,11 @@ async function getAllPosts(): Promise<BlogPost[]> {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  // printcopilot.co's own posts (the design's three), not a shop's.
+  if (!(await loadStore()).brand) {
+    const key = siteBlogPost(slug);
+    return key ? siteMetadata(key) : {};
+  }
   const post = await getPost(slug);
   if (!post) return { title: await titleWithBrand("Blog") };
   return {
@@ -167,6 +175,11 @@ function renderBlock(block: Block): React.ReactNode {
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  if (!(await loadStore()).brand) {
+    const key = siteBlogPost(slug);
+    if (!key) notFound();
+    return <SitePage page={key} />;
+  }
   const [post, allPosts] = await Promise.all([getPost(slug), getAllPosts()]);
   if (!post) notFound();
 

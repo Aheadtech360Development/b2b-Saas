@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { loadStore } from "@/lib/store";
-import MarketingShell from "@/components/marketing/MarketingShell";
+import SiteShell from "@/components/marketing/site/SiteShell";
 import MarketingCookies from "@/components/marketing/pages/Cookies";
 import { MARKETING_META } from "@/components/marketing/meta";
 import ShopPage, { generateMetadata as shopPageMetadata } from "../[slug]/page";
@@ -24,8 +24,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function MarketingCookiesRoute() {
   if ((await loadStore()).brand) return <ShopPage params={params()} />;
   return (
-    <MarketingShell>
+    <SiteShell>
       <MarketingCookies />
-    </MarketingShell>
+    </SiteShell>
   );
 }

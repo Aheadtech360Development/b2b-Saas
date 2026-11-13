@@ -60,8 +60,58 @@ function resolveSlug(request: NextRequest): string | null {
   return request.cookies.get(TENANT_COOKIE)?.value || null;
 }
 
+/**
+ * printcopilot.co's addresses that the new site (printcopilot-site, Nov 2026)
+ * no longer has, each sent for good (301) to the page that took its place, and
+ * the design files' own names to their real addresses. Only on the platform's
+ * own address: a shop's pages at these paths are the shop's.
+ */
+export const PLATFORM_REDIRECTS: Record<string, string> = {
+  // Affiliate is the one page for the partner program now; its sign-in and
+  // portal stay under /partners/... .
+  "/partners": "/affiliate",
+  "/affiliates": "/affiliate",
+  "/partner": "/affiliate",
+  // The old Retail pages: brands that sell direct have their own page.
+  "/retail": "/brands",
+  "/retail-pricing": "/pricing",
+  "/index.html": "/",
+  "/features.html": "/features",
+  "/pricing.html": "/pricing",
+  "/demo.html": "/demo",
+  "/contact.html": "/contact",
+  "/about.html": "/about",
+  "/affiliate.html": "/affiliate",
+  "/blog.html": "/blog",
+  "/blog-online-brand-app-stack.html": "/blog/online-brand-app-stack",
+  "/blog-sell-dtf-gang-sheets-online.html": "/blog/sell-dtf-gang-sheets-online",
+  "/blog-tiered-wholesale-pricing-blank-apparel.html": "/blog/tiered-wholesale-pricing-blank-apparel",
+  "/brands.html": "/brands",
+  "/dtf.html": "/dtf",
+  "/examples.html": "/examples",
+  "/help.html": "/help",
+  "/print-shops.html": "/print-shops",
+  "/wholesale.html": "/wholesale",
+};
+
+/** Where an old printcopilot.co address now lives, or null. A trailing slash is the same address. */
+export function platformRedirect(pathname: string): string | null {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return Object.prototype.hasOwnProperty.call(PLATFORM_REDIRECTS, path) ? (PLATFORM_REDIRECTS[path] ?? null) : null;
+}
+
 export function middleware(request: NextRequest) {
   const hostname = request.nextUrl.hostname;
+
+  // An address of the old printcopilot.co site: moved for good.
+  if (isPlatformHost(hostname)) {
+    const moved = platformRedirect(request.nextUrl.pathname);
+    if (moved) {
+      const to = request.nextUrl.clone();
+      to.pathname = moved;
+      return NextResponse.redirect(to, 301);
+    }
+  }
 
   // The partner program belongs to the platform, not to any shop: opened on
   // a shop's address, it moves to the platform's own.

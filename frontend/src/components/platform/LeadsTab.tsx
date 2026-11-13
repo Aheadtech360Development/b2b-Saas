@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api-client";
 
 interface Lead {
   id: string;
-  kind: "demo" | "contact";
+  kind: "demo" | "contact" | "newsletter";
   name: string;
   email: string;
   data: Record<string, string>;
@@ -21,9 +21,9 @@ interface Lead {
 
 interface Page { items: Lead[]; total: number; open: number; page: number; per_page: number }
 
-type Filter = "all" | "demo" | "contact";
+type Filter = "all" | "demo" | "contact" | "newsletter";
 
-const KIND: Record<Lead["kind"], string> = { demo: "Demo request", contact: "Contact" };
+const KIND: Record<Lead["kind"], string> = { demo: "Demo request", contact: "Contact", newsletter: "Newsletter" };
 // The answers each form sends, in the order worth reading them.
 const ORDER = ["business_name", "business_type", "country", "department", "company", "phone", "message"];
 
@@ -99,13 +99,14 @@ export function LeadsTab() {
         <div>
           <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#18181B" }}>Leads</h1>
           <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
-            Demo requests and contact messages from printcopilot.co{data ? `: ${data.open} not handled yet` : ""}.
+            Demo requests, contact messages and newsletter sign-ups from printcopilot.co{data ? `: ${data.open} not handled yet` : ""}.
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           {chip("all", "All")}
           {chip("demo", "Demo requests")}
           {chip("contact", "Contact")}
+          {chip("newsletter", "Newsletter")}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { loadStore } from "@/lib/store";
-import MarketingShell from "@/components/marketing/MarketingShell";
+import SiteShell from "@/components/marketing/site/SiteShell";
 import { AuthWhereProvider } from "@/components/auth/AuthPage";
 import a from "@/components/marketing/auth.module.css";
 
@@ -62,9 +62,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
   return (
     <AuthWhereProvider platform shopName={null}>
-      <MarketingShell>
+      <SiteShell>
         <div className={a.platformAuth}>{children}</div>
-      </MarketingShell>
+      </SiteShell>
     </AuthWhereProvider>
   );
 }

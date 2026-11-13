@@ -6,7 +6,7 @@ import Link from "next/link";
 const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function generateMetadata(): Promise<Metadata> {
-  if (!(await loadStore()).brand) return MARKETING_META.home;
+  if (!(await loadStore()).brand) return siteMetadata("home");
   try {
     const seo = await fetch(`${_API}/api/v1/pages-seo/home`, { next: { revalidate: 300 } }).then(r => r.json());
     return {
@@ -24,14 +24,11 @@ import NewShopHome from "@/components/home/NewShopHome";
 import StorefrontHome from "@/components/home/StorefrontHome";
 import { loadStore } from "@/lib/store";
 import StorefrontShell from "@/components/storefront/StorefrontShell";
-import MarketingShell from "@/components/marketing/MarketingShell";
-import MarketingHome from "@/components/marketing/pages/Home";
-import { MARKETING_META } from "@/components/marketing/meta";
-import { PlanPricesProvider } from "@/lib/planPricesContext";
-import { loadPlanPrices } from "@/lib/planPricesServer";
 import { apiClient } from "@/lib/api-client";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
+import SitePage from "@/components/marketing/site/SitePage";
+import { siteMetadata } from "@/components/marketing/site/registry";
 
 /** Whether this brand has anything for sale yet. */
 async function hasProducts(): Promise<boolean> {
@@ -54,14 +51,9 @@ export default async function HomePage() {
   // no shop chrome around it. (The one-page PlatformLanding it replaced is
   // still in components/platform.)
   if (!store.brand) {
-    return (
-      <MarketingShell>
-        {/* A partner's link (`?ref=CODE`) is counted by MarketingShell, on every page. */}
-        <PlanPricesProvider prices={await loadPlanPrices()}>
-          <MarketingHome />
-        </PlanPricesProvider>
-      </MarketingShell>
-    );
+    // The design's home page (components/marketing/site), prices filled from
+    // the plans the super admin sets; a partner's ?ref= link counts on it.
+    return <SitePage page="home" />;
   }
 
   // A shop live on the website builder: its home page.

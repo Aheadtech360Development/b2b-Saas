@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import { loadStore } from "@/lib/store";
-import MarketingShell from "@/components/marketing/MarketingShell";
-import MarketingPricing from "@/components/marketing/pages/Pricing";
-import { MARKETING_META } from "@/components/marketing/meta";
-import { PlanPricesProvider } from "@/lib/planPricesContext";
-import { loadPlanPrices } from "@/lib/planPricesServer";
 import ShopPage, { generateMetadata as shopPageMetadata } from "../[slug]/page";
+import SitePage from "@/components/marketing/site/SitePage";
+import { siteMetadata } from "@/components/marketing/site/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -20,16 +17,10 @@ const params = async () => ({ slug: "pricing" });
 
 export async function generateMetadata(): Promise<Metadata> {
   if ((await loadStore()).brand) return shopPageMetadata({ params: params() });
-  return MARKETING_META.pricing;
+  return siteMetadata("pricing");
 }
 
 export default async function MarketingPricingRoute() {
   if ((await loadStore()).brand) return <ShopPage params={params()} />;
-  return (
-    <MarketingShell active="pricing">
-      <PlanPricesProvider prices={await loadPlanPrices()}>
-        <MarketingPricing />
-      </PlanPricesProvider>
-    </MarketingShell>
-  );
+  return <SitePage page="pricing" />;
 }

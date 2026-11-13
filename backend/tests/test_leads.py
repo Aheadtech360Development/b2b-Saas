@@ -75,7 +75,9 @@ def test_a_bot_is_answered_as_if_it_went_through_and_nothing_is_kept(no_limit):
 
 def test_what_a_form_may_send_is_small():
     with pytest.raises(ValidationError):
-        leads.LeadIn(kind="newsletter", name="a", email="a@b.co")
+        leads.LeadIn(kind="survey", name="a", email="a@b.co")
+    # The blog's subscribe box (printcopilot.co/blog): an email and nothing else.
+    assert leads.LeadIn(kind="newsletter", name="a@b.co", email="a@b.co").kind == "newsletter"
     with pytest.raises(ValidationError):
         leads.LeadIn(kind="demo", name="a", email="not an email")
     with pytest.raises(ValidationError):

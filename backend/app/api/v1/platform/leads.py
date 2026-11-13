@@ -40,7 +40,7 @@ def _row(r: Any) -> dict[str, Any]:
 
 @router.get("")
 async def list_leads(
-    kind: Literal["demo", "contact"] | None = None,
+    kind: Literal["demo", "contact", "newsletter"] | None = None,
     page: int = Query(1, ge=1),
     db: AsyncSession = Depends(get_partner_db, scope="function"),
 ) -> dict[str, Any]:

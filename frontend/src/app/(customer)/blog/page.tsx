@@ -2,6 +2,9 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { loadStore } from "@/lib/store";
+import SitePage from "@/components/marketing/site/SitePage";
+import { siteMetadata } from "@/components/marketing/site/registry";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,6 +26,8 @@ interface PageSeo {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
+  // printcopilot.co's own blog (the design's), not a shop's.
+  if (!(await loadStore()).brand) return siteMetadata("blog");
   try {
     const r = await fetch(`${API}/api/v1/pages-seo/blog`, { next: { revalidate: 300 } });
     if (!r.ok) return { title: "Blog — AF Blanks" };
@@ -49,6 +54,7 @@ async function getPosts(): Promise<BlogPost[]> {
 }
 
 export default async function BlogListingPage() {
+  if (!(await loadStore()).brand) return <SitePage page="blog" />;
   const posts = await getPosts();
 
   return (
