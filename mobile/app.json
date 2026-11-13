@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "PrintCopilot",
+    "name": "PrintCoPilot",
     "slug": "printcopilot",
     "scheme": "printcopilot",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "co.printcopilot.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "co.printcopilot.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "co.printcopilot.app"
+      "package": "co.printcopilot.app",
+      "permissions": []
     },
     "extra": {
       "apiUrl": "https://b2b-saas-production.up.railway.app"

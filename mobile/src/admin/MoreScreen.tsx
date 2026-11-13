@@ -4,7 +4,8 @@
  * The website's menu, in its groups and its order, so somebody who knows the
  * console finds the same thing under the same heading.
  */
-import { ScrollView, StyleSheet, Pressable, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Pressable, Text, View } from "react-native";
+import { requestAccountDeletion } from "@/api/account";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -111,6 +112,31 @@ export function MoreScreen({
           <Icon name="log-out-outline" tint="red" size={17} />
           <Text style={s.signOutText}>Sign out</Text>
         </Pressable>
+
+        {/* Required of every app with accounts (App Store 5.1.1(v)). An account
+            that runs a shop is closed with PrintCoPilot, so this asks for it. */}
+        <Pressable
+          onPress={() => Alert.alert(
+            "Delete your account?",
+            "Your account runs a shop, with its orders and payouts, so PrintCoPilot closes it with you. We will email you to do it.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Ask to delete", style: "destructive",
+                onPress: () => {
+                  requestAccountDeletion()
+                    .then((message) => Alert.alert("Request sent", message))
+                    .catch((e: unknown) => Alert.alert("Not sent", e instanceof Error ? e.message
+                      : "Email support@printcopilot.co to close your account."));
+                },
+              },
+            ],
+          )}
+          style={({ pressed }) => [s.deleteRow, pressed && { opacity: 0.6 }]}
+          accessibilityRole="button"
+        >
+          <Text style={s.deleteText}>Delete my account</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -143,4 +169,6 @@ const s = StyleSheet.create({
     paddingVertical: 14, marginTop: space.xs,
   },
   signOutText: { ...type.body, fontSize: 14.5, color: palette.bad },
+  deleteRow: { alignItems: "center", paddingVertical: 10 },
+  deleteText: { ...type.small, color: palette.muted, textDecorationLine: "underline" },
 });

@@ -55,3 +55,18 @@ export async function orders(): Promise<OrderSummary[]> {
     placedAt: o.created_at ?? null,
   }));
 }
+
+/**
+ * Delete this buyer's own account (App Store guideline 5.1.1(v)). The server
+ * removes their personal details and signs them out; the shop keeps its orders.
+ * The password is asked again first.
+ */
+export async function deleteAccount(password: string): Promise<void> {
+  await call("/api/v1/account/delete", { method: "POST", body: { password } });
+}
+
+/** A shop's own person asks PrintCoPilot to close their account. Returns what to tell them. */
+export async function requestAccountDeletion(): Promise<string> {
+  const r = await call<{ message?: string }>("/api/v1/account/delete-request", { method: "POST", body: {} });
+  return r.message || "We have your request. PrintCoPilot will email you to close your account.";
+}

@@ -60,6 +60,8 @@ def test_every_path_the_app_calls_exists():
     ("POST", "/api/v1/shipping/live-rates"), ("POST", "/api/v1/tax/calculate"), ("POST", "/api/v1/discounts/validate"),
     ("GET", "/api/v1/checkout/payment-options"), ("POST", "/api/v1/checkout/intent"), ("POST", "/api/v1/checkout/confirm"),
     ("GET", "/api/v1/orders"), ("GET", "/api/v1/orders/X"), ("GET", "/api/v1/storefront/branding"),
+    # Deleting one's own account (App Store 5.1.1(v)), and a shop's person asking for it.
+    ("POST", "/api/v1/account/delete"), ("POST", "/api/v1/account/delete-request"),
 ])
 def test_the_method_the_app_uses_is_there(method, path):
     assert method in methods_for(path), f"{method} {path}: {sorted(methods_for(path))}"
@@ -69,3 +71,12 @@ def test_an_order_note_is_taken_under_the_name_the_detail_gives_it():
     from app.schemas.order import OrderUpdateRequest
 
     assert OrderUpdateRequest(order_notes="Call first").model_dump(exclude_unset=True) == {"order_notes": "Call first"}
+
+
+def test_a_deleted_account_cannot_be_written_to():
+    from app.services.account_deletion import deleted_email
+    import uuid
+
+    uid = uuid.uuid4()
+    address = deleted_email(uid)
+    assert address.endswith("@deleted.invalid") and uid.hex in address

@@ -11,11 +11,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { orders as fetchOrders, profile as fetchProfile, type OrderSummary, type Profile } from "@/api/account";
+import {
+  deleteAccount, orders as fetchOrders, profile as fetchProfile, type OrderSummary, type Profile,
+} from "@/api/account";
 import { currentShop, type Shop } from "@/api/shop";
 import { signOut } from "@/api/auth";
-import type { Session } from "@/session/store";
-import { Button, Card, Hero, Notice, Pill, Row, SectionLabel } from "@/ui/components";
+import { clearSession, type Session } from "@/session/store";
+import { Button, Card, Field, Hero, Notice, Pill, Row, SectionLabel } from "@/ui/components";
 import { accentFor, palette, space, type } from "@/ui/theme";
 
 export function AccountScreen({ session, onSignedOut, bottomSpace = 0, hideOrders = false }: {
@@ -33,6 +35,11 @@ export function AccountScreen({ session, onSignedOut, bottomSpace = 0, hideOrder
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Deleting the account (App Store 5.1.1(v)): asked, then the password again.
+  const [deleting, setDeleting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -136,6 +143,44 @@ export function AccountScreen({ session, onSignedOut, bottomSpace = 0, hideOrder
           accent={accent}
           onPress={() => { signOut().finally(onSignedOut); }}
         />
+
+        <View style={s.gap} />
+        {!deleting ? (
+          <Text style={s.deleteLink} onPress={() => setDeleting(true)} accessibilityRole="button">
+            Delete my account
+          </Text>
+        ) : (
+          <Card>
+            <Text style={s.deleteTitle}>Delete your account</Text>
+            <Text style={s.deleteText}>
+              Your name, email, phone and saved addresses are removed, and you are signed out on every device.
+              {shop?.name ? ` ${shop.name}` : " The shop"} keeps the orders you placed, as its own records.
+              This cannot be undone.
+            </Text>
+            <Field label="Your password" value={password} onChange={setPassword} secure autoComplete="password" />
+            {deleteError ? <Notice tone="bad">{deleteError}</Notice> : null}
+            <Button
+              title="Delete my account"
+              accent={palette.bad}
+              busy={deleteBusy}
+              onPress={async () => {
+                if (!password) { setDeleteError("Enter your password to delete the account."); return; }
+                setDeleteBusy(true);
+                setDeleteError(null);
+                try {
+                  await deleteAccount(password);
+                  await clearSession();
+                  onSignedOut();
+                } catch (e) {
+                  setDeleteError(e instanceof Error ? e.message : "The account was not deleted. Try again.");
+                  setDeleteBusy(false);
+                }
+              }}
+            />
+            <Button title="Keep my account" variant="quiet" accent={accent}
+              onPress={() => { setDeleting(false); setPassword(""); setDeleteError(null); }} />
+          </Card>
+        )}
       </View>
     </ScrollView>
   );
@@ -166,4 +211,7 @@ const s = StyleSheet.create({
   orderNumber: { ...type.bodyMedium, color: palette.ink },
   orderTotal: { ...type.number, color: palette.ink },
   pills: { flexDirection: "row", gap: space.xs, marginTop: space.sm },
+  deleteLink: { ...type.small, color: palette.muted, textAlign: "center", textDecorationLine: "underline", paddingVertical: space.sm },
+  deleteTitle: { ...type.bodyMedium, color: palette.bad },
+  deleteText: { ...type.small, color: palette.ink70, marginVertical: space.sm },
 });

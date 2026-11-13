@@ -63,3 +63,26 @@ t-shirt designer) opens on the shop's website.
 
 `npm run typecheck` here, and `backend/tests/test_mobile_app_routes.py`,
 which fails when the app calls a path or method the API does not have.
+
+## Releasing to the App Store and Google Play
+
+One app, "PrintCoPilot", for every shop: a buyer signs in to their own shop,
+a shop's people get the console.
+
+1. Once: `npx eas-cli login` with the company's Expo account, then
+   `npx eas-cli init` (writes the project id into app.json).
+2. App icon and splash: `assets/icon.png` (1024 × 1024, no transparency),
+   `assets/adaptive-icon.png` (Android), `assets/splash-icon.png`, then point
+   `expo.icon`, `expo.android.adaptiveIcon` and the `expo-splash-screen` plugin at them.
+3. Build: `npx eas-cli build --platform all --profile production`
+   (`preview` makes an Android APK and an internal iOS build to try first).
+4. Send: `npx eas-cli submit --platform ios` and `--platform android`. Apple
+   needs the App Store Connect app made under the company's developer account;
+   Google needs the app made in the Play Console (organisation account).
+5. Store pages: screenshots (iPhone only; `supportsTablet` is off), description,
+   privacy policy https://www.printcopilot.co/privacy-policy, support email,
+   the privacy questions, and a demo buyer and shop login for review.
+
+In the app already: account deletion (Account → Delete my account; a shop's
+own people ask for it from More), as App Store guideline 5.1.1(v) requires.
+Card payments are for physical goods, through Stripe, not in-app purchase.

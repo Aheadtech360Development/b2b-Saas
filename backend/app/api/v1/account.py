@@ -1909,3 +1909,73 @@ async def list_invoices(
         })
 
     return invoices
+
+
+# ── Deleting one's own account (App Store Review Guideline 5.1.1(v)) ──────────
+
+from fastapi import HTTPException  # noqa: E402
+from pydantic import BaseModel as _BaseModel, Field as _Field  # noqa: E402
+
+
+class DeleteAccountIn(_BaseModel):
+    # Asked again, so a phone left signed in on a table cannot close the account.
+    password: str = _Field(..., min_length=1, max_length=200)
+
+
+@router.post("/delete")
+async def delete_my_account(payload: DeleteAccountIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """A buyer deletes their own account: personal details removed, signed out
+    everywhere; the shop's orders stay as its records (services/account_deletion)."""
+    from app.core.security import get_token_jti
+    from app.services import account_deletion
+
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to delete your account.")
+    user = (await db.execute(select(User).where(User.id == UUID(str(user_id))))).scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=404, detail="This account is already closed.")
+    if user.is_admin or getattr(user, "is_platform_admin", False):
+        raise HTTPException(status_code=409, detail=(
+            "This account runs a shop. Use Request account deletion, and PrintCoPilot will close it with you."
+        ))
+    if not user.hashed_password or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="That password is not right.")
+
+    result = await account_deletion.delete_buyer(db, user)
+    auth = request.headers.get("Authorization", "")
+    jti = get_token_jti(auth.split(" ", 1)[1]) if auth.startswith("Bearer ") else None
+    await account_deletion.end_sessions(user.id, jti)
+    return {"deleted": True, **result}
+
+
+@router.post("/delete-request")
+async def request_account_deletion(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """A shop's own person asks for their account to be closed. A shop has
+    orders, payouts and customers behind it, so PrintCoPilot closes it with
+    them rather than at a tap; the request reaches the platform team at once."""
+    from html import escape
+
+    from app.services.email_service import notify_platform
+
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to ask for your account to be closed.")
+    user = (await db.execute(select(User).where(User.id == UUID(str(user_id))))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    shop = getattr(request.state, "tenant_slug", None) or str(user.tenant_id or "")
+    sent = notify_platform(
+        f"Account deletion request — {user.email}",
+        "<p>Someone asked, from the app, for their account to be deleted.</p>"
+        f"<p>Name: {escape(user.full_name)}<br>Email: {escape(user.email)}<br>"
+        f"Role: {escape(user.role or '')}<br>Shop: {escape(shop)}</p>"
+        "<p>Close it with them in the platform console, and confirm by email.</p>",
+    )
+    if not sent:
+        # Said plainly rather than thanked for: a request nobody received
+        # would leave them waiting on an answer that is not coming.
+        raise HTTPException(status_code=503, detail=(
+            "We could not send your request just now. Email support@printcopilot.co to close your account."
+        ))
+    return {"requested": True, "message": "We have your request. PrintCoPilot will email you to close your account."}
