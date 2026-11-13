@@ -66,6 +66,9 @@ describe("every page of the design", () => {
     expect(html).not.toMatch(/(src|href)="images\//);
     expect(html).not.toMatch(/<helmet|<script|\son[a-z]+="/i);
     expect(page.css.length).toBeGreaterThan(1000);
+    // The platform's own logo file, as on the old site, in the header and the footer.
+    expect(html.match(/<img class="pc-logo" src="\/wordmark-horizontal_color-on-dark_1200w\.png" alt="PrintCoPilot"/g)).toHaveLength(2);
+    expect(html).not.toMatch(/class="wordmark"[^>]*>\s*PrintCoPilot\s*<\/a>/);
   });
 
   it("shows the prices the super admin set, not the design's", async () => {

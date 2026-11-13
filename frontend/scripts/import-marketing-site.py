@@ -234,6 +234,32 @@ def add_contact_details(body: str) -> str:
     return body[:email.end()] + CONTACT_DETAILS + body[email.end():]
 
 
+# The platform's own logo file, as the old site showed it (components/shared/
+# PlatformLogo): the off-white wordmark, 210px wide in the header (135px on a
+# phone) and 240px in the footer. The design sets the name in type instead.
+LOGO_SRC = "/wordmark-horizontal_color-on-dark_1200w.png"
+LOGO_CSS = (
+    ".wordmark{display:inline-flex;align-items:center;line-height:0}"
+    ".wordmark .pc-logo{display:block;width:210px;height:auto}"
+    "footer .wordmark .pc-logo{width:240px}"
+    "@media (max-width:560px){header .wordmark .pc-logo{width:135px}}"
+)
+
+
+def swap_logo(body: str) -> str:
+    footers = spans(body, "footer")
+
+    def fix(m: re.Match) -> str:
+        width, height = (240, 32) if inside(m.start(), footers) else (210, 28)
+        return (f'{m.group(1)}<img class="pc-logo" src="{LOGO_SRC}" alt="PrintCoPilot" '
+                f'width="{width}" height="{height}"></a>')
+
+    out, n = re.subn(r'(<a\b[^>]*class="wordmark"[^>]*>)\s*PrintCoPilot\s*</a>', fix, body)
+    if not n:
+        raise SystemExit("no wordmark found: the design's logo markup changed")
+    return out
+
+
 def mark_form(key: str, body: str) -> str:
     kind = FORM_OF.get(key)
     if not kind:
@@ -262,6 +288,8 @@ def convert(key: str, file: str, features: dict[str, str], unmapped: list[str]) 
     ids = set(re.findall(r'\bid="([^"]+)"', body))
     body = rewrite_links(key, body, ids, features, unmapped)
     body = mark_form(key, body)
+    body = swap_logo(body)
+    css = css + "\n" + LOGO_CSS
     if key == "contact":
         body = add_contact_details(body)
     body = tokens_in_text(body, price_tokens)
