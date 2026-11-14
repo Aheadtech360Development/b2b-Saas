@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { loadStore } from "@/lib/store";
 import SiteShell from "@/components/marketing/site/SiteShell";
-import MarketingCookies from "@/components/marketing/pages/Cookies";
+import PolicyPage from "@/components/marketing/site/PolicyPage";
+import cookies from "@/components/marketing/site/policies/cookies";
 import { MARKETING_META } from "@/components/marketing/meta";
 import ShopPage, { generateMetadata as shopPageMetadata } from "../[slug]/page";
 
@@ -25,7 +26,7 @@ export default async function MarketingCookiesRoute() {
   if ((await loadStore()).brand) return <ShopPage params={params()} />;
   return (
     <SiteShell>
-      <MarketingCookies />
+      <PolicyPage policy={cookies} />
     </SiteShell>
   );
 }

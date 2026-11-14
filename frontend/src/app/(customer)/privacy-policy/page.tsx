@@ -6,7 +6,8 @@ import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/l
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { loadStore } from "@/lib/store";
 import SiteShell from "@/components/marketing/site/SiteShell";
-import MarketingPrivacy from "@/components/marketing/pages/Privacy";
+import PolicyPage from "@/components/marketing/site/PolicyPage";
+import privacy from "@/components/marketing/site/policies/privacy";
 import { MARKETING_META } from "@/components/marketing/meta";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export default async function PrivacyPolicyPage() {
   if (!(await loadStore()).brand) {
     return (
       <SiteShell>
-        <MarketingPrivacy />
+        <PolicyPage policy={privacy} />
       </SiteShell>
     );
   }

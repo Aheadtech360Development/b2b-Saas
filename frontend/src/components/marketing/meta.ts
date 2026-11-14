@@ -44,4 +44,6 @@ export const MARKETING_META = {
   privacy: { title: "PrintCoPilot Privacy Policy" },
   terms: { title: "PrintCoPilot Terms of Service" },
   cookies: { title: "PrintCoPilot Cookie Policy" },
+  affiliateTerms: { title: "PrintCoPilot Affiliate Terms" },
+  dpa: { title: "PrintCoPilot Data Processing Addendum" },
 } satisfies Record<string, Metadata>;

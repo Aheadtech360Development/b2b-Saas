@@ -37,6 +37,12 @@ import { chromeOf } from "@/components/marketing/site/SiteShell";
 import SiteWire from "@/components/marketing/site/SiteWire";
 import { loadSitePage, siteBlogPost, siteSlugPage, type SiteKey } from "@/components/marketing/site/registry";
 import { platformRedirect } from "@/middleware";
+import PolicyPage, { type Policy } from "@/components/marketing/site/PolicyPage";
+import privacy from "@/components/marketing/site/policies/privacy";
+import terms from "@/components/marketing/site/policies/terms";
+import cookies from "@/components/marketing/site/policies/cookies";
+import affiliateTerms from "@/components/marketing/site/policies/affiliate";
+import dpa from "@/components/marketing/site/policies/dpa";
 
 const KEYS: SiteKey[] = [
   "home", "features", "pricing", "demo", "contact", "about", "affiliate", "blog",
@@ -99,12 +105,70 @@ describe("every page of the design", () => {
     expect(html).toContain("mailto:support@printcopilot.co");
   });
 
+  it("keeps the phone fixes: the app's card padding undone, the strip named, the plan table fitted", async () => {
+    for (const key of KEYS) expect((await loadSitePage(key)).css.startsWith(":where(#pc-site) .card{padding:0;box-shadow:none}")).toBe(true);
+    const home = await loadSitePage("home");
+    expect(home.html).toContain('<div class="wrap pc-strip"');
+    expect(home.css).toContain(".tbl-wrap table{min-width:0");
+    expect((await loadSitePage("help")).css).toContain(".hs{flex-direction:row!important");
+  });
+
+  it("sends the footer's legal links to the policy pages", async () => {
+    const { footer } = chromeOf((await loadSitePage("home")).html);
+    expect(footer).toContain('href="/affiliate-terms"');
+    expect(footer).toContain('href="/data-processing-addendum"');
+    expect(footer).toContain('href="/terms#acceptable-use-and-intellectual-property"');
+    expect(terms.sections.map((s) => s.id)).toContain("acceptable-use-and-intellectual-property");
+  });
+
   it("frames other pages in the home page's own header and footer", async () => {
     const { header, footer } = chromeOf((await loadSitePage("home")).html);
     expect(header.startsWith("<header")).toBe(true);
     expect(footer.startsWith("<footer")).toBe(true);
     expect(header).toContain('href="/pricing"');
     expect(footer).toContain('href="/privacy-policy"');
+  });
+});
+
+describe("the five policy pages, from the owner's PDFs", () => {
+  const POLICIES: [Policy, string, string][] = [
+    [privacy, "/privacy-policy", "PrintCoPilot Privacy Policy"],
+    [terms, "/terms", "PrintCoPilot Terms of Service"],
+    [cookies, "/cookie-policy", "PrintCoPilot Cookie Policy"],
+    [affiliateTerms, "/affiliate-terms", "PrintCoPilot Affiliate Terms"],
+    [dpa, "/data-processing-addendum", "PrintCoPilot Data Processing Addendum"],
+  ];
+
+  it.each(POLICIES)("%#: draws every section with its date", (policy, path, title) => {
+    expect(policy.path).toBe(path);
+    expect(policy.title).toBe(title);
+    expect(policy.updated).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{4}$/);
+    const headed = policy.sections.filter((s) => s.heading);
+    expect(headed.length).toBeGreaterThanOrEqual(4);
+    headed.forEach((s, i) => expect(s.heading.startsWith(`${i + 1}. `)).toBe(true));
+    const { container } = render(<PolicyPage policy={policy} />);
+    expect(container.querySelector("h1")?.textContent).toBe(title.replace("PrintCoPilot ", ""));
+    expect(container.querySelectorAll("h2")).toHaveLength(headed.length);
+    expect(container.querySelectorAll(".pp-side a")).toHaveLength(headed.length);
+    // Every email address is a link to write to it.
+    container.querySelectorAll('a[href^="mailto:"]').forEach((a) => expect(a.getAttribute("href")).toBe(`mailto:${a.textContent}`));
+  });
+
+  it("keeps the cookie table, each value labelled with its column for the phone layout", () => {
+    const { container } = render(<PolicyPage policy={cookies} />);
+    const cells = [...container.querySelectorAll("tbody tr:first-child td")].map((td) => [td.getAttribute("data-label"), td.textContent]);
+    expect(cells).toEqual([
+      ["Cookie", "Sign in session cookie"],
+      ["What it does", "Keeps you signed in to PrintCoPilot and keeps your session secure"],
+      ["How long", "Session"],
+      ["Type", "Strictly necessary"],
+    ]);
+  });
+
+  it("joins a bold opening to its sentence without a space before a comma", () => {
+    const { container } = render(<PolicyPage policy={{ ...cookies, sections: [{ id: "x", heading: "1. X", blocks: [{ lead: "We do not sell", text: ", ever." }, { lead: "Plans.", text: "Monthly." }] }] }} />);
+    const ps = [...container.querySelectorAll(".pp-main p")].map((p) => p.textContent);
+    expect(ps).toEqual(["We do not sell, ever.", "Plans. Monthly."]);
   });
 });
 

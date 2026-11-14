@@ -72,7 +72,7 @@ RULES: list[tuple[str, str]] = [
     (r"^Start (free trial|your 14 day free trial)", "/signup"),
     (r"^(Book a demo|Choose a time)", "/demo"),
     (r"^Apply to join", "/affiliate#apply"),
-    (r"^Affiliate Terms", "/affiliate"),
+    (r"^Affiliate Terms", "/affiliate-terms"),
     (r"^(Affiliate|Affiliate program|Join the affiliate program)\b", "/affiliate"),
     (r"^About\b", "/about"),
     (r"^Contact\b", "/contact"),
@@ -85,8 +85,8 @@ RULES: list[tuple[str, str]] = [
     (r"^Privacy Policy", "/privacy-policy"),
     (r"^Terms of Service", "/terms"),
     (r"^Cookie Policy", "/cookie-policy"),
-    (r"^Acceptable Use", "/terms"),
-    (r"^Data Processing", "/privacy-policy"),
+    (r"^Acceptable Use", "/terms#acceptable-use-and-intellectual-property"),
+    (r"^Data Processing", "/data-processing-addendum"),
     (r"^(Brands selling direct|See the Brands page|Brands page|My own brand|Brands)\b", "/brands"),
     (r"^(Custom print shops|See the Print shops page|Custom printing)\b", "/print-shops"),
     (r"^(DTF and gang sheet shops|DTF and gang sheets|See the DTF page|DTF page)\b", "/dtf"),
@@ -260,6 +260,55 @@ def swap_logo(body: str) -> str:
     return out
 
 
+# The app's own stylesheet has a `.card` (24px padding and a shadow) that the
+# design's cards do not have; it pushed the plan cards' navy price block in from
+# the card's edges. Undone here, ahead of the design's CSS, at the lowest weight,
+# so every card rule the design writes itself still wins.
+RESET_CSS = ":where(#pc-site) .card{padding:0;box-shadow:none}"
+
+# Phone fixes the owner asked for (2026-11-14), on top of the design's own:
+# the home page's customer strip as two tidy rows, the home plan table fitted
+# to the screen instead of cut off (ticks and dashes for Included / Not
+# included, as the pricing page's table does), the help search on one row, and
+# the forms' select boxes drawn like their text boxes.
+CHEVRON = (
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' "
+    "viewBox='0 0 24 24' fill='none' stroke='%23475467' stroke-width='2.2' stroke-linecap='round' "
+    "stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")"
+)
+MOBILE_CSS = (
+    ".fm select{-webkit-appearance:none;appearance:none;background-image:" + CHEVRON + ";"
+    "background-repeat:no-repeat;background-position:right 14px center;background-size:16px;padding-right:40px}"
+    "h2+.fm{margin-top:20px}"
+    "@media (max-width:560px){"
+    ".pc-strip{flex-direction:column!important;gap:2px!important}"
+    ".pc-strip>span:nth-child(3){display:none!important}"
+    ".pc-strip>span:nth-child(4){margin-top:14px}"
+    ".pc-strip>span:nth-child(5){gap:4px 22px!important}"
+    ".tbl-wrap table{min-width:0;font-size:13px;line-height:18px}"
+    ".tbl-wrap th,.tbl-wrap td{padding:10px 3px!important}"
+    ".tbl-wrap tbody th{padding-left:12px!important}"
+    ".tbl-wrap thead th{font-size:12px;line-height:16px}"
+    ".tbl-wrap td.yes,.tbl-wrap td.dash{font-size:0;line-height:0}"
+    ".tbl-wrap td.yes::before{content:'\\2713';font-size:17px;line-height:18px;font-weight:700;color:#067647}"
+    ".tbl-wrap td.dash::before{content:'\\2013';font-size:17px;line-height:18px;color:#98A2B3}"
+    ".hs{flex-direction:row!important;gap:6px}"
+    ".hs input{padding:0 10px}"
+    ".hs .btn{flex:none;width:auto;padding:0 18px}"
+    "}"
+)
+
+
+def mark_strip(key: str, body: str) -> str:
+    """Name the home page's customer strip, so the phone rules can reach it."""
+    if key != "home":
+        return body
+    out, n = re.subn(r'<div class="wrap"(?= style="[^"]*">\s*<span[^>]*>Live customer</span>)', '<div class="wrap pc-strip"', body)
+    if n != 1:
+        raise SystemExit("home: the customer strip's markup changed")
+    return out
+
+
 def mark_form(key: str, body: str) -> str:
     kind = FORM_OF.get(key)
     if not kind:
@@ -289,7 +338,8 @@ def convert(key: str, file: str, features: dict[str, str], unmapped: list[str]) 
     body = rewrite_links(key, body, ids, features, unmapped)
     body = mark_form(key, body)
     body = swap_logo(body)
-    css = css + "\n" + LOGO_CSS
+    body = mark_strip(key, body)
+    css = RESET_CSS + "\n" + css + "\n" + LOGO_CSS + "\n" + MOBILE_CSS
     if key == "contact":
         body = add_contact_details(body)
     body = tokens_in_text(body, price_tokens)
