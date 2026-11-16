@@ -114,6 +114,7 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/product-specs", "content"),
     ("/api/v1/admin/discount-groups", "discounts"),
     ("/api/v1/admin/discounts", "discounts"),
+    ("/api/v1/admin/upsells", "discounts"),
     # Gift cards: Marketing. Issuing one or changing a balance makes money
     # the shop owes, so it also needs Billing (below), as a refund does.
     ("/api/v1/admin/gift-cards", "discounts"),

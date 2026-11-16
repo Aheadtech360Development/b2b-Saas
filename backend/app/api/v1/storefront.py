@@ -460,6 +460,57 @@ async def get_storefront_branding(
     return {**branding, "buyer_app": buyer_app, "website": brand_urls.build(row[1], row[2], "/")}
 
 
+# ── Public: a guest cart's upsell offers ─────────────────────────────────────
+class GuestUpsellLine(BaseModel):
+    key: str = Field(max_length=120)
+    product_id: str | None = Field(None, max_length=40)
+    quantity: int = Field(1, ge=0, le=100000)
+    line_total: float = Field(0, ge=0)
+    # Set on a line added from an offer: the guest cart shows the offer's price
+    # only while the offer still applies (services/upsells).
+    offer_id: str | None = Field(None, max_length=40)
+
+
+class GuestUpsellsIn(BaseModel):
+    lines: list[GuestUpsellLine] = Field(default_factory=list, max_length=200)
+
+
+@public_router.post("/upsells")
+async def guest_upsells(
+    payload: GuestUpsellsIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Offers for a cart kept in the browser (a shopper not signed in), at
+    the shop's own prices, and which of the cart's offer lines still get their
+    offer price. A signed-in buyer's come from /cart/upsells; either way the
+    order is priced again on the server."""
+    from decimal import Decimal
+
+    from app.api.v1.guest import guest_shipping_estimate
+    from app.core.rate_limit import enforce_rate_limit
+    from app.services import upsells
+
+    await enforce_rate_limit(request, "guest_upsells", limit=120, window=300)
+    lines = [upsells.Line(key=l.key, product_id=l.product_id, quantity=l.quantity,
+                          line_total=Decimal(str(l.line_total)).quantize(Decimal("0.01")), offer_id=l.offer_id)
+             for l in payload.lines]
+
+    async def price_of(variant) -> Decimal:
+        return Decimal(str(variant.retail_price))
+
+    async def shipping_for(units: int, subtotal: Decimal) -> Decimal | None:
+        out = await guest_shipping_estimate(units=units, subtotal=float(subtotal), db=db)
+        return Decimal(str(out.get("estimated_shipping", 0)))
+
+    applying = await upsells.applying_lines(db, lines)
+    return {
+        "offers": await upsells.offers_for_cart(db, [l for l in lines if l.quantity > 0], price_of, shipping_for),
+        # Line key → the offer it is still sold under.
+        "applying": {key: str(offer.id) for key, offer in applying.items()},
+    }
+
+
 # ── Public: which shop a code belongs to ─────────────────────────────────────
 @public_router.get("/by-code/{code}")
 async def shop_by_code(

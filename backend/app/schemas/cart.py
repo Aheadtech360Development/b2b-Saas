@@ -57,6 +57,10 @@ class CartItemOut(BaseModel):
     # product is no longer offered, or whose blanks ran out). Checkout refuses
     # the cart until it is put right.
     problem: str | None = None
+    # Added from a cart upsell that still applies (services/upsells): its usual
+    # unit price, for the cart to show beside the offer's.
+    upsell_offer_id: UUID | None = None
+    regular_unit_price: Decimal | None = None
 
     model_config = {"from_attributes": True}
 

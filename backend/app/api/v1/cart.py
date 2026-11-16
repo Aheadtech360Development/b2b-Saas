@@ -51,6 +51,31 @@ async def add_matrix(
     return result
 
 
+class UpsellAddRequest(BaseModel):
+    offer_id: UUID
+    variant_id: UUID
+    quantity: int = 1
+
+
+@router.get("/upsells")
+async def cart_upsells(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """The cart's upsell offers for this buyer (services/upsells)."""
+    company_id = _require_company(request)
+    return {"offers": await CartService(db).upsell_offers(company_id, _discount(request), _group_id(request))}
+
+
+@router.post("/add-upsell", response_model=CartResponse, status_code=status.HTTP_200_OK)
+async def add_upsell(payload: UpsellAddRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Add an offer's product, at the offer's price while it applies."""
+    company_id = _require_company(request)
+    quantity = max(1, min(int(payload.quantity or 1), 100))
+    result = await CartService(db).add_upsell(
+        company_id, payload.offer_id, payload.variant_id, quantity, _discount(request), _group_id(request),
+    )
+    await db.commit()
+    return result
+
+
 @router.post("/add-gang-sheet", response_model=CartResponse, status_code=status.HTTP_200_OK)
 async def add_gang_sheet(
     payload: GangSheetAddRequest,

@@ -51,6 +51,8 @@ FEATURES: list[tuple[str, str, str]] = [
     ("invoices", "Invoices for net terms accounts", "Wholesale ordering"),
     # Marketing and storefront
     ("discounts", "Discounts", "Marketing and storefront"),
+    # Offers in the cart ("add a hoodie, 10% off"), set up by the shop (0079).
+    ("upsells", "Cart upsells", "Marketing and storefront"),
     ("blog", "Blog", "Marketing and storefront"),
     ("pages", "Pages and SEO", "Marketing and storefront"),
     ("storefront_theme", "Storefront theme", "Marketing and storefront"),
@@ -161,6 +163,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/blog-posts", "blog"),
     ("/api/v1/admin/pages-seo", "pages"),
     ("/api/v1/admin/discounts", "discounts"),
+    ("/api/v1/admin/upsells", "upsells"),
     ("/api/v1/admin/gift-cards", "gift_cards"),
     ("/api/v1/admin/loyalty", "loyalty"),
     ("/api/v1/admin/collections", "collections"),
@@ -190,6 +193,8 @@ PATH_FEATURES: list[tuple[str, str]] = [
 # guest bought it fine.
 BUYER_PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/cart/gift-card", "gift_cards"),
+    ("/api/v1/cart/add-upsell", "upsells"),
+    ("/api/v1/cart/upsells", "upsells"),
     ("/api/v1/account/returns", "returns_portal"),
     ("/api/v1/account/rewards", "loyalty"),
     ("/api/v1/account/net30-status", "net_terms"),
@@ -205,6 +210,7 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     # The buyer's order tracking page (Retail launch, package 2).
     ("/api/v1/storefront/track", "order_tracking"),
     ("/api/v1/storefront/gift-cards", "gift_cards"),
+    ("/api/v1/storefront/upsells", "upsells"),
     ("/api/v1/storefront/returns", "returns_portal"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/tshirt-designs", "tshirt_designer"),

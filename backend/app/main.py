@@ -1044,6 +1044,7 @@ from app.api.v1.admin import (  # noqa: E402
     reviews as admin_reviews,
     discount_groups as admin_discount_groups,
     discounts as admin_discounts,
+    upsells as admin_upsells,
     users as admin_users,
     analytics as admin_analytics,
     taxes as admin_taxes,
@@ -1247,6 +1248,7 @@ app.include_router(admin_inventory.router, prefix=_V1)
 app.include_router(admin_reviews.router, prefix=_V1)
 app.include_router(admin_discount_groups.router, prefix=_V1)
 app.include_router(admin_discounts.router, prefix=_V1)
+app.include_router(admin_upsells.router, prefix=_V1)
 app.include_router(admin_users.router, prefix=_V1)
 app.include_router(admin_analytics.router, prefix=_V1)
 app.include_router(admin_taxes.router, prefix=_V1)

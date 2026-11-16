@@ -228,6 +228,8 @@ class OrderItem(TenantMixin, BaseModel):
     # readable even if the brand later edits those options. See migration 0033.
     product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     configuration: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Sold through a cart upsell (0079): what the offer brought in.
+    upsell_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="items")
     variant: Mapped[Optional["ProductVariant"]] = relationship("ProductVariant")
@@ -286,6 +288,8 @@ class CartItem(TenantMixin, BaseModel):
     configuration: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     label: Mapped[str | None] = mapped_column(String(300), nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Added from a cart upsell (0079): priced by the offer while it still applies.
+    upsell_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # Relationships
     company: Mapped["Company"] = relationship("Company")

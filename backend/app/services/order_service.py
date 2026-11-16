@@ -110,6 +110,11 @@ class OrderService:
         # Gift cards bought on this order: no shipping, no stock.
         gift_subtotal = Decimal("0")
         gift_units = 0
+        # Lines added from a cart upsell: line index -> (product, offer). Priced
+        # after the loop, against the rest of the order (services/upsells).
+        upsell_of: dict[int, tuple[str, str]] = {}
+        # Every stocked line's product, which the offers' conditions look at.
+        product_of: dict[int, str] = {}
 
         for cart_item in cart_items:
             # A design from the t-shirt designer: one line per garment, colour
@@ -264,6 +269,9 @@ class OrderService:
             subtotal += line_total
             total_units += cart_item.quantity
 
+            product_of[len(order_items_data)] = str(product.id)
+            if getattr(cart_item, "upsell_offer_id", None):
+                upsell_of[len(order_items_data)] = (str(product.id), str(cart_item.upsell_offer_id))
             order_items_data.append({
                 "variant_id": variant.id,
                 "product_name": product.name,
@@ -274,6 +282,29 @@ class OrderService:
                 "unit_price": unit_price,
                 "line_total": line_total,
             })
+
+        # 4.5. Cart upsells: a line added from an offer is charged the offer's
+        # price, and remembers the offer, while the offer still applies to the
+        # rest of the order. The cart showed the same (cart_service).
+        if upsell_of:
+            from app.services import upsells as _up
+
+            _lines = [
+                _up.Line(
+                    key=str(i),
+                    product_id=(product_of.get(i)
+                                or (str(d["product_id"]) if d.get("product_id") else None)),
+                    quantity=int(d["quantity"]), line_total=Decimal(str(d["line_total"])),
+                    offer_id=upsell_of[i][1] if i in upsell_of else None,
+                )
+                for i, d in enumerate(order_items_data)
+            ]
+            for _key, _offer in (await _up.applying_lines(self.db, _lines)).items():
+                _d = order_items_data[int(_key)]
+                _unit = _up.price_after(_offer, Decimal(str(_d["unit_price"])))
+                _total = _unit * int(_d["quantity"])
+                subtotal += _total - Decimal(str(_d["line_total"]))
+                _d["unit_price"], _d["line_total"], _d["upsell_offer_id"] = _unit, _total, _offer.id
 
         # 5. Calculate shipping, on what ships (a gift card goes by email)
         shipping_method = confirm.shipping_method or "standard"

@@ -866,6 +866,101 @@ class CartService:
                     stock_quantity=stock,
                 )
             )
+        return await self._upsell_prices(raw_items, items)
+
+    # ------------------------------------------------------------------
+    # Cart upsells (services/upsells)
+    # ------------------------------------------------------------------
+
+    def _upsell_lines(self, cart: CartResponse) -> list:
+        from app.services import upsells
+
+        return [upsells.Line(key=str(i.id), product_id=str(i.product_id) if i.product_id else None,
+                             quantity=int(i.quantity), line_total=Decimal(str(i.line_total)),
+                             offer_id=str(i.upsell_offer_id) if i.upsell_offer_id else None)
+                for i in cart.items]
+
+    async def upsell_offers(
+        self, company_id: UUID, discount_percent: Decimal = Decimal("0"), group_id: str | None = None,
+    ) -> list[dict]:
+        """The offers this buyer's cart shows, at their prices, and whether one
+        takes the cart over the free-shipping line."""
+        from app.services import upsells
+
+        cart = await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+        ships = [i for i in cart.items if i.item_type != "gift_card"]
+
+        async def price_of(variant) -> Decimal:
+            return await self._effective_price(variant, discount_percent, group_id)
+
+        async def shipping_for(units: int, subtotal: Decimal) -> Decimal | None:
+            v = await self._validate(ships, units, subtotal, company_id)
+            return Decimal(str(v.estimated_shipping)) if v.has_shipping_tier else None
+
+        return await upsells.offers_for_cart(self.db, self._upsell_lines(cart), price_of, shipping_for)
+
+    async def add_upsell(
+        self, company_id: UUID, offer_id: UUID, variant_id: UUID, quantity: int = 1,
+        discount_percent: Decimal = Decimal("0"), group_id: str | None = None,
+    ) -> CartResponse:
+        """Put an offer's product in the cart, priced by the offer while it applies."""
+        from app.models.upsell import UpsellOffer
+        from app.services import upsells
+        from app.services.inventory_service import sellable_stock, stock_problem
+
+        offer = (await self.db.execute(
+            select(UpsellOffer).where(UpsellOffer.id == offer_id, UpsellOffer.is_active.is_(True))
+        )).scalar_one_or_none()
+        if offer is None:
+            raise ValidationError("This offer has ended.")
+        row = (await self.db.execute(
+            select(ProductVariant, Product).join(Product, ProductVariant.product_id == Product.id)
+            .where(ProductVariant.id == variant_id, ProductVariant.product_id == offer.product_id)
+        )).first()
+        if row is None or (offer.variant_id and offer.variant_id != variant_id):
+            raise ValidationError("That option is not part of this offer.")
+        variant, product = row
+        if product.status != "active" or variant.status != "active" or not upsells.is_ready_made(product):
+            raise ValidationError("That product cannot be added from here. Open its page to order it.")
+        cart = await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+        if any(str(i.product_id) == str(offer.product_id) for i in cart.items):
+            raise ValidationError(f"{product.name} is already in your cart.")
+        if not await upsells.holds(self.db, offer, self._upsell_lines(cart)):
+            raise ValidationError("This offer does not apply to your cart.")
+        problem = stock_problem(await sellable_stock(self.db, variant, tracked=product.track_inventory),
+                                quantity, variant.sku)
+        if problem:
+            raise InsufficientStockError(problem)
+        self.db.add(CartItem(
+            company_id=company_id, variant_id=variant.id, quantity=quantity,
+            unit_price=await self._effective_price(variant, discount_percent, group_id),
+            upsell_offer_id=offer.id,
+        ))
+        await self.db.flush()
+        return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+
+    async def _upsell_prices(self, raw_items, items: list[CartItemOut]) -> list[CartItemOut]:
+        """A line added from a cart upsell at the offer's price, while the offer
+        still applies to the rest of the cart (services/upsells; order_service
+        charges the same)."""
+        offer_of = {str(r.id): str(r.upsell_offer_id) for r in raw_items if getattr(r, "upsell_offer_id", None)}
+        if not offer_of:
+            return items
+        from app.services import upsells
+
+        lines = [upsells.Line(key=str(i.id), product_id=str(i.product_id) if i.product_id else None,
+                              quantity=int(i.quantity), line_total=Decimal(str(i.line_total)),
+                              offer_id=offer_of.get(str(i.id))) for i in items]
+        applied = await upsells.applying_lines(self.db, lines)
+        for i in items:
+            offer = applied.get(str(i.id))
+            if offer is None:
+                continue
+            regular = Decimal(str(i.unit_price))
+            i.unit_price = upsells.price_after(offer, regular)
+            i.line_total = i.unit_price * i.quantity
+            i.upsell_offer_id = offer.id
+            i.regular_unit_price = regular
         return items
 
     async def _design_line(self, item: CartItem) -> CartItemOut:
