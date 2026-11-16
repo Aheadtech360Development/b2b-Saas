@@ -87,3 +87,31 @@ def test_an_unknown_code_is_still_not_found(lookup):
     with pytest.raises(HTTPException) as e:
         run(storefront.shop_by_code("ZZZZZZ", request(), None))
     assert e.value.status_code == 404
+
+
+class FlagDb:
+    """Answers the plan query, then the brand's feature switches."""
+
+    def __init__(self, plan, flags):
+        self.plan, self.flags, self.calls = plan, flags, 0
+
+    async def execute(self, statement, params=None):
+        self.calls += 1
+        if self.calls == 1:
+            return SimpleNamespace(scalar=lambda: self.plan)
+        return SimpleNamespace(all=lambda: list(self.flags))
+
+
+def test_super_admin_can_give_one_brand_the_buyer_app_without_scale():
+    # Super admin → Brands → the brand → Features → "Buyer mobile app" → On
+    # writes this row; every buyer app check (code screen, code lookup,
+    # branding) reads the same answer.
+    from app.services import entitlements
+
+    on = run(entitlements._read(FlagDb("wholesale", [("mobile_app", True)]), "t1"))
+    assert "mobile_app" in on and "wholesale_accounts" in on
+    off = run(entitlements._read(FlagDb("wholesale", []), "t2"))
+    assert "mobile_app" not in off
+    # And a Scale brand can have it taken away the same way.
+    removed = run(entitlements._read(FlagDb("scale", [("mobile_app", False)]), "t3"))
+    assert "mobile_app" not in removed
