@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, StatusBar, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as Linking from "expo-linking";
 import { useFonts } from "expo-font";
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from "@expo-google-fonts/dm-sans";
 import { Fraunces_400Regular, Fraunces_600SemiBold } from "@expo-google-fonts/fraunces";
@@ -29,6 +30,20 @@ export default function App() {
   });
   const [screen, setScreen] = useState<Screen>("loading");
   const [session, setSession] = useState<Session | null>(null);
+  // A shop's QR square opens printcopilot.co/get-app, whose button opens the
+  // app as printcopilot://apply?code=XXXXXX: straight to applying at that shop.
+  const [linkCode, setLinkCode] = useState<string | undefined>();
+  const url = Linking.useURL();
+  useEffect(() => {
+    if (!url) return;
+    const { hostname, path, queryParams } = Linking.parse(url);
+    const code = typeof queryParams?.code === "string" ? queryParams.code : undefined;
+    if (code && (hostname === "apply" || path === "apply")) setLinkCode(code);
+  }, [url]);
+  useEffect(() => {
+    // Only someone not signed in is taken there; a signed-in buyer stays put.
+    if (linkCode && screen === "signIn") setScreen("apply");
+  }, [linkCode, screen]);
 
   const restore = useCallback(async () => {
     // A stored session is not proof of a live one: the access token may have
@@ -69,7 +84,7 @@ export default function App() {
           onApply={() => setScreen("apply")}
         />
       ) : screen === "apply" ? (
-        <ApplyScreen onDone={() => setScreen("signIn")} />
+        <ApplyScreen initialCode={linkCode} onDone={() => { setLinkCode(undefined); setScreen("signIn"); }} />
       ) : session ? (
         session.isAdmin ? (
           <AdminApp

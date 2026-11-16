@@ -102,14 +102,84 @@ async def save_lead(db: AsyncSession, request: Request, kind: str, name: str, em
            "data": json.dumps(data), "ip": ip_hash(client_ip(request))})
 
 
+def booking_html(name: str, when: str, theirs: str | None) -> str:
+    """The visitor's confirmation of a booked demo."""
+    local = f" ({escape(theirs)} your time)" if theirs else ""
+    return (
+        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:23px;color:#1F2937">'
+        f"<p>Hi {escape(name)},</p>"
+        f"<p>Your PrintCoPilot demo is booked for <strong>{escape(when)}</strong>{local}.</p>"
+        "<p>We will email you the meeting link before the call. Need a different time? Write to "
+        '<a href="mailto:support@printcopilot.co">support@printcopilot.co</a>.</p>'
+        "<p>The PrintCoPilot team</p></div>"
+    )
+
+
+def _their_time(at: Any, zone: str | None) -> str | None:
+    """The booked time in the visitor's own time zone, if the page sent one we know."""
+    from zoneinfo import ZoneInfo
+
+    try:
+        local = at.astimezone(ZoneInfo((zone or "").strip()))
+    except Exception:  # noqa: BLE001 — an unknown or empty zone: the team's time alone
+        return None
+    clock = local.strftime("%I:%M %p").lstrip("0")
+    return f"{local:%a}, {local:%b} {local.day}, {clock}"
+
+
+def _confirm_booking(name: str, email: str, when: str, theirs: str | None) -> None:
+    """Runs after the response: the booking stands whether or not the mail goes."""
+    from app.services.email_service import send_as_platform
+
+    try:
+        send_as_platform(email, f"Your PrintCoPilot demo: {when}", booking_html(name, when, theirs))
+    except Exception:  # noqa: BLE001
+        logger.warning("demo booking mail failed for %s", email, exc_info=True)
+
+
+@router.get("/demo-slots")
+async def demo_slot_list(request: Request,
+                         db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict:
+    """The demo times still open (printcopilot.co/demo's second step), as UTC starts."""
+    from app.services import demo_slots
+
+    await enforce_rate_limit(request, "demo_slots", limit=60, window=300)
+    return {
+        "zone": str(demo_slots.ZONE),
+        "slot_minutes": int(demo_slots.SLOT.total_seconds() // 60),
+        "slots": await demo_slots.free(db),
+    }
+
+
 @router.post("", status_code=202)
 async def create_lead(payload: LeadIn, request: Request, background: BackgroundTasks,
                       db: AsyncSession = Depends(get_partner_db, scope="function")) -> Any:
-    """A demo request (or a contact message) from printcopilot.co."""
+    """A demo request (or a contact message) from printcopilot.co.
+
+    A demo request may carry the time the visitor picked (`slot_start`): it
+    must still be open, and is kept with the lead as the booking.
+    """
     await enforce_rate_limit(request, "platform_lead", limit=10, window=3600)
     if (payload.company or "").strip():
         # Answered as if it went through, so a bot learns nothing.
         return JSONResponse(status_code=202, content={"ok": True})
-    await save_lead(db, request, payload.kind, payload.name, payload.email, payload.data)
-    background.add_task(_tell_platform, payload.kind, payload.name.strip(), str(payload.email), payload.data)
-    return {"ok": True}
+    data = dict(payload.data)
+    booking: tuple[str, str | None] | None = None
+    if payload.kind == "demo" and data.get("slot_start"):
+        from app.services import demo_slots
+
+        at = demo_slots.parse(data["slot_start"])
+        if not at or demo_slots.iso(at) not in await demo_slots.free(db):
+            return JSONResponse(status_code=409, content={
+                "detail": "That time is no longer open. Pick another one.",
+            })
+        when = demo_slots.label(at)
+        # The booked time first, so the team's email and the Leads list lead with it.
+        data = {"meeting_time": when, **{k: v for k, v in data.items() if k != "slot_start"},
+                "slot_start": demo_slots.iso(at)}
+        booking = (when, _their_time(at, data.get("time_zone")))
+    await save_lead(db, request, payload.kind, payload.name, payload.email, data)
+    background.add_task(_tell_platform, payload.kind, payload.name.strip(), str(payload.email), data)
+    if booking:
+        background.add_task(_confirm_booking, payload.name.strip(), str(payload.email), *booking)
+    return {"ok": True, **({"meeting_time": booking[0]} if booking else {})}

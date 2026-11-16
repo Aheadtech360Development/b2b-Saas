@@ -8,9 +8,10 @@
  * screen on top.
  */
 import { useCallback, useEffect, useState } from "react";
-import { BackHandler, StyleSheet, View } from "react-native";
+import { BackHandler, Linking, ScrollView, StyleSheet, View } from "react-native";
 
-import { currentShop } from "@/api/shop";
+import { signOut } from "@/api/auth";
+import { currentShop, type Shop } from "@/api/shop";
 import { cart as fetchCart, type Cart, type PlacedOrder } from "@/api/shopping";
 import { TabBar } from "@/admin/TabBar";
 import type { Tab } from "@/admin/tabs";
@@ -22,7 +23,8 @@ import { OrderScreen, OrdersScreen, PlacedScreen } from "@/shop/OrdersScreen";
 import { BAR_SPACE } from "@/shop/parts";
 import { ProductScreen } from "@/shop/ProductScreen";
 import type { Session } from "@/session/store";
-import { accentFor, palette } from "@/ui/theme";
+import { Button, Hero, Lede } from "@/ui/components";
+import { accentFor, palette, space } from "@/ui/theme";
 
 export const SHOP_TABS: Tab[] = [
   { key: "shop", label: "Shop", icon: "storefront-outline", iconActive: "storefront" },
@@ -43,6 +45,9 @@ export function ShopApp({ session, onSignedOut }: { session: Session; onSignedOu
   const [shopName, setShopName] = useState("Shop");
   const [accent, setAccent] = useState(palette.ink);
   const [units, setUnits] = useState(0);
+  // The branded buyer app is sold on Scale: a buyer of a shop without it is
+  // told so, and sent to the shop's website, instead of shopping here.
+  const [notOnApp, setNotOnApp] = useState<Shop | null>(null);
   // A buyer whose account has no company yet (a wholesale application not yet
   // approved) can look around but not order: the cart refuses them.
   const canOrder = !!session.companyId;
@@ -50,7 +55,11 @@ export function ShopApp({ session, onSignedOut }: { session: Session; onSignedOu
   useEffect(() => {
     if (!session.tenantSlug) return;
     currentShop(session.tenantSlug)
-      .then((shop) => { if (shop.name) setShopName(shop.name); setAccent(accentFor(shop.primaryColor)); })
+      .then((shop) => {
+        if (shop.name) setShopName(shop.name);
+        setAccent(accentFor(shop.primaryColor));
+        if (!shop.buyerApp) setNotOnApp(shop);
+      })
       .catch(() => { /* a label only; the shop still opens */ });
   }, [session.tenantSlug]);
 
@@ -107,6 +116,22 @@ export function ShopApp({ session, onSignedOut }: { session: Session; onSignedOu
     body = <CatalogScreen shopName={shopName} accent={accent} onOpen={(slug) => push({ name: "product", slug })} />;
   }
 
+  if (notOnApp) {
+    const website = notOnApp.website;
+    return (
+      <ScrollView style={s.root} contentContainerStyle={s.closed}>
+        <Hero>{notOnApp.name || shopName} is not on the app</Hero>
+        <Lede>
+          {notOnApp.name || "This shop"} does not offer shopping in the PrintCoPilot app. You can still order on its website with the same account.
+        </Lede>
+        <View style={s.gap} />
+        {website ? <Button title="Open the website" accent={accent} onPress={() => { Linking.openURL(website); }} /> : null}
+        <View style={s.gapSm} />
+        <Button title="Sign out" variant="quiet" accent={accent} onPress={() => { signOut().finally(onSignedOut); }} />
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={s.root}>
       <View style={s.body}>{body}</View>
@@ -118,4 +143,7 @@ export function ShopApp({ session, onSignedOut }: { session: Session; onSignedOu
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.page },
   body: { flex: 1 },
+  closed: { padding: space.lg, paddingTop: 120, paddingBottom: space.xl },
+  gap: { height: space.lg },
+  gapSm: { height: space.sm },
 });

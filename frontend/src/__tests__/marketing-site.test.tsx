@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const posted: { path: string; body: Record<string, unknown> }[] = [];
+let slotsAnswer: unknown = {};
 vi.mock("@/lib/api-client", () => {
   class ApiClientError extends Error {}
   return {
@@ -17,7 +18,7 @@ vi.mock("@/lib/api-client", () => {
         posted.push({ path, body });
         return Promise.resolve(path === "/api/v1/contact" ? { message: "We will get back to you within 1 business day." } : { ok: true });
       },
-      get: () => Promise.resolve({}),
+      get: (path: string) => Promise.resolve(path.includes("/leads/demo-slots") ? slotsAnswer : {}),
     },
   };
 });
@@ -53,6 +54,7 @@ const PRICES = { retail: 8900, starter: 9900, wholesale: 29900, scale: 49900 };
 
 beforeEach(() => {
   posted.length = 0;
+  slotsAnswer = {};
   applied.length = 0;
   program = {
     accepting_applications: true, application_response_days: 2,
@@ -233,6 +235,33 @@ describe("the forms", () => {
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).toMatchObject({ path: "/api/v1/leads", body: { kind: "demo", name: "Sam Lee", data: { business_name: "Lee Prints", sells: "Custom printing" } } });
     expect(await screen.findByText("Thanks, we got it.")).toBeTruthy();
+  });
+
+  it("books the demo at the time the visitor picks, in their own time zone", async () => {
+    slotsAnswer = { zone: "America/New_York", slot_minutes: 30, slots: ["2026-11-18T15:00:00Z", "2026-11-18T15:30:00Z", "2026-11-19T15:00:00Z"] };
+    const box = await mount("demo");
+    set(box, "name", "Sam Lee");
+    set(box, "email", "sam@shop.com");
+    set(box, "business", "Lee Prints");
+    set(box, "sell", "Custom printing");
+    await act(async () => { fireEvent.click(box.querySelector("form [data-pc-submit]")!); });
+    await waitFor(() => expect(box.querySelector("[data-pc-picker]")).toBeTruthy());
+    expect(posted).toHaveLength(0);
+    expect(box.querySelector("[data-pc-picker]")!.textContent).toContain("Each demo takes 30 minutes");
+    // Nothing booked until a time is picked.
+    expect(box.querySelector<HTMLButtonElement>("[data-pc-book]")!.disabled).toBe(true);
+    // Back keeps what was typed.
+    fireEvent.click(box.querySelector("[data-pc-back]")!);
+    expect(box.querySelector("[data-pc-picker]")).toBeNull();
+    expect(box.querySelector<HTMLInputElement>('[name="name"]')!.value).toBe("Sam Lee");
+    await act(async () => { fireEvent.click(box.querySelector("form [data-pc-submit]")!); });
+    await waitFor(() => expect(box.querySelector("[data-pc-picker]")).toBeTruthy());
+    fireEvent.click(box.querySelector('[data-pc-time="2026-11-18T15:30:00Z"]')!);
+    await act(async () => { fireEvent.click(box.querySelector("[data-pc-book]")!); });
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({ path: "/api/v1/leads", body: { kind: "demo", name: "Sam Lee", data: { business_name: "Lee Prints", slot_start: "2026-11-18T15:30:00Z" } } });
+    expect(typeof (posted[0]!.body.data as Record<string, string>).time_zone).toBe("string");
+    expect(await screen.findByText("You are booked.")).toBeTruthy();
   });
 
   it("applies to the partner program with the terms it showed", async () => {

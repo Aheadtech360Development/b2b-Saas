@@ -15,6 +15,11 @@ export interface Shop {
   /** Whether this shop takes wholesale applications at all. A retail-only
    *  shop has nowhere to put one, so the app must not offer the form. */
   acceptsWholesaleSignup: boolean;
+  /** Whether this shop's buyers may shop in the app: the branded buyer app is
+   *  sold on Scale. Only an explicit "no" from the server shuts the door. */
+  buyerApp: boolean;
+  /** The shop's website, for a buyer the app cannot serve. */
+  website: string | null;
 }
 
 /** The two endpoints spell the same things differently — the shop-code lookup
@@ -27,6 +32,9 @@ interface ShopResponse {
   logo_url?: string | null;
   primary_color?: string | null;
   wholesale_signup?: boolean;
+  buyer_app?: boolean;
+  website?: string | null;
+  url?: string | null;
 }
 
 function shopFrom(res: ShopResponse): Shop {
@@ -36,6 +44,8 @@ function shopFrom(res: ShopResponse): Shop {
     logoUrl: res.logo ?? res.logo_url ?? null,
     primaryColor: res.primary_color ?? null,
     acceptsWholesaleSignup: res.wholesale_signup === true,
+    buyerApp: res.buyer_app !== false,
+    website: res.website ?? res.url ?? null,
   };
 }
 

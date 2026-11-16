@@ -434,7 +434,7 @@ async def get_storefront_branding(
     if not slug:
         return dict(_DEFAULT_BRANDING)
     res = await db.execute(
-        text("SELECT id FROM tenants WHERE slug = :s AND status = 'active'"),
+        text("SELECT id, slug, custom_domain FROM tenants WHERE slug = :s AND status = 'active'"),
         {"s": slug},
     )
     row = res.first()
@@ -444,12 +444,20 @@ async def get_storefront_branding(
     # The logo buyers see on the shop (services/shop_logo): a shop live on the
     # website builder shows its header's logo, which can differ from the one
     # left in its settings. The admin's own settings read stays as saved.
+    from app.services import brand_urls, entitlements
     from app.services.shop_logo import header_logo
 
     logo = await header_logo(db, row[0])
     if logo:
         branding = {**branding, "logo_url": logo}
-    return branding
+    # For the PrintCoPilot app: whether this shop's buyers may shop in it (the
+    # branded buyer app is sold on Scale), and where its website is for those
+    # who may not.
+    try:
+        buyer_app = "mobile_app" in await entitlements.for_tenant(db, row[0])
+    except Exception:
+        buyer_app = True  # a label lookup that failed must not lock buyers out
+    return {**branding, "buyer_app": buyer_app, "website": brand_urls.build(row[1], row[2], "/")}
 
 
 # ── Public: which shop a code belongs to ─────────────────────────────────────
@@ -473,7 +481,15 @@ async def shop_by_code(
     found = await codes.resolve(db, code)
     if not found:
         raise HTTPException(status_code=404, detail="No shop has that code.")
-    return found
+    if not found["buyer_app"]:
+        # The branded buyer app is on Scale. The code is real (it came from the
+        # shop), so the buyer is told where they can still order.
+        raise HTTPException(status_code=403, detail={
+            "code": "not_on_app",
+            "message": f"{found['name']} is not on the PrintCoPilot app. You can still order on its website.",
+            "url": found["url"],
+        })
+    return {**found, **codes.app_links()}
 
 
 # ── Public: this brand's own tracking tools ──────────────────────────────────
@@ -612,7 +628,9 @@ async def get_shop_code(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """This shop's code for the mobile app, minted on first asking."""
+    """This shop's code for the mobile app, minted on first asking, with its
+    QR square and printcopilot.co link (Settings → Buyer app; Scale only, see
+    core/features)."""
     from app.services import shop_code as codes
 
     tenant_id = _resolve_tenant_id(request)
@@ -620,7 +638,7 @@ async def get_shop_code(
         from app.core.exceptions import UnauthorizedError
 
         raise UnauthorizedError("No tenant context")
-    return {"code": await codes.for_tenant(db, tenant_id)}
+    return codes.card(await codes.for_tenant(db, tenant_id))
 
 
 @admin_router.post("/shop-code/rotate")
@@ -644,7 +662,7 @@ async def rotate_shop_code(
     code = await codes.rotate(db, tenant_id)
     if not code:
         raise HTTPException(status_code=500, detail="Could not issue a new code. Try again.")
-    return {"code": code}
+    return codes.card(code)
 
 
 # ── Admin: read own branding ──────────────────────────────────────────────────

@@ -36,6 +36,8 @@ PUBLIC_PATHS = {
     # (api/v1/contact): sent by visitors, who have no account. The contact form
     # was missing here, so it answered every visitor "authentication required".
     "/api/v1/leads",
+    # The demo form's calendar: the times still open to book.
+    "/api/v1/leads/demo-slots",
     "/api/v1/contact",
     "/api/v1/products",
     "/api/v1/products/categories",

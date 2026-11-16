@@ -6,7 +6,8 @@
  * page is on screen and makes them work, with the same backend calls the old
  * pages made:
  *
- *   demo        POST /api/v1/leads (kind demo): the console's Leads, and the team is emailed
+ *   demo        a time picked from GET /api/v1/leads/demo-slots, then POST /api/v1/leads
+ *               (kind demo, with the slot): the console's Leads; team and visitor are emailed
  *   contact     POST /api/v1/contact: emailed to the platform inbox, kept in Leads
  *   affiliate   POST /api/v1/partners/apply, with the program's current terms shown and accepted
  *   newsletter  POST /api/v1/leads (kind newsletter): the blog's subscribe box
@@ -70,7 +71,7 @@ function sayProblem(form: HTMLFormElement, text: string | null) {
 function sayDone(form: HTMLFormElement, title: string, text: string) {
   form.innerHTML =
     `<div role="status" data-pc-done style="padding:8px 0">`
-    + `<h3 style="font-size:24px;line-height:30px">${esc(title)}</h3>`
+    + `<h3 style="font-size:24px;line-height:30px;color:#0C1E35;-webkit-text-fill-color:#0C1E35;background:none">${esc(title)}</h3>`
     + `<p style="margin-top:12px;color:#475467">${esc(text)}</p></div>`;
 }
 
@@ -82,24 +83,173 @@ function busy(form: HTMLFormElement, on: boolean) {
   });
 }
 
+/** The demo form's answers, as the leads endpoint takes them. */
+function demoLead(form: HTMLFormElement, extra: Record<string, string> = {}) {
+  return {
+    kind: "demo",
+    name: value(form, "name"),
+    email: value(form, "email"),
+    data: {
+      business_name: value(form, "business"),
+      website: value(form, "website"),
+      sells: value(form, "sell"),
+      sells_today: value(form, "today"),
+      message: value(form, "notes"),
+      ...extra,
+    },
+    company: "",
+  };
+}
+
+// ── The demo form's second step: a time to book ──────────────────────────────
+// The design's button says "Choose a time" and "You will pick a time on the
+// next step". The open half-hour slots (api/v1/leads/demo-slots, the team's
+// hours) are shown in the visitor's own time zone; the one picked is booked
+// with the lead, and the visitor is emailed a confirmation. If the times do
+// not load, the request still goes, and the team writes with times instead.
+type Slots = { zone?: string; slot_minutes?: number; slots?: string[] };
+
+const PICKER_CSS = `
+.pc-pick{display:grid;gap:16px}
+.pc-pick h3{font-size:24px!important;line-height:30px!important;margin:0;color:#0C1E35!important;-webkit-text-fill-color:#0C1E35}
+.pc-pick .pc-pick-sub{margin:0;color:#475467;font-size:14px;line-height:21px}
+.pc-days{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.pc-days button,.pc-times button{font:600 14px/20px Inter,sans-serif;border:1px solid #C7D0DD;background:#fff;color:#0C1E35;border-radius:10px;cursor:pointer}
+.pc-days button{flex:none;min-width:72px;padding:8px 10px;display:grid;gap:2px;text-align:center}
+.pc-days button small{font-weight:400;color:#667085;font-size:12px}
+.pc-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.pc-times button{height:44px}
+.pc-days button[aria-pressed=true],.pc-times button[aria-pressed=true]{background:#0B5ED7;border-color:#0B5ED7;color:#fff}
+.pc-days button[aria-pressed=true] small{color:#DCE8FB}
+.pc-pick .pc-book{width:100%;height:52px;border:0;border-radius:10px;background:#0B5ED7;color:#fff;font:600 16px/24px Inter,sans-serif;cursor:pointer}
+.pc-pick .pc-book[disabled]{opacity:.5;cursor:default}
+.pc-pick .pc-back{background:none;border:0;color:#0B5ED7;font:600 14px/20px Inter,sans-serif;cursor:pointer;justify-self:start;padding:0}
+.pc-pick .pc-pick-problem{margin:0;color:#B42318;font-size:14px}
+@media (max-width:560px){.pc-times{grid-template-columns:repeat(3,minmax(0,1fr))}}
+`;
+
+function visitorZone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
+}
+
+const dayKey = (d: Date, zone: string) => d.toLocaleDateString("en-CA", zone ? { timeZone: zone } : {});
+const fmt = (d: Date, zone: string, o: Intl.DateTimeFormatOptions) =>
+  d.toLocaleString("en-US", zone ? { ...o, timeZone: zone } : o);
+
+/** "Tue, Nov 18 at 10:30 AM", in the visitor's zone. */
+export function visitorLabel(iso: string, zone: string): string {
+  const d = new Date(iso);
+  return `${fmt(d, zone, { weekday: "short", month: "short", day: "numeric" })} at ${fmt(d, zone, { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function showPicker(form: HTMLFormElement, slots: string[], minutes: number, onBooked: (title: string, text: string) => void) {
+  if (!document.getElementById("pc-pick-css")) {
+    const style = document.createElement("style");
+    style.id = "pc-pick-css";
+    style.textContent = PICKER_CSS;
+    document.head.appendChild(style);
+  }
+  const zone = visitorZone();
+  const fields = Array.from(form.children) as HTMLElement[];
+  fields.forEach((el) => { el.dataset.pcWas = el.style.display; el.style.display = "none"; });
+
+  const box = document.createElement("div");
+  box.className = "pc-pick";
+  box.setAttribute("data-pc-picker", "1");
+  form.appendChild(box);
+
+  let open = slots;
+  let day = "";
+  let picked = "";
+  let sending = false;
+
+  const draw = (problem = "") => {
+    const days = Array.from(new Set(open.map((s) => dayKey(new Date(s), zone))));
+    if (!days.includes(day)) day = days[0] ?? "";
+    if (picked && !open.includes(picked)) picked = "";
+    const times = open.filter((s) => dayKey(new Date(s), zone) === day);
+    box.innerHTML =
+      `<button type="button" class="pc-back" data-pc-back>&larr; Back to your details</button>`
+      + `<h3>Pick a time</h3>`
+      + `<p class="pc-pick-sub">Each demo takes ${minutes} minutes. Times are in your time zone${zone ? ` (${esc(zone.replace(/_/g, " "))})` : ""}.</p>`
+      + (days.length
+        ? `<div class="pc-days" role="group" aria-label="Day">${days.map((k) => {
+          const d = new Date(open.find((s) => dayKey(new Date(s), zone) === k)!);
+          return `<button type="button" data-pc-day="${k}" aria-pressed="${k === day}">${esc(fmt(d, zone, { weekday: "short" }))}<small>${esc(fmt(d, zone, { month: "short", day: "numeric" }))}</small></button>`;
+        }).join("")}</div>`
+          + `<div class="pc-times" role="group" aria-label="Time">${times.map((s) =>
+            `<button type="button" data-pc-time="${s}" aria-pressed="${s === picked}">${esc(fmt(new Date(s), zone, { hour: "numeric", minute: "2-digit" }))}</button>`).join("")}</div>`
+        : `<p class="pc-pick-sub">There are no open times in the next two weeks. Send your request and we will email you a time.</p>`)
+      + (problem ? `<p class="pc-pick-problem" role="alert">${esc(problem)}</p>` : "")
+      + `<button type="button" class="pc-book" data-pc-book ${days.length && !picked ? "disabled" : ""}>${days.length ? (picked ? `Book ${esc(visitorLabel(picked, zone))}` : "Pick a time above") : "Send my request"}</button>`;
+  };
+
+  const book = async () => {
+    if (sending) return;
+    sending = true;
+    const button = box.querySelector<HTMLButtonElement>("[data-pc-book]");
+    if (button) { button.disabled = true; button.textContent = "Booking…"; }
+    try {
+      if (!open.length) {
+        await apiClient.post("/api/v1/leads", demoLead(form), { skipAuth: true });
+        onBooked("Thanks, we got it.", "Check your email. We will send a few times to choose from.");
+        return;
+      }
+      await apiClient.post("/api/v1/leads", demoLead(form, { slot_start: picked, time_zone: zone }), { skipAuth: true });
+      onBooked("You are booked.",
+        `${visitorLabel(picked, zone)}, your time. We sent the details to ${value(form, "email")} and will email you the meeting link before the call.`);
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409) {
+        // Taken a moment ago by somebody else: show what is still open.
+        try {
+          const fresh = await apiClient.get<Slots>("/api/v1/leads/demo-slots", { skipAuth: true });
+          open = fresh?.slots ?? open.filter((s) => s !== picked);
+        } catch { open = open.filter((s) => s !== picked); }
+        picked = "";
+        draw("That time was just taken. Pick another one.");
+      } else {
+        draw(errorText(err));
+      }
+    } finally {
+      sending = false;
+    }
+  };
+
+  box.addEventListener("click", (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>("button");
+    if (!t || !box.contains(t)) return;
+    e.preventDefault();
+    if (t.dataset.pcBack !== undefined) {
+      box.remove();
+      fields.forEach((el) => { el.style.display = el.dataset.pcWas ?? ""; delete el.dataset.pcWas; });
+      return;
+    }
+    if (t.dataset.pcDay) { day = t.dataset.pcDay; picked = ""; draw(); return; }
+    if (t.dataset.pcTime) { picked = t.dataset.pcTime; draw(); return; }
+    if (t.dataset.pcBook !== undefined && (picked || !open.length)) void book();
+  });
+  draw();
+  box.querySelector<HTMLElement>("h3")?.scrollIntoView?.({ block: "nearest" });
+}
+
+/** "Choose a time": the open times, or (if they cannot be had) the request on its own. */
+async function startDemo(form: HTMLFormElement, onBooked: (title: string, text: string) => void) {
+  let got: Slots | null = null;
+  try {
+    got = await apiClient.get<Slots>("/api/v1/leads/demo-slots", { skipAuth: true });
+  } catch {
+    got = null;
+  }
+  if (!got || !Array.isArray(got.slots)) {
+    await apiClient.post("/api/v1/leads", demoLead(form), { skipAuth: true });
+    onBooked("Thanks, we got it.", "Check your email. We will send a few times to choose from.");
+    return;
+  }
+  showPicker(form, got.slots, got.slot_minutes ?? 30, onBooked);
+}
+
 /** Sends one form. Returns the words to show when it went. */
 async function send(kind: string, form: HTMLFormElement, program: Program | null): Promise<[string, string]> {
-  if (kind === "demo") {
-    await apiClient.post("/api/v1/leads", {
-      kind: "demo",
-      name: value(form, "name"),
-      email: value(form, "email"),
-      data: {
-        business_name: value(form, "business"),
-        website: value(form, "website"),
-        sells: value(form, "sell"),
-        sells_today: value(form, "today"),
-        message: value(form, "notes"),
-      },
-      company: "",
-    }, { skipAuth: true });
-    return ["Thanks, we got it.", "Check your email. We will send a few times to choose from."];
-  }
   if (kind === "contact") {
     const r = await apiClient.post<{ message?: string }>("/api/v1/contact", {
       name: value(form, "name"),
@@ -219,6 +369,12 @@ export default function SiteWire({ page }: { page: SiteKey }) {
         busy(form, true);
         sayProblem(form, null);
         try {
+          if (kind === "demo") {
+            // Second step first: the visitor picks a time, and that sends it.
+            await startDemo(form, (title, text) => sayDone(form, title, text));
+            busy(form, false);
+            return;
+          }
           const [title, text] = await send(kind, form, program);
           sayDone(form, title, text);
         } catch (err) {

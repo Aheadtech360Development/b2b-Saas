@@ -234,6 +234,13 @@ class Settings(BaseSettings):
         return self
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # ── The PrintCoPilot app's store listings ────────────────────────────────
+    # Set once the app is published. Until then the console's Buyer app page
+    # and printcopilot.co/get-app say it is not in the stores yet, instead of
+    # pointing buyers at a listing that does not exist.
+    MOBILE_APP_STORE_URL: str = ""
+    MOBILE_PLAY_STORE_URL: str = ""
+
     # ── Google Business Profile (brands connect their own Google reviews) ────
     # The platform's own OAuth client. Each brand signs in with the Google
     # account that manages its Business Profile; these identify us, not them.

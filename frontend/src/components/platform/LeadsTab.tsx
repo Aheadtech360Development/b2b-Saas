@@ -25,7 +25,10 @@ type Filter = "all" | "demo" | "contact" | "newsletter";
 
 const KIND: Record<Lead["kind"], string> = { demo: "Demo request", contact: "Contact", newsletter: "Newsletter" };
 // The answers each form sends, in the order worth reading them.
-const ORDER = ["business_name", "business_type", "country", "department", "company", "phone", "message"];
+// A booked demo leads with its time (printcopilot.co/demo's calendar); the raw
+// slot it was booked from is for the server, not for reading.
+const ORDER = ["meeting_time", "business_name", "business_type", "country", "department", "company", "phone", "message"];
+const HIDDEN = new Set(["slot_start"]);
 
 const TH: React.CSSProperties = { textAlign: "left", padding: "10px 14px", fontSize: "12px", fontWeight: 700, color: "#71717A", textTransform: "uppercase", letterSpacing: ".04em", borderBottom: "1px solid #E4E4E7", whiteSpace: "nowrap" };
 const TD: React.CSSProperties = { padding: "12px 14px", fontSize: "13.5px", color: "#18181B", borderBottom: "1px solid #F4F4F5", verticalAlign: "top" };
@@ -34,7 +37,7 @@ const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
 function Answers({ data }: { data: Record<string, string> }) {
-  const keys = [...ORDER.filter((k) => data[k]), ...Object.keys(data).filter((k) => !ORDER.includes(k) && data[k])];
+  const keys = [...ORDER.filter((k) => data[k]), ...Object.keys(data).filter((k) => !ORDER.includes(k) && !HIDDEN.has(k) && data[k])];
   if (!keys.length) return <span style={{ color: "#A1A1AA" }}>No other answers</span>;
   return (
     <div style={{ display: "grid", gap: "4px" }}>

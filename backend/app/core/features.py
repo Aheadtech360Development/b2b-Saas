@@ -167,6 +167,8 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/inventory-sync", "inventory_sync"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),
+    # The code and QR that put buyers in the branded buyer app: Scale only.
+    ("/api/v1/admin/storefront/shop-code", "mobile_app"),
     ("/api/v1/admin/storefront", "storefront_theme"),
     ("/api/v1/admin/analytics", "analytics"),
     ("/api/v1/admin/reports", "analytics"),

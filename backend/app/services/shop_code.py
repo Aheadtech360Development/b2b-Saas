@@ -117,9 +117,10 @@ async def resolve(db: AsyncSession, code: str) -> dict | None:
     from app.services import brand_urls, entitlements
 
     try:
-        wholesale = "wholesale_accounts" in await entitlements.for_tenant(db, row["id"])
+        have = await entitlements.for_tenant(db, row["id"])
     except Exception:
-        wholesale = False
+        have = set()
+    wholesale = "wholesale_accounts" in have
 
     return {
         "slug": row["slug"],
@@ -130,4 +131,44 @@ async def resolve(db: AsyncSession, code: str) -> dict | None:
         # The app asks a buyer to sign in at a wholesale shop and lets them
         # straight in at a retail one.
         "wholesale_signup": wholesale,
+        # The branded buyer app is sold on Scale. A shop without it has no
+        # place in the app, and the lookup says so rather than letting a buyer
+        # apply to a shop they could never order from there.
+        "buyer_app": "mobile_app" in have,
+    }
+
+
+def app_links() -> dict[str, str | None]:
+    """Where to get the PrintCoPilot app, once it is in the stores."""
+    from app.core.config import get_settings
+
+    s = get_settings()
+    return {
+        "app_store_url": (s.MOBILE_APP_STORE_URL or "").strip() or None,
+        "play_store_url": (s.MOBILE_PLAY_STORE_URL or "").strip() or None,
+    }
+
+
+def get_app_link(code: str) -> str:
+    """printcopilot.co's page for this code: what the QR square opens."""
+    from app.core.config import get_settings
+
+    origin = (get_settings().FRONTEND_URL or "").rstrip("/")
+    return f"{origin}/get-app?code={code}"
+
+
+def card(code: str | None) -> dict:
+    """Everything the console's Buyer app page shows for a code."""
+    if not code:
+        return {"code": None, "link": None, "qr_svg": None, "qr_png": None, **app_links()}
+    import segno
+
+    link = get_app_link(code)
+    qr = segno.make(link, error="m")
+    return {
+        "code": code,
+        "link": link,
+        "qr_svg": qr.svg_data_uri(scale=6, border=2, dark="#0C1E35"),
+        "qr_png": qr.png_data_uri(scale=16, border=3, dark="#0C1E35"),
+        **app_links(),
     }

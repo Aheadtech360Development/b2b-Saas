@@ -32,6 +32,9 @@ function messageFrom(body: unknown, fallback: string): string {
     const b = body as Record<string, unknown>;
     const detail = b.detail;
     if (typeof detail === "string" && detail) return detail;
+    // A refusal with a reason the app can act on: { code, message, ... }.
+    const said = (detail as { message?: unknown } | null)?.message;
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && typeof said === "string" && said) return said;
     // FastAPI validation errors arrive as a list of objects.
     if (Array.isArray(detail) && detail.length) {
       const first = detail[0] as { msg?: string };

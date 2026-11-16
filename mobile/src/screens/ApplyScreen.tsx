@@ -8,7 +8,7 @@
  * The password is set here, by the applicant, exactly as on the web — so
  * that when the shop approves them, they already have a way in.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -18,9 +18,13 @@ import { findByCode, type Shop } from "@/api/shop";
 import { Button, Field, Hero, Lede, Notice, TextButton } from "@/ui/components";
 import { accentFor, palette, space, type } from "@/ui/theme";
 
-export function ApplyScreen({ onDone }: { onDone: () => void }) {
+export function ApplyScreen({ onDone, initialCode }: {
+  onDone: () => void;
+  /** From a shop's QR square (printcopilot.co/get-app): looked up straight away. */
+  initialCode?: string;
+}) {
   const [shop, setShop] = useState<Shop | null>(null);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode ?? "");
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone: "",
     company_name: "", business_type: "", password: "",
@@ -32,11 +36,17 @@ export function ApplyScreen({ onDone }: { onDone: () => void }) {
   const accent = accentFor(shop?.primaryColor);
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  async function lookUp() {
+  useEffect(() => {
+    if (initialCode) lookUp(initialCode);
+    // Only for the code the app was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCode]);
+
+  async function lookUp(value: string = code) {
     setBusy(true);
     setError(null);
     try {
-      const found = await findByCode(code);
+      const found = await findByCode(value);
       if (!found.acceptsWholesaleSignup) {
         // A retail-only shop has no screen where such an application would be
         // read, so it must not be taken. Better refused here than left to sit
@@ -111,7 +121,7 @@ export function ApplyScreen({ onDone }: { onDone: () => void }) {
               placeholder="e.g. 7K2QWM"
               autoCapitalize="characters"
             />
-            <Button title="Continue" onPress={lookUp} busy={busy} accent={accent} />
+            <Button title="Continue" onPress={() => lookUp()} busy={busy} accent={accent} />
           </>
         ) : (
           <>
