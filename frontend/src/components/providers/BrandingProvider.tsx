@@ -60,6 +60,14 @@ function letterFavicon(name: string, color: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+export interface CartLookSettings {
+  /** "" = the theme's own colour. */
+  button_color: string;
+  checkout_text: string;
+  place_order_text: string;
+  show_order_note: boolean;
+}
+
 export interface Branding {
   /** Whether this shop takes wholesale accounts. False on a retail shop: its
    *  customers buy as guests and there is nothing to apply for. */
@@ -136,6 +144,8 @@ export interface Branding {
   pickup_enabled?: boolean;
   /** The countries an address may be in (Settings, Markets), home first. */
   ship_countries?: string[];
+  /** The cart and checkout's own few choices (Settings → Cart and checkout). */
+  cart?: CartLookSettings;
   email_sender_name: string;
 }
 

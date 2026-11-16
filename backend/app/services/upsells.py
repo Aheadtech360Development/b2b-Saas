@@ -254,3 +254,46 @@ async def offers_for_cart(
         shown.append({**base, "kind": "ready", "discount": discount_words(offer),
                       "unlocks_free_shipping": unlocks, "variants": choices})
     return shown
+
+
+async def free_shipping(
+    db: AsyncSession, units: int, subtotal: Decimal, shipping_for: ShippingFn,
+) -> dict[str, Any] | None:
+    """Where this cart's free shipping starts, for the cart's progress bar:
+    {"threshold": amount, "reached": bool}, or None when no free-shipping rule
+    applies to this buyer.
+
+    The candidates are the order values at which a shipping bracket costs
+    nothing (the shop's tiers and its standard shipping); each is checked with
+    the buyer's own shipping estimate, so the bar never promises a threshold
+    their shipping does not actually have.
+    """
+    import json
+
+    from app.core.tenant_settings import get_setting
+    from app.models.shipping import ShippingBracket
+
+    candidates: set[Decimal] = set()
+    for value in (await db.execute(
+        select(ShippingBracket.min_order_value).where(ShippingBracket.cost == 0, ShippingBracket.min_order_value.is_not(None))
+    )).scalars().all():
+        if value is not None and Decimal(str(value)) > 0:
+            candidates.add(Decimal(str(value)))
+    try:
+        cfg = json.loads(await get_setting(db, "standard_shipping") or "{}")
+        if cfg.get("shipping_type") == "flat_rate" and cfg.get("calc_type", "order_value") != "units":
+            for b in cfg.get("brackets") or []:
+                if float(b.get("cost") or 0) == 0 and float(b.get("min_order_value") or 0) > 0:
+                    candidates.add(Decimal(str(b["min_order_value"])))
+    except (TypeError, ValueError):
+        pass
+    if not candidates:
+        return None
+    for at in sorted(candidates):
+        try:
+            cost = await shipping_for(max(units, 1), at)
+        except Exception:  # noqa: BLE001
+            continue
+        if cost is not None and cost <= 0:
+            return {"threshold": str(at.quantize(CENT)), "reached": subtotal >= at}
+    return None

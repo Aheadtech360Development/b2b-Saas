@@ -61,7 +61,7 @@ class UpsellAddRequest(BaseModel):
 async def cart_upsells(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     """The cart's upsell offers for this buyer (services/upsells)."""
     company_id = _require_company(request)
-    return {"offers": await CartService(db).upsell_offers(company_id, _discount(request), _group_id(request))}
+    return await CartService(db).upsell_offers(company_id, _discount(request), _group_id(request))
 
 
 @router.post("/add-upsell", response_model=CartResponse, status_code=status.HTTP_200_OK)

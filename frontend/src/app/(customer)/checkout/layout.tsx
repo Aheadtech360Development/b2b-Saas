@@ -33,7 +33,10 @@ export default function CheckoutLayout({ children }: { children: ReactNode }) {
   // The invoice page is reached from an email, not from the checkout, so it
   // has no steps behind it to show. The thank-you page is past the checkout:
   // a page of its own, the way a shop's order confirmation reads.
-  const bare = pathname.includes("/checkout/invoice") || pathname.includes("/checkout/thank-you");
+  // The checkout itself is one page with its own "Cart / Checkout / Confirmation"
+  // line, so it has no steps drawn above it either.
+  const bare = pathname.includes("/checkout/invoice") || pathname.includes("/checkout/thank-you")
+    || pathname === "/checkout" || pathname === "/checkout/";
 
   return (
     <div className="ui-page">

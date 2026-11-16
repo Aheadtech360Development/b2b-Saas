@@ -60,6 +60,8 @@ class CartItemOut(BaseModel):
     # Added from a cart upsell that still applies (services/upsells): its usual
     # unit price, for the cart to show beside the offer's.
     upsell_offer_id: UUID | None = None
+    # The product counts its stock: the cart can say "In stock" (or how few are left).
+    tracks_stock: bool = False
     regular_unit_price: Decimal | None = None
 
     model_config = {"from_attributes": True}

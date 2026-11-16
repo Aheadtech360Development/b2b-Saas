@@ -457,7 +457,11 @@ async def get_storefront_branding(
         buyer_app = "mobile_app" in await entitlements.for_tenant(db, row[0])
     except Exception:
         buyer_app = True  # a label lookup that failed must not lock buyers out
-    return {**branding, "buyer_app": buyer_app, "website": brand_urls.build(row[1], row[2], "/")}
+    # The cart and checkout's own few choices (Settings → Cart and checkout).
+    from app.services import cart_settings
+
+    cart = await cart_settings.load(db, row[0])
+    return {**branding, "buyer_app": buyer_app, "website": brand_urls.build(row[1], row[2], "/"), "cart": cart}
 
 
 # ── Public: a guest cart's upsell offers ─────────────────────────────────────
@@ -504,8 +508,12 @@ async def guest_upsells(
         return Decimal(str(out.get("estimated_shipping", 0)))
 
     applying = await upsells.applying_lines(db, lines)
+    live = [l for l in lines if l.quantity > 0]
     return {
-        "offers": await upsells.offers_for_cart(db, [l for l in lines if l.quantity > 0], price_of, shipping_for),
+        "offers": await upsells.offers_for_cart(db, live, price_of, shipping_for),
+        "free_shipping": await upsells.free_shipping(
+            db, sum(l.quantity for l in live), sum((l.line_total for l in live), Decimal("0")), shipping_for,
+        ),
         # Line key → the offer it is still sold under.
         "applying": {key: str(offer.id) for key, offer in applying.items()},
     }
@@ -671,6 +679,39 @@ async def check_brand_domain(
 
         raise UnauthorizedError("No tenant context")
     return await brand_domain.verify(db, tenant_id)
+
+
+# ── Admin: the cart and checkout's buttons and order note ────────────────────
+class CartSettingsIn(BaseModel):
+    button_color: str | None = Field(None, max_length=7)
+    checkout_text: str | None = Field(None, max_length=60)
+    place_order_text: str | None = Field(None, max_length=60)
+    show_order_note: bool | None = None
+
+
+@admin_router.get("/cart-settings")
+async def get_cart_settings(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    from app.services import cart_settings
+
+    tenant_id = _resolve_tenant_id(request)
+    return {**(await cart_settings.load(db, tenant_id)), "defaults": cart_settings.DEFAULTS}
+
+
+@admin_router.put("/cart-settings")
+async def put_cart_settings(payload: CartSettingsIn, request: Request,
+                            db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    from app.services import cart_settings
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    if payload.button_color not in (None, "") and not cart_settings._HEX.match(payload.button_color):
+        raise HTTPException(status_code=400, detail="Pick the colour as #RRGGBB.")
+    saved = await cart_settings.save(db, payload.model_dump(exclude_none=True), tenant_id)
+    await db.commit()
+    return {**saved, "defaults": cart_settings.DEFAULTS}
 
 
 # ── Admin: the code this shop hands its buyers ───────────────────────────────

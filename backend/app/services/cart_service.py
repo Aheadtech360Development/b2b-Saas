@@ -864,6 +864,7 @@ class CartService:
                     moq=product.moq,
                     moq_satisfied=moq_satisfied,
                     stock_quantity=stock,
+                    tracks_stock=bool(getattr(product, "track_inventory", False)),
                 )
             )
         return await self._upsell_prices(raw_items, items)
@@ -882,7 +883,7 @@ class CartService:
 
     async def upsell_offers(
         self, company_id: UUID, discount_percent: Decimal = Decimal("0"), group_id: str | None = None,
-    ) -> list[dict]:
+    ) -> dict:
         """The offers this buyer's cart shows, at their prices, and whether one
         takes the cart over the free-shipping line."""
         from app.services import upsells
@@ -897,7 +898,14 @@ class CartService:
             v = await self._validate(ships, units, subtotal, company_id)
             return Decimal(str(v.estimated_shipping)) if v.has_shipping_tier else None
 
-        return await upsells.offers_for_cart(self.db, self._upsell_lines(cart), price_of, shipping_for)
+        lines = self._upsell_lines(cart)
+        return {
+            "offers": await upsells.offers_for_cart(self.db, lines, price_of, shipping_for),
+            "free_shipping": await upsells.free_shipping(
+                self.db, sum(i.quantity for i in ships), sum((Decimal(str(i.line_total)) for i in ships), Decimal("0")),
+                shipping_for,
+            ),
+        }
 
     async def add_upsell(
         self, company_id: UUID, offer_id: UUID, variant_id: UUID, quantity: int = 1,

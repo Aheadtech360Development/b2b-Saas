@@ -61,6 +61,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "tshirt_designer",  # the t-shirt designer's decoration prices (JSON) — see services/tshirt_designer
     "inventory_sync",  # stock pulled from the brand's AdvancePro: setup, schedule, history (JSON) — see services/inventory_sync
     "review_sources",  # Judge.me, Google place, Yelp and who may write reviews (JSON) — see services/review_sources
+    "cart_settings",  # the cart and checkout buttons' colour and words, order note on or off (JSON) — see services/cart_settings
 })
 
 _SEP = "@"

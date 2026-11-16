@@ -59,6 +59,11 @@ export interface GuestLine {
   line_total?: number;
   /** Set on a gift card being bought: one card, no shipping, no tax. */
   gift_card?: GiftCardDetails;
+  /** Added from a cart upsell: the offer, and the usual price, for when the
+   *  offer stops applying (POST /storefront/upsells says which still do). The
+   *  server prices it again when the line moves into an account. */
+  upsell_offer_id?: string;
+  regular_unit_price?: number;
 }
 
 /** A gift card for someone, as a guest cart line. Each one its own line. */
@@ -285,6 +290,19 @@ export function adoptGuestCart(): Promise<AdoptResult> {
           product_id: line.product_id, selections: line.selections, quantity: line.quantity,
           ...(line.artwork ? { artwork: line.artwork } : {}),
         }));
+      } else if (line.upsell_offer_id && line.product_id && line.variant_id) {
+        // Taken from an offer: added the same way, so the account's cart keeps
+        // the offer's price while it applies. An offer that has ended since
+        // still leaves the product in the cart, at its usual price.
+        await one(line, async () => {
+          try {
+            await apiClient.post("/api/v1/cart/add-upsell", {
+              offer_id: line.upsell_offer_id, variant_id: line.variant_id, quantity: line.quantity,
+            });
+          } catch {
+            await cartService.addMatrix(line.product_id, [{ variant_id: line.variant_id, quantity: line.quantity }]);
+          }
+        });
       } else if (line.product_id && line.variant_id) {
         stocked.set(line.product_id, [...(stocked.get(line.product_id) ?? []), line]);
       } else {

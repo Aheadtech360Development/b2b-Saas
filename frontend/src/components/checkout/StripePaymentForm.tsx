@@ -38,13 +38,28 @@ export type IntentResp = {
   card_amount?: number;
 };
 
+/** The pay button as the page asks for it (the shop's checkout button colour
+ *  and shape); the plain button everywhere else. */
+function payButtonStyle(submitting: boolean, own?: React.CSSProperties): React.CSSProperties {
+  const plain: React.CSSProperties = {
+    width: "100%", marginTop: "16px", padding: "14px",
+    background: submitting ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
+    color: submitting ? "#aaa" : "#fff", border: "none",
+    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+    cursor: submitting ? "not-allowed" : "pointer",
+  };
+  if (!own) return plain;
+  return { ...plain, ...own, ...(submitting ? { opacity: 0.6, cursor: "not-allowed" } : {}) };
+}
+
 function InnerForm({
-  onPaid, submitting, setSubmitting, buttonLabel,
+  onPaid, submitting, setSubmitting, buttonLabel, buttonStyle,
 }: {
   onPaid: (paymentIntentId: string) => void;
   submitting: boolean;
   setSubmitting: (v: boolean) => void;
   buttonLabel: string;
+  buttonStyle?: React.CSSProperties;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -83,13 +98,8 @@ function InnerForm({
         type="button"
         onClick={pay}
         disabled={!stripe || submitting}
-        style={{
-          width: "100%", marginTop: "16px", padding: "14px",
-          background: submitting ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
-          color: submitting ? "#aaa" : "#fff", border: "none",
-          fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
-          cursor: submitting ? "not-allowed" : "pointer",
-        }}
+        style={payButtonStyle(submitting, buttonStyle)}
+        data-pay-button
       >
         {submitting ? "Processing payment…" : buttonLabel}
       </button>
@@ -99,8 +109,10 @@ function InnerForm({
 
 export function StripePaymentForm({
   intentPayload, onPaid, buttonLabel = "Pay & Place Order",
-  intentUrl = "/api/v1/checkout/intent", onIntent, onGiftOnly, giftOnlyLabel = "Place order",
+  intentUrl = "/api/v1/checkout/intent", onIntent, onGiftOnly, giftOnlyLabel = "Place order", buttonStyle,
 }: {
+  /** The pay button's look, when the page has its own (the shop's checkout button). */
+  buttonStyle?: React.CSSProperties;
   intentPayload: IntentPayload;
   onPaid: (paymentIntentId: string) => void;
   buttonLabel?: string;
@@ -171,13 +183,7 @@ export function StripePaymentForm({
           type="button"
           onClick={() => { setSubmitting(true); onGiftOnly?.(); }}
           disabled={submitting}
-          style={{
-            width: "100%", marginTop: "16px", padding: "14px",
-            background: submitting ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
-            color: submitting ? "#aaa" : "#fff", border: "none",
-            fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
-            cursor: submitting ? "not-allowed" : "pointer",
-          }}
+          style={payButtonStyle(submitting, buttonStyle)}
         >
           {submitting ? "Placing your order…" : giftOnlyLabel}
         </button>
@@ -190,7 +196,7 @@ export function StripePaymentForm({
 
   return (
     <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "stripe" } }}>
-      <InnerForm onPaid={onPaid} submitting={submitting} setSubmitting={setSubmitting} buttonLabel={buttonLabel} />
+      <InnerForm onPaid={onPaid} submitting={submitting} setSubmitting={setSubmitting} buttonLabel={buttonLabel} buttonStyle={buttonStyle} />
     </Elements>
   );
 }

@@ -15,16 +15,23 @@ let balanceAnswer: Record<string, unknown> | Error = { masked: "•••• T1V
 const confirmOrder = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
-vi.mock("@/stores/auth.store", () => ({ useAuthStore: () => ({ isAuthenticated: () => true, isLoading: false }) }));
+vi.mock("@/components/providers/BrandingProvider", () => ({ useBranding: () => ({}) }));
+vi.mock("@/hooks/useAddressAutocomplete", () => ({ useAddressAutocomplete: () => ({ current: null }) }));
+vi.mock("@/lib/buyerReferral", () => ({ claimBuyerReferral: () => Promise.resolve() }));
+vi.mock("@/stores/auth.store", () => {
+  const state = { isAuthenticated: () => true, isLoading: false, user: { email: "sam@shop.com", first_name: "Sam", last_name: "Lee" } };
+  return { useAuthStore: (pick?: (s: typeof state) => unknown) => (pick ? pick(state) : state) };
+});
 vi.mock("@/stores/cart.store", () => ({ useCartStore: (pick: (s: { clearCart: () => void }) => unknown) => pick({ clearCart: () => {} }) }));
 vi.mock("@/stores/checkout.store", () => {
+  const noop = () => {};
   const state = {
     shippingAddress: { full_name: "Sam Lee", line1: "30 N Gould St", city: "Sheridan", state: "WY", postal_code: "82801", country: "US" },
     companyName: "", contactName: "Sam Lee", shippingPhone: "", shippingMethod: "standard", shippingCost: 6,
-    addressId: null, poNumber: "", orderNotes: "", setPoNumber: () => {}, setOrderNotes: () => {},
-    savedCardId: null, setConfirmedOrder: () => {}, taxRegion: "", taxRate: 0, taxAmount: 0,
-    paymentMethod: "card", setPaymentMethod: () => {}, achBankName: "", achAccountHolder: "", achRoutingNumber: "",
-    achAccountLast4: "", achAccountType: "", shippingType: "flat", selectedRate: null, convenienceFee: 0,
+    addressId: "a1", poNumber: "", orderNotes: "", paymentMethod: "card", shippingType: "store_default", selectedRate: null,
+    setPoNumber: noop, setOrderNotes: noop, setConfirmedOrder: noop, setShippingMethod: noop, setPaymentMethod: noop,
+    setCompanyName: noop, setContactName: noop, setShippingPhone: noop, setShippingAddress: noop, setAddressId: noop,
+    setShippingCost: noop, setShippingType: noop, setTaxInfo: noop, setSelectedRate: noop,
   };
   const useCheckoutStore = Object.assign(() => state, { getState: () => state });
   return { useCheckoutStore };
@@ -33,7 +40,8 @@ vi.mock("@/services/cart.service", () => ({
   cartService: {
     getCart: () => Promise.resolve({
       subtotal: 16, total_units: 2, discount_percent: 0,
-      items: [{ id: "i1", product_name: "Youth Tee", quantity: 2, line_total: "16.00", unit_price: "8.00", item_type: "variant" }],
+      validation: { has_shipping_tier: true, estimated_shipping: "6.00" },
+      items: [{ id: "i1", product_name: "Youth Tee", quantity: 2, line_total: "16.00", unit_price: "8.00", item_type: "variant", variant_id: "v1" }],
     }),
   },
 }));
@@ -41,7 +49,12 @@ vi.mock("@/services/orders.service", () => ({ ordersService: { confirmOrder: (p:
 vi.mock("@/lib/api-client", () => ({
   ApiClientError: class extends Error { status = 0; },
   apiClient: {
-    get: (url: string) => Promise.resolve(url.includes("gift-cards") ? { accepted: true } : { card: true, cod: false }),
+    get: (url: string) => Promise.resolve(
+      url.includes("/account/addresses")
+        ? [{ id: "a1", label: null, full_name: "Sam Lee", line1: "30 N Gould St", line2: null, city: "Sheridan", state: "WY", postal_code: "82801", country: "US", phone: null, is_default: true }]
+        : url.includes("gift-cards") ? { accepted: true }
+        : url.includes("payment-options") ? { card: true, cod: false } : {},
+    ),
     post: (url: string, body: unknown) => {
       calls.push({ url, body });
       if (url.includes("/gift-cards/balance")) {
@@ -68,7 +81,7 @@ vi.mock("@/components/checkout/StripePaymentForm", () => ({
   },
 }));
 
-import CheckoutReviewPage from "@/app/(customer)/checkout/review/page";
+import CheckoutPage from "@/app/(customer)/checkout/page";
 import { giftCardLine, guestCheckoutItem, isGiftCardLine } from "@/lib/guestCart";
 
 beforeEach(() => {
@@ -94,11 +107,11 @@ describe("a gift card bought as a guest", () => {
 
 describe("paying with a gift card", () => {
   it("applies a code after checking it, and prices the card with it", async () => {
-    render(<CheckoutReviewPage />);
+    render(<CheckoutPage />);
     const input = await screen.findByLabelText("Gift card code");
     fireEvent.change(input, { target: { value: "7k3m-9qx2-4pz8-t1vb" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await screen.findByText(/on the card/);
+    fireEvent.click(screen.getByRole("button", { name: "Apply gift card" }));
+    await screen.findByText(/on it\)/);
     expect(calls.find((c) => c.url.includes("/gift-cards/balance"))?.body).toEqual({ code: "7k3m-9qx2-4pz8-t1vb" });
     await waitFor(() => expect(mounts.some((m) => Array.isArray(m.gift_card_codes))).toBe(true));
     const priced = mounts.filter((m) => Array.isArray(m.gift_card_codes)).pop()!;
@@ -110,9 +123,9 @@ describe("paying with a gift card", () => {
 
   it("says why a code cannot be used, and prices nothing with it", async () => {
     balanceAnswer = new Error("That gift card code isn't valid. Check it and try again.");
-    render(<CheckoutReviewPage />);
+    render(<CheckoutPage />);
     fireEvent.change(await screen.findByLabelText("Gift card code"), { target: { value: "WRONG" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply gift card" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("isn't valid");
     expect(mounts.some((m) => m.gift_card_codes)).toBe(false);
   });
@@ -120,18 +133,18 @@ describe("paying with a gift card", () => {
   it("shows what the gift card pays and what is left for the card", async () => {
     intentAnswer = { amount: 30, order_total: 80, gift_cards: [{ last4: "T1VB", masked: "•••• T1VB", amount: 50 }],
       gift_card_total: 50, card_amount: 30 };
-    render(<CheckoutReviewPage />);
+    render(<CheckoutPage />);
     expect(await screen.findByText("To pay by card")).toBeInTheDocument();
     expect(screen.getByText("Gift card •••• T1VB")).toBeInTheDocument();
-    expect(screen.getByText(/card form · Pay \$30\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/card form · Place order, \$30\.00/)).toBeInTheDocument();
   });
 
   it("places the order with the gift card alone when it covers everything", async () => {
     intentAnswer = { amount: 0, order_total: 22, gift_only: true, gift_cards: [{ last4: "T1VB", masked: "•••• T1VB", amount: 22 }],
       gift_card_total: 22, card_amount: 0 };
-    render(<CheckoutReviewPage />);
+    render(<CheckoutPage />);
     fireEvent.change(await screen.findByLabelText("Gift card code"), { target: { value: "7K3M9QX24PZ8T1VB" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply gift card" }));
     // The form is priced again with the code (a fresh one, keyed by it).
     await waitFor(() => expect(mounts.some((m) => Array.isArray(m.gift_card_codes))).toBe(true));
     fireEvent.click(await screen.findByRole("button", { name: "Place order with gift card" }));

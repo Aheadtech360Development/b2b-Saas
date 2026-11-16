@@ -28,6 +28,12 @@ export interface CartItem {
   /** Why this line can't be ordered as it stands (a design whose product left
    *  the designer, or whose blanks ran out). Checkout waits until it is fixed. */
   problem?: string | null;
+  /** Added from a cart upsell that still applies: the offer, and the usual
+   *  unit price it is shown against (services/upsells on the server). */
+  upsell_offer_id?: string | null;
+  regular_unit_price?: string | number | null;
+  /** The product counts its stock, so "In stock" (or how few are left) is true. */
+  tracks_stock?: boolean;
 }
 
 /** A design from the t-shirt designer, as its cart line keeps it, priced on

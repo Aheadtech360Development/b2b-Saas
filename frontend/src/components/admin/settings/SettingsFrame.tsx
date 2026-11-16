@@ -12,7 +12,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { hasScope, type Scope } from "@/lib/permissions";
 
 export type SettingsKey =
-  | "store" | "markets" | "shipping" | "taxes" | "billing" | "notifications" | "domain" | "app" | "team" | "audit" | "account";
+  | "store" | "markets" | "shipping" | "taxes" | "billing" | "notifications" | "domain" | "cart" | "app" | "team" | "audit" | "account";
 
 const ITEMS: { key: SettingsKey; label: string; href: string; scopes?: Scope[] }[] = [
   { key: "store", label: "Store details", href: "/admin/settings", scopes: ["settings"] },
@@ -22,6 +22,7 @@ const ITEMS: { key: SettingsKey; label: string; href: string; scopes?: Scope[] }
   { key: "billing", label: "Payments and billing", href: "/admin/billing", scopes: ["billing", "payouts"] },
   { key: "notifications", label: "Notifications", href: "/admin/settings/notifications", scopes: ["settings"] },
   { key: "domain", label: "Domain and email", href: "/admin/settings/domain", scopes: ["settings"] },
+  { key: "cart", label: "Cart and checkout", href: "/admin/settings/cart", scopes: ["settings"] },
   { key: "app", label: "Buyer app", href: "/admin/settings/buyer-app", scopes: ["settings"] },
   { key: "team", label: "Team and roles", href: "/admin/users", scopes: ["staff"] },
   { key: "audit", label: "Audit log", href: "/admin/settings/audit-log", scopes: ["audit"] },

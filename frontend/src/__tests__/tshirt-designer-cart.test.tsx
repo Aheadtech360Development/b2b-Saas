@@ -81,13 +81,15 @@ describe("a design in the cart", () => {
   it("is one line: its pieces for its total, each shirt in words, back to the designer, no quantity box", async () => {
     getCart.mockResolvedValue(cart([designItem()]));
     await act(async () => { render(<CartView />); });
-    const line = (await screen.findByText("Team tees")).closest(".cart-line") as HTMLElement;
-    expect(within(line).getByText("Design")).toBeInTheDocument();
-    expect(line.textContent).toContain("12 pieces for $204.00");
+    const line = (await screen.findByText("Team tees")).closest("[data-cart-line]") as HTMLElement;
+    expect(within(line).getByText("Your design, 12 pieces")).toBeInTheDocument();
+    expect(line.textContent).toContain("$204.00");
+    expect(line.textContent).toContain("Qty 12");
     expect(line.textContent).toContain("Gildan 5000, Black: S ×4, M ×4, 2XL ×2. Printed front and back");
     expect(line.textContent).toContain("Gildan 5000, Sport Grey: M ×2. Printed front");
     expect(within(line).getByRole("link", { name: "Edit design" })).toHaveAttribute("href", "/design?design=d1");
-    expect(within(line).queryByRole("spinbutton")).toBeNull();
+    // Its sizes are changed in the designer: no quantity stepper here.
+    expect(within(line).queryByRole("button", { name: "One more" })).toBeNull();
     expect(screen.getByRole("button", { name: "Checkout" })).toBeEnabled();
   });
 
@@ -119,8 +121,9 @@ describe("a guest's design", () => {
     signedIn.value = false;
     writeGuestCart([designLine(record)]);
     await act(async () => { render(<CartView />); });
-    const line = (await screen.findByText("Team tees")).closest(".cart-line") as HTMLElement;
-    expect(line.textContent).toContain("12 pieces for $204.00");
+    const line = (await screen.findByText("Team tees")).closest("[data-cart-line]") as HTMLElement;
+    expect(line.textContent).toContain("Your design, 12 pieces");
+    expect(line.textContent).toContain("$204.00");
     expect(within(line).getByRole("link", { name: "Edit design" })).toHaveAttribute("href", "/design?design=d1");
   });
 

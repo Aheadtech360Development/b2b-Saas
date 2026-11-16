@@ -79,3 +79,33 @@ def test_only_a_ready_made_product_is_added_in_one_click():
     for change in ({"gang_sheet_enabled": True}, {"allow_design_upload": True}, {"pricing_mode": "configurable"},
                    {"bulk_order": True}):
         assert not upsells.is_ready_made(SimpleNamespace(**{**vars(ready), **change}))
+
+
+class BracketDb:
+    """Answers the free-bracket query; the standard shipping setting is unset."""
+
+    def __init__(self, values):
+        self.values = values
+
+    async def execute(self, statement, params=None):
+        sql = str(statement)
+        if "shipping_brackets" in sql:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: list(self.values)))
+        return SimpleNamespace(scalar_one_or_none=lambda: None)
+
+
+def test_the_free_shipping_line_is_one_the_buyers_shipping_really_has(monkeypatch):
+    async def no_setting(db, key, **kw):
+        return None
+
+    import app.core.tenant_settings as ts
+    monkeypatch.setattr(ts, "get_setting", no_setting)
+
+    async def shipping(units, subtotal):  # free from $500 for this buyer
+        return Decimal("0") if subtotal >= 500 else Decimal("12")
+
+    out = run(upsells.free_shipping(BracketDb([Decimal("250"), Decimal("500")]), 3, Decimal("471"), shipping))
+    # $250 is another tier's line, not this buyer's: skipped, because their shipping there is not free.
+    assert out == {"threshold": "500.00", "reached": False}
+    assert run(upsells.free_shipping(BracketDb([Decimal("500")]), 3, Decimal("520"), shipping)) == {"threshold": "500.00", "reached": True}
+    assert run(upsells.free_shipping(BracketDb([]), 3, Decimal("10"), shipping)) is None

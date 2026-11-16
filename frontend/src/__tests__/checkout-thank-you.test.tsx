@@ -24,7 +24,7 @@ const sendHeld = vi.fn();
 vi.mock("@/lib/tracking", () => ({ sendHeldPurchase: (...args: unknown[]) => sendHeld(...args) }));
 
 import ThankYouPage from "@/app/(customer)/checkout/thank-you/[number]/page";
-import { forgetOrderKeys, orderKey, rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
+import { forgetOrderKeys, orderKey, rememberOrderKey, thankYouPath, type ThankYouLine } from "@/lib/orderThanks";
 
 const KEY = "a1".repeat(20);
 
@@ -63,20 +63,24 @@ describe("the thank-you page", () => {
     get.mockResolvedValue(ORDER);
     render(<ThankYouPage />);
 
-    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Thank you, Sara!"));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Thanks, Sara. Your order is in."));
     expect(get).toHaveBeenCalledTimes(1);
     // The key goes in a header: a query string lands in the API's access log.
     expect(get).toHaveBeenCalledWith("/api/v1/guest/orders/1045/thank-you", { headers: { "X-Order-Key": KEY } });
-    expect(screen.getByText("Your order is placed")).toBeInTheDocument();
+    expect(screen.getByText(/We sent a confirmation to/)).toBeInTheDocument();
     expect(screen.getAllByText("sara@example.com").length).toBeGreaterThan(0);
     expect(screen.getByText("5 Main St")).toBeInTheDocument();
     expect(screen.getByText("Classic Tee")).toBeInTheDocument();
-    expect(screen.getByText("Black / L")).toBeInTheDocument();
+    expect(screen.getByText("Black, L, qty 12")).toBeInTheDocument();
     expect(screen.getByText("Pay $121.49 when it arrives")).toBeInTheDocument();
-    expect(screen.getByText(/print team/)).toBeInTheDocument();
+    // A gang sheet on the order: the shop's artwork check is the next step (no buyer proof step exists).
+    expect(screen.getByText("Artwork check")).toBeInTheDocument();
+    expect(screen.queryByText(/Approve your proof/)).not.toBeInTheDocument();
+    expect(screen.getByText("In production")).toBeInTheDocument();
+    expect(screen.getByText("Shipped")).toBeInTheDocument();
     expect(screen.getAllByText("$121.49").length).toBeGreaterThan(0);
     // A guest follows the order on the lookup page.
-    expect(screen.getByRole("link", { name: "Track this order" })).toHaveAttribute("href", "/track-order");
+    expect(screen.getByRole("link", { name: "Track your order" })).toHaveAttribute("href", "/track-order");
     // The Purchase goes as the page opens, with the server's figures.
     expect(sendHeld).toHaveBeenCalledTimes(1);
     expect(sendHeld).toHaveBeenCalledWith("1045", { total: 121.49, tax: 8.5, shipping: 9.99 });
@@ -94,7 +98,7 @@ describe("the thank-you page", () => {
     await waitFor(() => expect(get).toHaveBeenCalledWith("/api/v1/guest/orders/1045/thank-you", undefined));
     expect(await screen.findByText("Paid")).toBeInTheDocument();
     // A signed-in buyer goes to the order in their account.
-    expect(screen.getByRole("link", { name: "Track this order" })).toHaveAttribute("href", "/account/orders/1045");
+    expect(screen.getByRole("link", { name: "Track your order" })).toHaveAttribute("href", "/account/orders/1045");
   });
 
   it("says plainly when this browser cannot open the order, and where to look", async () => {
@@ -110,8 +114,8 @@ describe("the thank-you page", () => {
     sessionStorage.setItem("af_confirmed_order", JSON.stringify({ id: "x", number: "1045" }));
     get.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
     render(<ThankYouPage />);
-    expect(await screen.findByRole("heading", { name: "Thank you for your order!" })).toBeInTheDocument();
-    expect(screen.getByText("1045")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Thanks, your order is in." })).toBeInTheDocument();
+    expect(screen.getByText("#1045")).toBeInTheDocument();
     expect(screen.queryByText(/could not open this order/)).not.toBeInTheDocument();
     // Its Purchase still goes, with the figures held when it was placed.
     expect(sendHeld).toHaveBeenCalledWith("1045");
@@ -127,8 +131,9 @@ describe("the thank-you page", () => {
     render(<ThankYouPage />);
     expect(await screen.findByText("Pickup location")).toBeInTheDocument();
     expect(screen.getByText("9 Dock Rd, Garland, TX 75040")).toBeInTheDocument();
-    expect(screen.getByText("Will Call Pickup")).toBeInTheDocument();
-    expect(screen.queryByText("Shipping address")).not.toBeInTheDocument();
+    expect(screen.getByText("Local pickup")).toBeInTheDocument();
+    expect(screen.queryByText("Ships to")).not.toBeInTheDocument();
+    expect(screen.getByText("Ready for pickup")).toBeInTheDocument();
   });
 
   it("says a bank transfer is still to come, not that it is paid", async () => {
@@ -137,7 +142,7 @@ describe("the thank-you page", () => {
     rememberOrderKey("1045", KEY);
     get.mockResolvedValue({ ...ORDER, payment_method: "ach", payment_status: "unpaid" });
     render(<ThankYouPage />);
-    expect(await screen.findByText("ACH / Bank transfer")).toBeInTheDocument();
+    expect(await screen.findByText("Bank transfer")).toBeInTheDocument();
     expect(screen.getByText("Waiting for your bank transfer")).toBeInTheDocument();
     expect(screen.queryByText("Paid")).not.toBeInTheDocument();
   });
@@ -172,19 +177,59 @@ describe("the key this browser keeps", () => {
 });
 
 describe("placing the order", () => {
-  const review = read("app/(customer)/checkout/review/page.tsx");
+  const review = read("app/(customer)/checkout/page.tsx");
 
-  it("replaces the review page with the order's own page, guest and signed-in alike", () => {
-    expect(review.match(/router\.replace\(thankYouPath\(order\.order_number\)\)/g)).toHaveLength(2);
-    expect(review.match(/rememberOrderKey\(order\.order_number, order\.view_key\)/g)).toHaveLength(2);
+  it("replaces the checkout with the order's own page", () => {
+    expect(review.match(/router\.replace\(thankYouPath\(order\.order_number\)\)/g)).toHaveLength(1);
+    expect(review.match(/rememberOrderKey\(order\.order_number, order\.view_key\)/g)).toHaveLength(1);
     expect(review).not.toContain('router.push("/checkout/confirmed")');
   });
 
-  it("holds the Purchase for the thank-you page instead of sending it from the review page", () => {
-    expect(review.match(/holdPurchase\(order\.order_number,/g)).toHaveLength(2);
+  it("holds the Purchase for the thank-you page instead of sending it from the checkout", () => {
+    expect(review.match(/holdPurchase\(order\.order_number,/g)).toHaveLength(1);
     expect(review).not.toContain("trackPurchase(");
     const page = read("app/(customer)/checkout/thank-you/[number]/page.tsx");
     expect(page).toContain("sendHeldPurchase(number, { total: o.total, tax: o.tax_amount, shipping: o.shipping_cost })");
     expect(page).not.toContain("trackPurchase(");
+  });
+});
+
+describe("what happens next, from the order's own lines", () => {
+  const line = (over: Record<string, unknown>) =>
+    ({ name: "x", color: null, size: null, quantity: 1, unit_price: 1, line_total: 1, configuration: null, image_url: null, gang_sheet: false, ...over }) as unknown as ThankYouLine;
+
+  it("packs ready-made apparel and ships it, with no artwork step", async () => {
+    const { nextSteps } = await import("@/lib/orderSteps");
+    expect(nextSteps({ items: [line({ name: "Hoodie" })], shipping_method: "standard" }).map((s) => s.title))
+      .toEqual(["Order received", "Packing", "Shipped"]);
+  });
+
+  it("checks artwork for a design, an upload or a gang sheet, and prints it", async () => {
+    const { nextSteps } = await import("@/lib/orderSteps");
+    for (const l of [line({ gang_sheet: true }), line({ configuration: { tshirt_design: { id: "d" } } }), line({ configuration: { artwork: { url: "u" } } })]) {
+      expect(nextSteps({ items: [l], shipping_method: "standard" }).map((s) => s.title))
+        .toEqual(["Order received", "Artwork check", "In production", "Shipped"]);
+    }
+  });
+
+  it("prints a product made from options without an artwork step, and ends at pickup", async () => {
+    const { nextSteps } = await import("@/lib/orderSteps");
+    expect(nextSteps({ items: [line({ configuration: { selections: { size: "18x24" } } })], shipping_method: "will_call" }).map((s) => s.title))
+      .toEqual(["Order received", "In production", "Ready for pickup"]);
+  });
+
+  it("only emails a gift card bought on its own", async () => {
+    const { nextSteps } = await import("@/lib/orderSteps");
+    expect(nextSteps({ items: [line({ configuration: { gift_card: { amount: 50 } } })], shipping_method: "standard" }).map((s) => s.title))
+      .toEqual(["Order received", "Gift card emailed"]);
+  });
+
+  it("marks the steps behind the order as it moves", async () => {
+    const { nextSteps, stepsDone } = await import("@/lib/orderSteps");
+    const steps = nextSteps({ items: [line({ gang_sheet: true })], shipping_method: "standard" });
+    expect(stepsDone("pending", steps)).toBe(1);
+    expect(stepsDone("processing", steps)).toBe(2);
+    expect(stepsDone("shipped", steps)).toBe(3);
+    expect(stepsDone("delivered", steps)).toBe(4);
   });
 });
