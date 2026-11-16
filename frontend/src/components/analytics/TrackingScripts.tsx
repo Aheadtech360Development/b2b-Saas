@@ -116,9 +116,14 @@ export function TrackingScripts() {
         </>
       )}
 
+      {/* Not id="clarity": a page element's id is also a name on window, so
+          window.clarity was this <script> tag, not Clarity's queue. The tag
+          then called it ("a[c] is not a function") and never recorded a
+          visit. The same for any other element a page may carry with that id,
+          hence the check for a function rather than for "anything there". */}
       {id("clarity") && (
-        <Script id="clarity" strategy="afterInteractive">{`
-          (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        <Script id="ms-clarity-init" strategy="afterInteractive">{`
+          (function(c,l,a,r,i,t,y){if(typeof c[a]!=="function"){c[a]=function(){(c[a].q=c[a].q||[]).push(arguments)}};
           t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
           y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
           })(window,document,"clarity","script","${id("clarity")}");
@@ -184,9 +189,11 @@ export function TrackingScripts() {
         />
       )}
 
+      {/* Not id="omnisend", for the same reason as Clarity: window.omnisend
+          would be the <script> tag, with no push(). */}
       {id("omnisend") && (
-        <Script id="omnisend" strategy="afterInteractive">{`
-          window.omnisend = window.omnisend || [];
+        <Script id="omnisend-init" strategy="afterInteractive">{`
+          window.omnisend = Array.isArray(window.omnisend) ? window.omnisend : [];
           omnisend.push(["accountID", "${id("omnisend")}"]);
           omnisend.push(["track", "$pageViewed"]);
           !function(){var e=document.createElement("script");e.type="text/javascript",e.async=!0,

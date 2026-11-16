@@ -39,4 +39,38 @@ describe("TrackingScripts", () => {
     expect(container.querySelector('[data-testid="ga4-init"]')).toBeNull();
     expect(container.querySelector("[data-src]")).toBeNull();
   });
+
+  it("never names a script after the tool's own global (window.clarity, window.omnisend)", async () => {
+    // A page element's id is also a name on window: a <script id="clarity">
+    // made window.clarity that tag, Clarity's loader called it and stopped
+    // ("a[c] is not a function"), and no visit was ever recorded.
+    tools = { clarity: "yv36li1fic", omnisend: "5f8a1b2c3d4e5f6a7b8c9d0e" };
+    const { container } = render(<TrackingScripts />);
+    await waitFor(() => expect(container.querySelector('[data-testid="ms-clarity-init"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="clarity"]')).toBeNull();
+    expect(container.querySelector('[data-testid="omnisend"]')).toBeNull();
+    const clarity = container.querySelector('[data-testid="ms-clarity-init"]')!.textContent!;
+    expect(clarity).toContain('typeof c[a]!=="function"');
+    expect(clarity).toContain('"clarity","script","yv36li1fic"');
+    expect(container.querySelector('[data-testid="omnisend-init"]')!.textContent).toContain("Array.isArray(window.omnisend)");
+  });
+
+  it("starts Clarity's queue even when the page has an element called clarity", async () => {
+    tools = { clarity: "yv36li1fic" };
+    const { container } = render(<TrackingScripts />);
+    await waitFor(() => expect(container.querySelector('[data-testid="ms-clarity-init"]')).not.toBeNull());
+    const code = container.querySelector('[data-testid="ms-clarity-init"]')!.textContent!;
+    const el = document.createElement("div");
+    el.id = "clarity";
+    document.body.appendChild(el);
+    const win: Record<string, unknown> = { clarity: el };
+    const doc = { createElement: () => ({}), getElementsByTagName: () => [{ parentNode: { insertBefore: () => {} } }] };
+    // Run as the page would: with window and document swapped for stand-ins.
+    new Function("win", "doc", code.replace("})(window,document,", "})(win,doc,"))(win, doc);
+    expect(typeof win.clarity).toBe("function");
+    (win.clarity as (...a: unknown[]) => void)("set", "x", "1");
+    expect((win.clarity as unknown as { q: unknown[] }).q.length).toBeGreaterThan(0);
+    el.remove();
+  });
 });
+
