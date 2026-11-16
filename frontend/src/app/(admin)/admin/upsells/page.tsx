@@ -286,11 +286,11 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
           <h2 className="pc-h2">{d.id ? "Edit offer" : "New offer"}</h2>
         </div>
         <div style={{ padding: 20, display: "grid", gap: 16 }}>
-          <div className="pc-field">
+          <div className="pc-formfield">
             <label className="pc-label" htmlFor="up-name">Name (only you see it)</label>
             <input id="up-name" className="pc-input" value={d.name} onChange={(e) => set("name", e.target.value)} placeholder="Hoodie with a tee" maxLength={120} />
           </div>
-          <div className="pc-field">
+          <div className="pc-formfield">
             <span className="pc-label">Product to offer</span>
             {d.product ? (
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -306,7 +306,7 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
             )}
           </div>
           {d.product && d.variants.length > 1 && (
-            <div className="pc-field">
+            <div className="pc-formfield">
               <label className="pc-label" htmlFor="up-variant">Which option</label>
               <select id="up-variant" className="pc-input" value={d.variant_id} onChange={(e) => set("variant_id", e.target.value)}>
                 <option value="">The buyer chooses (colour, size)</option>
@@ -314,12 +314,12 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
               </select>
             </div>
           )}
-          <div className="pc-field">
+          <div className="pc-formfield">
             <label className="pc-label" htmlFor="up-headline">Headline in the cart (optional)</label>
             <input id="up-headline" className="pc-input" value={d.headline} onChange={(e) => set("headline", e.target.value)}
               placeholder={d.product ? `Add ${d.product.name}` : "Add a matching hoodie"} maxLength={120} />
           </div>
-          <div className="pc-field">
+          <div className="pc-formfield">
             <label className="pc-label" htmlFor="up-desc">One line under it (optional)</label>
             <input id="up-desc" className="pc-input" value={d.description} onChange={(e) => set("description", e.target.value)}
               placeholder="Pairs with the tees in your cart" maxLength={200} />
@@ -334,7 +334,7 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
           {radio("up-price", "percent", d.discount_type === "percent", () => set("discount_type", "percent"), "A percentage off")}
           {radio("up-price", "amount", d.discount_type === "amount", () => set("discount_type", "amount"), "An amount off each one")}
           {d.discount_type !== "none" && (
-            <div className="pc-field" style={{ maxWidth: 220 }}>
+            <div className="pc-formfield" style={{ maxWidth: 220 }}>
               <label className="pc-label" htmlFor="up-value">{d.discount_type === "percent" ? "Percent off" : "Dollars off"}</label>
               <input id="up-value" className="pc-input" inputMode="decimal" value={d.discount_value}
                 onChange={(e) => set("discount_value", e.target.value.replace(/[^0-9.]/g, ""))} placeholder={d.discount_type === "percent" ? "10" : "5.00"} />
@@ -382,12 +382,12 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
             </div>
           )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div className="pc-field" style={{ width: 170 }}>
+            <div className="pc-formfield" style={{ width: 170 }}>
               <label className="pc-label" htmlFor="up-min">Cart value from (optional)</label>
               <input id="up-min" className="pc-input" inputMode="decimal" value={d.min_subtotal} placeholder="$"
                 onChange={(e) => set("min_subtotal", e.target.value.replace(/[^0-9.]/g, ""))} />
             </div>
-            <div className="pc-field" style={{ width: 170 }}>
+            <div className="pc-formfield" style={{ width: 170 }}>
               <label className="pc-label" htmlFor="up-max">Cart value up to (optional)</label>
               <input id="up-max" className="pc-input" inputMode="decimal" value={d.max_subtotal} placeholder="$"
                 onChange={(e) => set("max_subtotal", e.target.value.replace(/[^0-9.]/g, ""))} />
@@ -402,7 +402,7 @@ function OfferEditor({ draft: start, onCancel, onSaved }: { draft: Draft; onCanc
 
       <section className="pc-card">
         <div style={{ padding: 20, display: "grid", gap: 14 }}>
-          <div className="pc-field" style={{ maxWidth: 220 }}>
+          <div className="pc-formfield" style={{ maxWidth: 220 }}>
             <label className="pc-label" htmlFor="up-priority">Priority</label>
             <input id="up-priority" className="pc-input" inputMode="numeric" value={d.priority}
               onChange={(e) => set("priority", e.target.value.replace(/[^0-9-]/g, ""))} />

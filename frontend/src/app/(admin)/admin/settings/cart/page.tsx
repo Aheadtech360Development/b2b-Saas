@@ -68,7 +68,7 @@ export default function CartSettingsPage() {
           </div>
           <div style={{ padding: 20, display: "grid", gap: 16, gridTemplateColumns: "minmax(0,1fr) 300px" }} className="cs-grid">
             <div style={{ display: "grid", gap: 16 }}>
-              <div className="pc-field">
+              <div className="pc-formfield">
                 <span className="pc-label">Button colour</span>
                 <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="radio" name="cs-colour" aria-label="My theme colour" checked={!own} onChange={() => set("button_color", "")} />
@@ -82,16 +82,16 @@ export default function CartSettingsPage() {
                   {own ? <code style={{ fontSize: 13 }}>{s.button_color}</code> : null}
                 </label>
               </div>
-              <div className="pc-field">
+              <div className="pc-formfield">
                 <label className="pc-label" htmlFor="cs-checkout">Cart button</label>
                 <input id="cs-checkout" className="pc-input" value={s.checkout_text} maxLength={40}
                   onChange={(e) => set("checkout_text", e.target.value)} placeholder="Checkout" />
               </div>
-              <div className="pc-field">
+              <div className="pc-formfield">
                 <label className="pc-label" htmlFor="cs-place">Checkout button</label>
                 <input id="cs-place" className="pc-input" value={s.place_order_text} maxLength={40}
                   onChange={(e) => set("place_order_text", e.target.value)} placeholder="Place order" />
-                <span className="pc-sub-line" style={{ fontSize: 12.5 }}>The order total is added after it, as in &ldquo;{look.placeOrderText}, $52.00&rdquo;.</span>
+                <span className="pc-sub-line" style={{ display: "block", fontSize: 12.5 }}>The order total is added after it, as in &ldquo;{look.placeOrderText}, $52.00&rdquo;.</span>
               </div>
             </div>
             <div aria-label="Preview" style={{ border: "1px solid var(--pc-line, #E3E6EA)", borderRadius: 14, padding: 18, background: "#FAFAFB", alignSelf: "start" }}>
