@@ -2,7 +2,7 @@
 
 import {
   AlertTriangle, AlignCenterHorizontal, AlignCenterVertical, ArrowDownToLine, ArrowUpToLine, Copy,
-  FlipHorizontal2, Pencil, Redo2, Sparkles, Trash2, Type, Undo2, Upload,
+  FlipHorizontal2, Hash, Pencil, Redo2, Shapes, Sparkles, Trash2, Type, Undo2, Upload,
 } from "lucide-react";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { inkFor } from "@/lib/designer/colors";
@@ -10,7 +10,7 @@ import { ACCEPTED, printQuality } from "@/lib/designer/images";
 import { areaRect, focusRect, mockupSvg, PRINT_AREAS, svgDataUrl } from "@/lib/designer/mockups";
 import { hardLight, photoFor } from "@/lib/designer/photo";
 import { VIEW_LABEL } from "@/lib/designer/types";
-import { designOf, useDesigner } from "@/stores/designer.store";
+import { designOf, offeredTools, useDesigner } from "@/stores/designer.store";
 import { ControllerContext, useActiveGarment, useShirt } from "./context";
 import { DesignController } from "./controller";
 import s from "./designer.module.css";
@@ -39,6 +39,8 @@ export function Stage() {
   const { key: shirtKey, design } = useShirt();
   const hasArt = (design?.[view].length ?? 0) > 0;
   const { setPanel, setNotes } = useDesigner.getState();
+  const rates = useDesigner((st) => st.rates);
+  const tools = useMemo(() => offeredTools(rates), [rates]);
   const { garment, hex } = useActiveGarment();
   const silhouette = garment?.silhouette ?? "tee";
   const area = PRINT_AREAS[silhouette][view];
@@ -215,15 +217,32 @@ export function Stage() {
         <div className={s.startCard}>
           <input ref={file} type="file" accept={ACCEPTED.join(",")} className={s.srOnly} tabIndex={-1}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void addImageFile(f, ctrl); e.target.value = ""; }} />
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setPanel("upload"); file.current?.click(); }}>
-            <Upload size={16} /> Upload image
-          </button>
-          <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => { setPanel("text"); void ctrl?.addText("Your text here", inkFor(hex)); }}>
-            <Type size={16} /> Add text
-          </button>
-          <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => setPanel("ai")}>
-            <Sparkles size={16} /> Create AI design
-          </button>
+          {tools.includes("upload") && (
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setPanel("upload"); file.current?.click(); }}>
+              <Upload size={16} /> Upload image
+            </button>
+          )}
+          {tools.includes("text") && (
+            <button type="button" className={`${s.btn} ${tools.includes("upload") ? s.btnGhost : s.btnPrimary}`}
+              onClick={() => { setPanel("text"); void ctrl?.addText("Your text here", inkFor(hex)); }}>
+              <Type size={16} /> Add text
+            </button>
+          )}
+          {tools.includes("graphics") && !tools.includes("upload") && !tools.includes("text") && (
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPanel("graphics")}>
+              <Shapes size={16} /> Add a graphic
+            </button>
+          )}
+          {tools.includes("ai") && (
+            <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => setPanel("ai")}>
+              <Sparkles size={16} /> Create AI design
+            </button>
+          )}
+          {tools.length === 1 && tools[0] === "names" && (
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPanel("names")}>
+              <Hash size={16} /> Add names and numbers
+            </button>
+          )}
         </div>
       )}
 

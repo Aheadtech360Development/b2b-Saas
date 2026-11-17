@@ -77,13 +77,17 @@ async def get_settings(db: AsyncSession = Depends(get_db)) -> dict:
 
 
 class RatesIn(BaseModel):
-    rates: dict[str, Any]
+    """The prices, the services the shop offers, or both."""
+    rates: Optional[dict[str, Any]] = None
+    services: Optional[dict[str, Any]] = None
 
 
 @router.put("/settings")
 async def put_settings(payload: RatesIn, db: AsyncSession = Depends(get_db)) -> dict:
+    if payload.rates is None and payload.services is None:
+        raise HTTPException(status_code=422, detail="Nothing to save.")
     try:
-        saved = await td.save_rates(db, _tenant(), payload.rates)
+        saved = await td.save_settings(db, _tenant(), rates=payload.rates, services=payload.services)
     except td.DesignerError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await db.commit()

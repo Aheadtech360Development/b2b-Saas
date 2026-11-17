@@ -25,7 +25,7 @@ import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
 import {
   tshirtDesignerService as api, tshirtDesignsService as designs,
-  type DesignerProduct, type DesignerRates, type DesignerSettings, type DesignerSetup, type DesignerTier,
+  type DesignerProduct, type DesignerRates, type DesignerService, type DesignerSettings, type DesignerSetup, type DesignerTier,
   type TShirtDesignRecord,
 } from "@/services/tshirtDesigns.service";
 
@@ -280,43 +280,119 @@ function AddProducts({ onClose, onAdded }: { onClose: () => void; onAdded: (row:
 }
 
 // ── Prices ──────────────────────────────────────────────────────────────────
-function TierRows({ title, hint, tiers, onChange }: {
+const SIDE_PRICES: { key: "upload" | "text" | "graphics"; label: string }[] = [
+  { key: "upload", label: "Upload" },
+  { key: "text", label: "Text" },
+  { key: "graphics", label: "Graphics" },
+];
+
+const SERVICE_ROWS: { key: DesignerService; label: string; hint: string }[] = [
+  { key: "upload", label: "Upload your own artwork", hint: "Customers upload a logo or picture." },
+  { key: "text", label: "Text", hint: "Customers type their own words, in the designer's fonts." },
+  { key: "graphics", label: "Graphics", hint: "Customers pick from the designer's ready-made graphics." },
+  { key: "names", label: "Names and numbers", hint: "A different name and number on each shirt, for teams." },
+];
+
+function TierRows({ title, hint, tiers, onChange, offered }: {
   title: string; hint: string; tiers: DesignerTier[]; onChange: (t: DesignerTier[]) => void;
+  offered: Record<DesignerService, boolean>;
 }) {
-  const set = (i: number, k: keyof DesignerTier, v: string) =>
+  const set = (i: number, k: "min" | "upload" | "text" | "graphics", v: string) =>
     onChange(tiers.map((t, j) => (j === i ? { ...t, [k]: v === "" ? NaN : Number(v) } : t)));
+  const shown = (n: number) => (Number.isNaN(n) ? "" : n);
   return (
-    <section className="pc-card pc-pad" style={{ display: "grid", gap: 10 }}>
+    <section className="pc-card pc-pad" style={{ display: "grid", gap: 12 }}>
       <div>
         <h3 className="pc-h2" style={{ fontSize: 16 }}>{title}</h3>
         <p className="pc-sub-line" style={{ margin: "2px 0 0" }}>{hint}</p>
       </div>
       {tiers.map((t, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }} data-tier={i}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
-            From
-            <input className="pc-input" type="number" min={1} step={1} style={{ width: 90 }} value={Number.isNaN(t.min) ? "" : t.min}
+        <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", paddingBottom: 12, borderBottom: i < tiers.length - 1 ? "1px solid var(--pc-line-soft)" : undefined }} data-tier={i}>
+          <label className="pc-formfield" style={{ flex: "1 1 110px", maxWidth: 150 }}>
+            <span className="pc-label">From (pieces)</span>
+            <input className="pc-input" type="number" min={1} step={1} value={shown(t.min)}
               onChange={(e) => set(i, "min", e.target.value)} aria-label={`${title}: from how many pieces`} />
-            pieces
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
-            $
-            <input className="pc-input" type="number" min={0} step="0.01" style={{ width: 100 }} value={Number.isNaN(t.per_side) ? "" : t.per_side}
-              onChange={(e) => set(i, "per_side", e.target.value)} aria-label={`${title}: price per side`} />
-            per side
-          </label>
+          {SIDE_PRICES.map((p) => (
+            <label key={p.key} className="pc-formfield" style={{ flex: "1 1 110px", maxWidth: 150, opacity: offered[p.key] ? 1 : 0.55 }}>
+              <span className="pc-label">{p.label} ($)</span>
+              <input className="pc-input" type="number" min={0} step="0.01" value={shown(t[p.key])}
+                onChange={(e) => set(i, p.key, e.target.value)} aria-label={`${title}: ${p.label.toLowerCase()}, price per side`} />
+            </label>
+          ))}
           {tiers.length > 1 && (
             <button type="button" className="pc-btn" aria-label="Remove this break" onClick={() => onChange(tiers.filter((_, j) => j !== i))}><X size={14} /></button>
           )}
         </div>
       ))}
       <div>
-        <button type="button" className="pc-link" onClick={() => onChange([...tiers, { min: (tiers[tiers.length - 1]?.min ?? 0) * 2 || 12, per_side: tiers[tiers.length - 1]?.per_side ?? 5 }])}>
+        <button type="button" className="pc-link" onClick={() => {
+          const last = tiers[tiers.length - 1];
+          onChange([...tiers, { min: (last?.min ?? 0) * 2 || 12, upload: last?.upload ?? 5, text: last?.text ?? 5, graphics: last?.graphics ?? 5 }]);
+        }}>
           + Add a quantity break
         </button>
       </div>
     </section>
   );
+}
+
+/** Which kinds of decoration customers get in the designer. Saved as each is
+ *  switched, like the product switches. */
+function ServicesCard({ services, onSaved }: {
+  services: Record<DesignerService, boolean>; onSaved: (s: DesignerSettings) => void;
+}) {
+  const [busy, setBusy] = useState<DesignerService | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  async function flip(k: DesignerService) {
+    const next = { ...services, [k]: !services[k] };
+    setBusy(k); setMsg(null);
+    try {
+      onSaved(await api.saveServices(next));
+      setMsg({ ok: true, text: `${SERVICE_ROWS.find((r) => r.key === k)?.label} is ${next[k] ? "on" : "off"} in the designer.` });
+    } catch (e) {
+      setMsg({ ok: false, text: said(e, "That could not be changed.") });
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <section className="pc-card pc-pad" style={{ display: "grid", gap: 10 }} data-designer-services>
+      <div>
+        <h3 className="pc-h2" style={{ fontSize: 16 }}>What customers can add</h3>
+        <p className="pc-sub-line" style={{ margin: "2px 0 0" }}>
+          Switch off what your shop doesn&apos;t do: the designer stops offering it. Keep one on at least.
+          &ldquo;AI design&rdquo; makes text and graphics, so it shows only while both are on.
+        </p>
+      </div>
+      {SERVICE_ROWS.map((r) => (
+        <div key={r.key} className="pc-switch-row">
+          <span>
+            <span style={{ fontWeight: 600 }}>{r.label}</span>
+            <span className="pc-sub-line" style={{ display: "block", fontSize: 13 }}>{r.hint}</span>
+          </span>
+          <button type="button" className="pc-switch" role="switch" aria-label={r.label} aria-checked={services[r.key]}
+            data-on={services[r.key] ? "" : undefined} disabled={busy !== null} onClick={() => void flip(r.key)} />
+        </div>
+      ))}
+      {msg && <div className="pc-flash" data-bad={msg.ok ? undefined : ""} role={msg.ok ? "status" : "alert"}>{msg.text}</div>}
+    </section>
+  );
+}
+
+/** The settings as this page edits them: each break with all three prices
+ *  (a row from before they had their own takes its one price), and every
+ *  service on when the server has not said. */
+function editable(r: DesignerSettings): DesignerSettings {
+  const tiers = (t: DesignerTier[]) => t.map((x) => ({
+    min: x.min, upload: x.upload ?? x.per_side ?? 0, text: x.text ?? x.per_side ?? 0, graphics: x.graphics ?? x.per_side ?? 0,
+  }));
+  return {
+    ...r,
+    rates: { ...r.rates, print: tiers(r.rates.print), embroidery: tiers(r.rates.embroidery) },
+    // An older server sends no services: every one is on.
+    services: Object.assign({ upload: true, text: true, graphics: true, names: true }, r.services),
+  };
 }
 
 function PricesTab({ onSaved }: { onSaved: () => void }) {
@@ -325,7 +401,8 @@ function PricesTab({ onSaved }: { onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
-    api.settings().then((r) => { setS(r); setRates(r.rates); }).catch(() => setMsg({ ok: false, text: "The prices could not be loaded." }));
+    api.settings().then((raw) => { const r = editable(raw); setS(r); setRates(r.rates); })
+      .catch(() => setMsg({ ok: false, text: "The prices could not be loaded." }));
   }, []);
   const dirty = useMemo(() => !!s && !!rates && JSON.stringify(s.rates) !== JSON.stringify(rates), [s, rates]);
   if (!rates) return <div className="pc-card pc-empty">{msg?.text ?? "Loading prices…"}</div>;
@@ -334,7 +411,7 @@ function PricesTab({ onSaved }: { onSaved: () => void }) {
     if (!rates) return;
     setSaving(true); setMsg(null);
     try {
-      const r = await api.saveRates(rates);
+      const r = editable(await api.saveRates(rates));
       setS(r); setRates(r.rates);
       setMsg({ ok: true, text: "Saved. The designer shows these prices from now on." });
       onSaved();
@@ -354,14 +431,16 @@ function PricesTab({ onSaved }: { onSaved: () => void }) {
           These are starting prices, not yours yet. Set your own and save: customers see them in the designer.
         </div>
       )}
+      {s && <ServicesCard services={s.services} onSaved={(r) => setS({ ...s, services: editable(r).services })} />}
       <p className="pc-sub-line" style={{ margin: 0 }}>
-        A piece costs the product&apos;s own price in that colour and size, plus the price per printed side below.
-        Every piece in a design counts towards the quantity break.
+        A piece costs the product&apos;s own price in that colour and size, plus a price for each printed side, set by
+        what is on that side: uploaded artwork, text or graphics. A side with more than one of them is one print and
+        costs the dearest. Every piece in a design counts towards the quantity break.
       </p>
       <TierRows title="Printing" hint="Price per printed side. The first break starts at 1 piece." tiers={rates.print}
-        onChange={(t) => setRates({ ...rates, print: t })} />
+        onChange={(t) => setRates({ ...rates, print: t })} offered={s?.services ?? { upload: true, text: true, graphics: true, names: true }} />
       <TierRows title="Embroidery" hint="Price per embroidered side, for products with embroidery switched on." tiers={rates.embroidery}
-        onChange={(t) => setRates({ ...rates, embroidery: t })} />
+        onChange={(t) => setRates({ ...rates, embroidery: t })} offered={s?.services ?? { upload: true, text: true, graphics: true, names: true }} />
       <section className="pc-card pc-pad" style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
         <label style={{ display: "grid", gap: 4, fontSize: 13.5 }}>
           Embroidery minimum (pieces)
@@ -504,6 +583,7 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
   if (!d) return <div className="pc-card pc-empty">Loading the design…</div>;
   const quantities = (d.document?.quantities ?? {}) as Record<string, Record<string, number>>;
+  const roster = d.document && Array.isArray(d.document.roster) ? d.document.roster : [];
 
   async function move(status: string) {
     if (!d) return;
@@ -571,6 +651,10 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
       ) : shirts.map((sh) => {
         const sizes = quantities[sh.key] ?? {};
         const ordered = Object.entries(sizes).filter(([, n]) => (n ?? 0) > 0);
+        const players = roster.filter((r) => r.line === sh.key);
+        const who = (id: string | null | undefined) => players.find((r) => r.id === id);
+        const shirtPrints = sh.prints.filter((o) => !o.player);
+        const playerPrints = sh.prints.filter((o) => o.player);
         return (
           <section key={sh.key} className="pc-card pc-pad" style={{ display: "grid", gap: 10 }} data-shirt={sh.key}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -587,12 +671,43 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
               ))}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {sh.prints.map((o) => (
+              {shirtPrints.map((o) => (
                 <a key={o.id} className="pc-btn" href={originalFile(o.file_url)} target="_blank" rel="noopener noreferrer" download={o.file_name}>
                   Print file: {o.view} ({o.width_px}×{o.height_px}{o.dpi ? `, ${o.dpi} DPI` : ""})
                 </a>
               ))}
             </div>
+            {players.length > 0 && (
+              <div style={{ overflowX: "auto" }} data-roster={sh.key}>
+                <table className="pc-table" style={{ minWidth: 420 }}>
+                  <thead><tr><th>Name</th><th>Number</th><th>Size</th><th>Print files</th></tr></thead>
+                  <tbody>
+                    {players.map((r) => {
+                      const files = playerPrints.filter((o) => who(o.player)?.id === r.id);
+                      return (
+                        <tr key={r.id}>
+                          <td>{r.name || "–"}</td>
+                          <td>{r.number || "–"}</td>
+                          <td>{r.size}</td>
+                          <td>
+                            {files.length ? (
+                              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {files.map((o) => (
+                                  <a key={o.id} className="pc-btn" href={originalFile(o.file_url)} target="_blank" rel="noopener noreferrer"
+                                    download={`${[r.name, r.number].filter(Boolean).join("-") || "player"}-${o.view}.png`}>
+                                    Print file: {o.view}
+                                  </a>
+                                ))}
+                              </span>
+                            ) : <span className="pc-sub-line">In the shirt&apos;s print file</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         );
       })}

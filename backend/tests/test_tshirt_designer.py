@@ -9,6 +9,10 @@ What each test holds, in the owner's terms:
 * Nothing can be ordered while a problem stands (no art, no sizes, a size not
   on sale, embroidery below its minimum or on a shirt not embroidered).
 * The shop's prices are checked before they are saved, and are the shop's own.
+* Each side is priced by what is on it: uploaded artwork, text and graphics
+  each have their own price; a side with several is one print at the dearest;
+  names and numbers alone add nothing to a side. A service the shop switched
+  off cannot be ordered (owner, 2026-11-17).
 No database or network.
 """
 from types import SimpleNamespace as NS
@@ -127,12 +131,18 @@ def test_a_product_no_longer_offered_cannot_be_ordered():
 # ── The shop's prices ───────────────────────────────────────────────────────
 
 def test_the_shops_prices_are_checked_before_they_are_saved():
+    # A row saved before each kind had its own price gives all three that price.
     good = td.check_rates({**td.DEFAULT_RATES, "print": [{"min": 12, "per_side": 5}, {"min": 1, "per_side": 9}]})
-    assert good["print"] == [{"min": 1, "per_side": 9.0}, {"min": 12, "per_side": 5.0}]
+    assert good["print"] == [{"min": 1, "upload": 9.0, "text": 9.0, "graphics": 9.0, "per_side": 9.0},
+                             {"min": 12, "upload": 5.0, "text": 5.0, "graphics": 5.0, "per_side": 5.0}]
+    own = td.check_rates({**td.DEFAULT_RATES, "print": [{"min": 1, "upload": 8, "text": 4, "graphics": 6}]})
+    assert own["print"] == [{"min": 1, "upload": 8.0, "text": 4.0, "graphics": 6.0, "per_side": 8.0}]
     for bad, words in (
         ({"print": [{"min": 6, "per_side": 5}]}, "start at 1 piece"),
         ({"print": [{"min": 1, "per_side": 5}, {"min": 1, "per_side": 4}]}, "once"),
         ({"print": [{"min": 1, "per_side": -1}]}, "$0 to $1,000"),
+        ({"print": [{"min": 1, "upload": 8, "text": None, "graphics": 6}]}, "artwork, text and graphics"),
+        ({"print": [{"min": 1, "upload": 8, "text": 4, "graphics": 1001}]}, "$0 to $1,000"),
         ({"embroidery_minimum": 6}, "at or below the embroidery minimum"),
         ({"name": "lots"}, "need numbers"),
     ):
@@ -142,7 +152,102 @@ def test_the_shops_prices_are_checked_before_they_are_saved():
 
 
 def test_a_shop_starts_on_the_starting_prices_until_it_saves_its_own_and_they_are_its_own():
-    assert td.settings_from(None) == {"rates": td.DEFAULT_RATES, "saved": False}
+    assert td.settings_from(None) == {"rates": td.DEFAULT_RATES, "saved": False,
+                                      "services": {"upload": True, "text": True, "graphics": True, "names": True}}
     own = {**td.DEFAULT_RATES, "name": 5}
     assert td.settings_from({"rates": own, "saved": True})["rates"]["name"] == 5.0
     assert td.SETTINGS_KEY in TENANT_SCOPED_KEYS
+
+
+# ── A price for each kind of artwork, and which the shop offers ─────────────
+
+EACH = {**td.DEFAULT_RATES, "print": [{"min": 1, "upload": 8, "text": 4, "graphics": 6},
+                                      {"min": 12, "upload": 5, "text": 2, "graphics": 3}]}
+EACH = td.check_rates(EACH)
+TEXT = {"kind": "text", "type": "Textbox"}
+PICTURE = {"kind": "image", "type": "Image"}
+GRAPHIC = {"kind": "graphic", "type": "Path"}
+NAME = {"kind": "text", "nn": "name", "type": "IText"}
+
+
+def one(front=(), back=(), **over):
+    base = {"products": [{"garmentId": TEE, "colorIds": ["black"]}],
+            "designs": {f"{TEE}:black": {"front": list(front), "back": list(back), "left": [], "right": []}},
+            "quantities": {f"{TEE}:black": {"M": 1}}}
+    return doc(**{**base, **over})
+
+
+def test_each_side_is_priced_by_what_is_on_it():
+    assert td.quote(one(front=[TEXT]), garments(), EACH)["lines"][0]["unit"] == 6.5 + 4
+    assert td.quote(one(front=[PICTURE]), garments(), EACH)["lines"][0]["unit"] == 6.5 + 8
+    q = td.quote(one(front=[GRAPHIC], back=[TEXT]), garments(), EACH)
+    assert q["lines"][0]["unit"] == 6.5 + 6 + 4
+    assert q["lines"][0]["side_prices"] == [{"view": "front", "service": "graphics", "price": 6.0},
+                                           {"view": "back", "service": "text", "price": 4.0}]
+
+
+def test_a_side_with_several_kinds_is_one_print_at_the_dearest():
+    q = td.quote(one(front=[PICTURE, TEXT], back=[TEXT, GRAPHIC]), garments(), EACH)
+    assert q["lines"][0]["unit"] == 6.5 + 8 + 6          # not 8 + 4 and 4 + 6
+    assert q["lines"][0]["decoration"] == 14.0
+
+
+def test_names_and_numbers_alone_add_nothing_to_a_side():
+    roster = [{"id": "r1", "line": f"{TEE}:black", "size": "M", "name": "SMITH", "number": "7"}]
+    q = td.quote(one(front=[TEXT], back=[NAME], roster=roster), garments(), EACH)
+    assert q["problems"] == []
+    assert q["lines"][0]["unit"] == 6.5 + 4 and q["personalization"] == 4 + 3
+
+
+def test_the_break_applies_to_each_kind_its_own_price():
+    q = td.quote(one(front=[TEXT], quantities={f"{TEE}:black": {"M": 12}}), garments(), EACH)
+    assert q["lines"][0]["unit"] == 6.5 + 2
+
+
+def test_a_kind_the_shop_switched_off_cannot_be_ordered():
+    off = {"upload": True, "text": False, "graphics": True, "names": True}
+    q = td.quote(one(front=[TEXT]), garments(), EACH, off)
+    assert "Text is not offered on this shop's shirts. Remove it from your design to order." in q["problems"]
+    assert q["total"] == 0
+    assert td.quote(one(front=[PICTURE]), garments(), EACH, off)["problems"] == []
+    roster = [{"id": "r1", "line": f"{TEE}:black", "size": "M", "name": "SMITH", "number": ""}]
+    no_names = {**off, "text": True, "names": False}
+    assert any("Names and numbers is not offered" in p
+               for p in td.quote(one(front=[PICTURE], roster=roster), garments(), EACH, no_names)["problems"])
+
+
+def test_which_kind_an_object_is():
+    assert [td.service_of(o) for o in (TEXT, PICTURE, GRAPHIC, NAME)] == ["text", "upload", "graphics", "names"]
+    assert [td.service_of({"type": t}) for t in ("Textbox", "image", "Group")] == ["text", "upload", "graphics"]
+    assert td.side_services([TEXT, NAME, PICTURE]) == ["upload", "text", "names"]
+
+
+def test_the_shop_keeps_one_service_on_at_least():
+    assert td.check_services({"upload": True, "text": False}) == \
+        {"upload": True, "text": False, "graphics": True, "names": True}
+    with pytest.raises(td.DesignerError):
+        td.check_services({"upload": False, "text": False, "graphics": False, "names": False})
+    assert td.services_from("junk") == {"upload": True, "text": True, "graphics": True, "names": True}
+
+
+@pytest.mark.asyncio
+async def test_saving_the_services_keeps_the_prices_and_their_saved_mark(monkeypatch):
+    import json
+
+    from app.core import tenant_settings
+
+    store = {"v": json.dumps({"rates": EACH, "saved": True})}
+
+    async def get(db, key, tenant_id=None):
+        return store["v"]
+
+    async def put(db, key, value, tenant_id=None):
+        store["v"] = value
+
+    monkeypatch.setattr(tenant_settings, "get_setting", get)
+    monkeypatch.setattr(tenant_settings, "set_setting", put)
+    out = await td.save_settings(None, "t1", services={"graphics": False})
+    assert out["rates"] == EACH and out["saved"] is True
+    assert json.loads(store["v"])["services"] == {"upload": True, "text": True, "graphics": False, "names": True}
+    out = await td.save_settings(None, "t1", rates=td.DEFAULT_RATES)
+    assert out["services"]["graphics"] is False      # prices saved later keep the choice

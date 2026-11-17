@@ -12,7 +12,7 @@ import { ArrowRight, Bookmark, HelpCircle, Save, Send, ShoppingCart, Upload } fr
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useBranding } from "@/components/providers/BrandingProvider";
-import { money, type Quote } from "@/lib/designer/pricing";
+import { money, SERVICE_LABEL, type Quote } from "@/lib/designer/pricing";
 import { VIEW_LABEL } from "@/lib/designer/types";
 import { decoratedSides, shirtSides, useDesigner } from "@/stores/designer.store";
 import { useActiveGarment, useQuote, useShirt } from "./context";
@@ -53,6 +53,18 @@ export function Header() {
   );
 }
 
+/** Each printed side and what it costs a piece, once per side, kind and price
+ *  (shirts in the order may differ: each difference gets its own row). */
+function sideRows(quote: Quote) {
+  const seen = new Map<string, { key: string; label: string; price: number }>();
+  for (const p of quote.sidePrices) {
+    const what = p.service ? SERVICE_LABEL[p.service] : "Names and numbers";
+    const key = `${p.view}|${what}|${p.price}`;
+    if (!seen.has(key)) seen.set(key, { key, label: `${VIEW_LABEL[p.view]}: ${what.toLowerCase()}`, price: p.price });
+  }
+  return [...seen.values()];
+}
+
 /** Every line of the price, for the order bar and the Review tab. */
 export function PriceBreakdown({ quote }: { quote: Quote }) {
   const doc = useDesigner((st) => st.doc)!;
@@ -64,7 +76,9 @@ export function PriceBreakdown({ quote }: { quote: Quote }) {
         <dt>{doc.method === "embroidery" ? "Embroidered" : "Printed"}</dt>
         <dd>{sides.length ? sides.map((v) => VIEW_LABEL[v]).join(", ") : "Nothing yet"}</dd>
       </div>
-      <div><dt>Decoration per side</dt><dd className={s.num}>{money(quote.perSide)}</dd></div>
+      {sideRows(quote).map((r) => (
+        <div key={r.key}><dt>{r.label}</dt><dd className={s.num}>{money(r.price)} each</dd></div>
+      ))}
       {quote.personalization > 0 && <div><dt>Names and numbers</dt><dd className={s.num}>{money(quote.personalization)}</dd></div>}
       {quote.totalQty > 0 && <div><dt>Average per piece</dt><dd className={s.num}>{money(quote.average)}</dd></div>}
       <div className={s.breakdownTotal}><dt>Total</dt><dd className={s.num}>{money(quote.total)}</dd></div>

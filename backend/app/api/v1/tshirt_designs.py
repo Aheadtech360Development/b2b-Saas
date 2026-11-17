@@ -75,6 +75,10 @@ MAX_OUTPUT_BYTES = 60 * 1024 * 1024
 # small copy inside it; a document past this is not a design.
 MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
 _SHIRT_KEY = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}:[a-z0-9][a-z0-9-]{0,80}$")
+# A roster row's id (the designer makes them: a UUID, or time and a random).
+_PLAYER = re.compile(r"^[A-Za-z0-9.-]{1,60}$")
+# A player's print file carries the row's id at the end of its name.
+_PLAYER_FILE = re.compile(r"-p-([A-Za-z0-9.-]{1,60})\.png$")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -191,14 +195,25 @@ def summarise_document(doc: dict[str, Any]) -> dict[str, Any]:
     return {"shirts": shirts, "shirt_count": len(shirts), "total_qty": total, "method": method, "name": name}
 
 
-def check_output(shirt_key: str, view: str, kind: str, shirts: list[str]) -> None:
-    """Whether a finished file names a real shirt, side and kind of this design."""
+def check_output(shirt_key: str, view: str, kind: str, shirts: list[str],
+                 player: Optional[str] = None, document: Optional[dict[str, Any]] = None) -> None:
+    """Whether a finished file names a real shirt, side and kind of this
+    design, and, for one player's print file (names and numbers), a roster
+    row of that shirt."""
     if kind not in OUTPUT_KINDS:
         raise ValueError("Unknown kind of file.")
     if view not in VIEWS:
         raise ValueError("Unknown side of the shirt.")
     if shirt_key not in shirts:
         raise ValueError("That shirt is not in this design.")
+    if player is None:
+        return
+    if kind != "print" or not _PLAYER.match(player):
+        raise ValueError("A player's file could not be read.")
+    roster = (document or {}).get("roster") if isinstance(document, dict) else None
+    if not any(isinstance(r, dict) and str(r.get("id")) == player and str(r.get("line")) == shirt_key
+               for r in (roster if isinstance(roster, list) else [])):
+        raise ValueError("That player is not on this shirt's roster.")
 
 
 def read_png(content: bytes) -> tuple[int, int, Optional[int]]:
@@ -225,8 +240,15 @@ def output_folder(reference: str) -> str:
     return f"tshirt-designs/{safe}"
 
 
-def output_name(shirt_key: str, view: str, kind: str) -> str:
-    return f"{shirt_key.replace(':', '-')}-{view}-{kind}.png"
+def output_name(shirt_key: str, view: str, kind: str, player: Optional[str] = None) -> str:
+    base = f"{shirt_key.replace(':', '-')}-{view}-{kind}"
+    return f"{base}-p-{player}.png" if player else f"{base}.png"
+
+
+def player_of(file_name: str) -> Optional[str]:
+    """The roster row a print file was made for, or None for the shirt's own file."""
+    m = _PLAYER_FILE.search(file_name or "")
+    return m.group(1) if m else None
 
 
 async def _next_reference(db: AsyncSession, who: str = "") -> str:
@@ -266,6 +288,8 @@ def _output_row(o: TShirtDesignOutput) -> dict:
         "shirt_key": o.shirt_key,
         "view": o.view,
         "kind": o.kind,
+        # Names and numbers: one print file per player, by roster row id.
+        "player": player_of(o.file_name),
         "file_url": o.file_url,
         "file_name": o.file_name,
         "width_px": o.width_px,
@@ -515,10 +539,12 @@ async def add_output(
     shirt_key: str = Form(...),
     view: str = Form(...),
     kind: str = Form(...),
+    player: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """One finished file for one shirt and side. Sending the same shirt, side
-    and kind again replaces the file."""
+    """One finished file for one shirt and side, or for one player of that
+    shirt (`player`: a roster row's id, when the side carries names and
+    numbers). Sending the same file again replaces it."""
     await enforce_rate_limit(request, scope="tshirt_output", limit=120, window=60)
     d = await _load(db, design_id)
     if not _may_touch(request, d):
@@ -526,7 +552,7 @@ async def add_output(
     if d.status not in _BUYER_EDITABLE:
         raise HTTPException(status_code=409, detail="This design is with the print team and can no longer be changed.")
     try:
-        check_output(shirt_key, view, kind, summarise_document(d.document)["shirts"])
+        check_output(shirt_key, view, kind, summarise_document(d.document)["shirts"], player or None, d.document)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -543,7 +569,7 @@ async def add_output(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    name = output_name(shirt_key, view, kind)
+    name = output_name(shirt_key, view, kind, player or None)
     url, file_id = await _store(content, name, d.reference, d.id, request, db)
 
     folder = await resolve_media_folder_key(request, db)
@@ -552,6 +578,7 @@ async def add_output(
         TShirtDesignOutput.shirt_key == shirt_key,
         TShirtDesignOutput.view == view,
         TShirtDesignOutput.kind == kind,
+        TShirtDesignOutput.file_name == name,
     ))).scalars().all()
     for o in old:
         await _forget_file(o, folder)

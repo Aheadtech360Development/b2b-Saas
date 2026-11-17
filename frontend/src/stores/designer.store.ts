@@ -7,7 +7,7 @@
  */
 import { create } from "zustand";
 import { garmentById } from "@/lib/designer/catalog";
-import { DEMO_RATES, type PriceRates } from "@/lib/designer/pricing";
+import { DEMO_RATES, sideServices, type PriceRates, type Service } from "@/lib/designer/pricing";
 import { focusOf, PRINT_AREAS } from "@/lib/designer/mockups";
 import {
   lineKey, VIEW_KEYS,
@@ -23,6 +23,13 @@ export const ART_TOOLS = ["upload", "text", "graphics", "ai", "names"] as const;
 export type ArtTool = (typeof ART_TOOLS)[number];
 
 const tabFor = (p: ToolKey): Tab => (p === "product" ? "garment" : p === "saved" ? "saved" : "artwork");
+
+/** The artwork tools the shop offers (Products → T-shirt designer → Prices).
+ *  "AI design" makes text and graphics, so it needs both. */
+export function offeredTools(rates: PriceRates): ArtTool[] {
+  const on = rates.offered;
+  return ART_TOOLS.filter((t) => t === "ai" ? on.text && on.graphics : on[t === "names" ? "names" : t]);
+}
 
 /** What the selected object is, for the panels that edit it. */
 export interface SelectionInfo {
@@ -224,7 +231,8 @@ export const useDesigner = create<DesignerState>((set, get) => {
     setTab: (tab) => set((st) => ({
       tab,
       panel: tab === "garment" ? "product" : tab === "saved" ? "saved"
-        : tab === "artwork" ? ((ART_TOOLS as readonly string[]).includes(st.panel) ? st.panel : "upload") : st.panel,
+        : tab === "artwork" ? ((offeredTools(st.rates) as readonly string[]).includes(st.panel) ? st.panel
+          : offeredTools(st.rates)[0] ?? "upload") : st.panel,
     })),
     // Each view opens at its own zoom: a sleeve is small on the whole shirt.
     setView: (view) => {
@@ -399,3 +407,10 @@ export const decoratedSides = (doc: DesignDoc): ViewKey[] =>
 /** Each shirt's printed views, for pricing. */
 export const sidesByShirt = (doc: DesignDoc): Record<string, ViewKey[]> =>
   Object.fromEntries(shirtKeys(doc).map((k) => [k, shirtSides(doc, k)]));
+
+/** What is on each side of each shirt (artwork, text, graphics, names), for pricing. */
+export const servicesByShirt = (doc: DesignDoc): Record<string, Partial<Record<ViewKey, Service[]>>> =>
+  Object.fromEntries(shirtKeys(doc).map((k) => {
+    const d = designOf(doc, k);
+    return [k, Object.fromEntries(VIEW_KEYS.map((v) => [v, sideServices(d[v])]))];
+  }));

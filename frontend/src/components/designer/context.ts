@@ -8,7 +8,7 @@ import { quote } from "@/lib/designer/pricing";
 import { garmentUrl } from "@/lib/designer/photo";
 import type { PreparedImage } from "@/lib/designer/images";
 import type { Garment, Silhouette, ViewKey } from "@/lib/designer/types";
-import { activeKey, decoratedSides, designOf, sidesByShirt, useDesigner } from "@/stores/designer.store";
+import { activeKey, decoratedSides, designOf, servicesByShirt, sidesByShirt, useDesigner } from "@/stores/designer.store";
 import type { DesignController } from "./controller";
 
 export const ControllerContext = createContext<{
@@ -87,6 +87,7 @@ export function useQuote() {
       method: doc.method,
       sides: decoratedSides(doc),
       sidesByLine: sidesByShirt(doc),
+      servicesByLine: servicesByShirt(doc),
       quantities: doc.quantities,
       roster: doc.roster,
     });

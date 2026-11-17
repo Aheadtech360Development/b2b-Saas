@@ -84,7 +84,9 @@ def test_a_priced_design_keeps_what_its_order_needs_and_its_lines_add_up():
         (DESIGN, "TS-AB-2611-0007", "Team tees", 12, "print")
     black_s = next(x for x in snap["lines"] if (x["colour"], x["size"]) == ("Black", "S"))
     assert black_s == {"garment_id": TEE, "garment": "Gildan 5000", "variant_id": V["Black|S"], "colour": "Black",
-                       "size": "S", "qty": 4, "unit": 17.5, "subtotal": 70.0, "sides": ["front", "back"]}
+                       "size": "S", "qty": 4, "unit": 17.5, "subtotal": 70.0, "sides": ["front", "back"],
+                       # What each side is and costs: the order shows the print team.
+                       "side_prices": [{"view": "front", "service": "text", "price": 5.5}, {"view": "back", "service": "upload", "price": 5.5}]}
     assert snap["total"] == sum(x["subtotal"] for x in snap["lines"]) + snap["personalization"] == 204.0
 
 
@@ -119,7 +121,8 @@ async def test_the_order_gets_a_line_per_shirt_colour_and_size_on_its_blank_and_
     assert (first["unit_price"], first["line_total"]) == (Decimal("17.50"), Decimal("70.00"))
     assert first["configuration"]["tshirt_design"] == {"id": DESIGN, "reference": "TS-AB-2611-0007",
                                                        "name": "Team tees", "method": "print",
-                                                       "sides": ["front", "back"], "per_side": 5.5}
+                                                       "sides": ["front", "back"], "per_side": 5.5,
+                                                       "side_prices": [{"view": "front", "service": "text", "price": 5.5}, {"view": "back", "service": "upload", "price": 5.5}]}
     assert names["variant_id"] is None and names["sku"] == "TS-NAMES" and names["line_total"] == Decimal("7.00")
     assert sum(x["line_total"] for x in items) == Decimal(str(snap["total"]))
 

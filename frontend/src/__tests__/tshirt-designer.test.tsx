@@ -32,12 +32,20 @@ import { DesignerCard } from "@/components/admin/products/DesignerCard";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 
 const TEE = "6f1c1e0a-1111-4c4c-9a9a-000000000001";
-// The starting prices, as the server sends them (services/tshirt_designer.DEFAULT_RATES).
+// The starting prices, as the server sends them (services/tshirt_designer.DEFAULT_RATES):
+// every kind of artwork at the same price to start, and `per_side` for older pages.
+const priceRow = (min: number, p: number) => ({ min, upload: p, text: p, graphics: p, per_side: p });
 const START = {
-  print: [{ min: 1, per_side: 8 }, { min: 12, per_side: 5.5 }, { min: 24, per_side: 4.25 }, { min: 48, per_side: 3.5 }, { min: 100, per_side: 2.75 }],
-  embroidery: [{ min: 12, per_side: 9 }, { min: 24, per_side: 7.5 }, { min: 48, per_side: 6.25 }, { min: 100, per_side: 5 }],
+  print: [priceRow(1, 8), priceRow(12, 5.5), priceRow(24, 4.25), priceRow(48, 3.5), priceRow(100, 2.75)],
+  embroidery: [priceRow(12, 9), priceRow(24, 7.5), priceRow(48, 6.25), priceRow(100, 5)],
   embroidery_minimum: 12, name: 4, number: 3,
 };
+// What the page sends back: the three prices, never `per_side`.
+const sent = (r: typeof START) => ({
+  ...r,
+  print: r.print.map(({ min, upload, text, graphics }) => ({ min, upload, text, graphics })),
+  embroidery: r.embroidery.map(({ min, upload, text, graphics }) => ({ min, upload, text, graphics })),
+});
 const tee: Garment = {
   id: TEE, slug: "gildan-5000", name: "Gildan 5000", styleCode: "G500", brand: "Gildan", silhouette: "tee",
   description: "", fabric: "", basePrice: 6.5, sizes: ["S", "M", "2XL"], embroidery: true,
@@ -76,7 +84,7 @@ describe("the designer's price, the same as the server's", () => {
 
   it("reads the shop's prices: nothing is added for a size, the variant's price says it", () => {
     expect(ratesFrom(START)).toMatchObject({ embroideryMinimum: 12, name: 4, number: 3, sizeUpcharge: {} });
-    expect(ratesFrom(START).print[1]).toEqual({ min: 12, perSide: 5.5 });
+    expect(ratesFrom(START).print[1]).toEqual({ min: 12, upload: 5.5, text: 5.5, graphics: 5.5 });
   });
 });
 
@@ -87,7 +95,7 @@ describe("the designer opens on the shop's own products", () => {
     expect(get).toHaveBeenCalledWith("/api/v1/tshirt-designs/catalog");
     expect(shop.available).toBe(true);
     expect(shop.garments[0]!.colors[0]!.hex).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(shop.rates.print[0]).toEqual({ min: 1, perSide: 8 });
+    expect(shop.rates.print[0]).toEqual({ min: 1, upload: 8, text: 8, graphics: 8 });
   });
 
   it("reads a shop without the designer as closed, not as an error", async () => {
@@ -155,8 +163,37 @@ describe("Products → T-shirt designer", () => {
     expect(await screen.findByText(/These are starting prices, not yours yet/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("A name on a shirt ($)"), { target: { value: "5" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save prices" })); });
-    expect(put).toHaveBeenCalledWith("/api/v1/admin/tshirt-designer/settings", { rates: { ...START, name: 5 } });
+    expect(put).toHaveBeenCalledWith("/api/v1/admin/tshirt-designer/settings", { rates: sent({ ...START, name: 5 }) });
     expect(await screen.findByText(/Saved. The designer shows these prices/)).toBeInTheDocument();
+  });
+
+  it("sets a price per side for uploaded artwork, text and graphics apiece", async () => {
+    search = "tab=prices";
+    answer({ "/setup": { has_products: true, prices_saved: true, has_designs: false, available: true },
+             "/settings": { rates: START, saved: true, silhouettes: [] } });
+    put.mockResolvedValue({ rates: START, saved: true, silhouettes: [] });
+    render(<TShirtDesignerPage />);
+    fireEvent.change(await screen.findByLabelText("Printing: text, price per side", { selector: "[data-tier='0'] input" }), { target: { value: "4" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save prices" })); });
+    const body = put.mock.calls[0]![1] as { rates: typeof START };
+    expect(body.rates.print[0]).toEqual({ min: 1, upload: 8, text: 4, graphics: 8 });
+  });
+
+  it("switches a kind of decoration off for the designer, saved at once", async () => {
+    search = "tab=prices";
+    answer({ "/setup": { has_products: true, prices_saved: true, has_designs: false, available: true },
+             "/settings": { rates: START, saved: true, silhouettes: [],
+                            services: { upload: true, text: true, graphics: true, names: true } } });
+    put.mockResolvedValue({ rates: START, saved: true, silhouettes: [],
+                            services: { upload: true, text: true, graphics: false, names: true } });
+    render(<TShirtDesignerPage />);
+    const graphics = await screen.findByRole("switch", { name: "Graphics" });
+    expect(graphics).toHaveAttribute("aria-checked", "true");
+    await act(async () => { fireEvent.click(graphics); });
+    expect(put).toHaveBeenCalledWith("/api/v1/admin/tshirt-designer/settings",
+      { services: { upload: true, text: true, graphics: false, names: true } });
+    expect(screen.getByRole("switch", { name: "Graphics" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Graphics is off in the designer.")).toBeInTheDocument();
   });
 
   const ordered = {

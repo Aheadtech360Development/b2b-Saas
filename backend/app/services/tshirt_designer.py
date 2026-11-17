@@ -10,6 +10,14 @@ shop's decoration prices on top: a price per printed side that drops at
 quantity breaks (all pieces in the design count towards the break), embroidery
 from a minimum number of pieces, and names and numbers per shirt.
 
+Each side is priced by what is on it: the shop sets one price per side for
+uploaded artwork, one for text and one for graphics, at every quantity break.
+A side carrying more than one of them is one print, charged at the dearest
+(the owner's choice, 2026-11-17). Names and numbers are priced per shirt on
+the roster and add nothing to a side's price. The shop also chooses which of
+the four it offers at all (`services`): a design using one it does not offer
+cannot be ordered.
+
 The designer's live price follows the same rules (frontend lib/designer/
 pricing.ts). What a design is recorded at is worked out here, from the
 database; a figure the browser sends is never taken. A design is bought
@@ -41,23 +49,28 @@ SILHOUETTES: dict[str, str] = {
     "muscle": "Muscle tee",
 }
 
+# What a buyer can put on a shirt, as the shop switches them on and off.
+SERVICES: dict[str, str] = {
+    "upload": "Upload your own artwork",
+    "text": "Text",
+    "graphics": "Graphics",
+    "names": "Names and numbers",
+}
+# The ones priced per side (names and numbers are priced per shirt).
+SIDE_SERVICES = ("upload", "text", "graphics")
+
+
+def _start(low: int, price: float) -> dict[str, Any]:
+    return {"min": low, **{s: price for s in SIDE_SERVICES}, "per_side": price}
+
+
 # Where a new shop starts. These are the designer's own starting figures, not
 # any shop's prices: the shop sees them in Products → T-shirt designer → Prices
-# and sets its own (the set-up list stays open until it has).
+# and sets its own (the set-up list stays open until it has). Every kind of
+# artwork starts at the same price; the shop sets each its own.
 DEFAULT_RATES: dict[str, Any] = {
-    "print": [
-        {"min": 1, "per_side": 8.0},
-        {"min": 12, "per_side": 5.5},
-        {"min": 24, "per_side": 4.25},
-        {"min": 48, "per_side": 3.5},
-        {"min": 100, "per_side": 2.75},
-    ],
-    "embroidery": [
-        {"min": 12, "per_side": 9.0},
-        {"min": 24, "per_side": 7.5},
-        {"min": 48, "per_side": 6.25},
-        {"min": 100, "per_side": 5.0},
-    ],
+    "print": [_start(1, 8.0), _start(12, 5.5), _start(24, 4.25), _start(48, 3.5), _start(100, 2.75)],
+    "embroidery": [_start(12, 9.0), _start(24, 7.5), _start(48, 6.25), _start(100, 5.0)],
     "embroidery_minimum": 12,
     "name": 4.0,
     "number": 3.0,
@@ -94,27 +107,33 @@ def clean_config(raw: Any) -> dict[str, Any]:
 # ── The shop's decoration prices ─────────────────────────────────────────────
 
 def _tiers(raw: Any, what: str) -> list[dict[str, Any]]:
+    """A price table: each quantity break with a price per side for uploaded
+    artwork, text and graphics. A row saved before the three had their own
+    prices (`per_side` only) gives all three that price.
+
+    Each row keeps `per_side` too, the dearest of the three, for a designer
+    page loaded before this change (it read one price per side)."""
     if not isinstance(raw, list) or not raw:
         raise DesignerError(f"Add at least one {what} price.")
     if len(raw) > MAX_TIERS:
         raise DesignerError(f"Up to {MAX_TIERS} quantity breaks for {what}.")
-    seen: dict[int, float] = {}
+    seen: dict[int, dict[str, float]] = {}
     for t in raw:
         if not isinstance(t, dict):
             raise DesignerError(f"A {what} price could not be read.")
         try:
             low = int(t.get("min"))
-            price = _money(t.get("per_side"))
+            prices = {s: _money(t[s] if t.get(s) is not None else t.get("per_side")) for s in SIDE_SERVICES}
         except (TypeError, ValueError, ArithmeticError):
-            raise DesignerError(f"Each {what} price needs a quantity and a price per side.")
+            raise DesignerError(f"Each {what} price needs a quantity and a price per side for artwork, text and graphics.")
         if isinstance(t.get("min"), bool) or low < 1 or low > 100000:
             raise DesignerError(f"A {what} quantity break is a whole number from 1 up.")
-        if price < 0 or price > MAX_PRICE:
+        if any(p < 0 or p > MAX_PRICE for p in prices.values()):
             raise DesignerError(f"A {what} price per side is from $0 to $1,000.")
         if low in seen:
             raise DesignerError(f"Each {what} quantity break once.")
-        seen[low] = float(price)
-    return [{"min": k, "per_side": v} for k, v in sorted(seen.items())]
+        seen[low] = {s: float(p) for s, p in prices.items()}
+    return [{"min": k, **v, "per_side": max(v.values())} for k, v in sorted(seen.items())]
 
 
 def check_rates(raw: Any) -> dict[str, Any]:
@@ -141,15 +160,35 @@ def check_rates(raw: Any) -> dict[str, Any]:
             "name": float(name), "number": float(number)}
 
 
+def check_services(raw: Any) -> dict[str, bool]:
+    """Which of the four the shop offers, or DesignerError. One at least: the
+    designer has nothing to put on a shirt without one."""
+    if not isinstance(raw, dict):
+        raise DesignerError("The services could not be read.")
+    out = {s: raw.get(s) is not False for s in SERVICES}
+    if not any(out.values()):
+        raise DesignerError("Keep at least one way to decorate a shirt switched on.")
+    return out
+
+
+def services_from(raw: Any) -> dict[str, bool]:
+    """The stored choice; everything on for a shop that has not chosen."""
+    try:
+        return check_services(raw)
+    except DesignerError:
+        return {s: True for s in SERVICES}
+
+
 def settings_from(raw: Any) -> dict[str, Any]:
-    """The stored settings: the shop's prices once it has saved them, else the starting ones."""
+    """The stored settings: the shop's prices once it has saved them, else the
+    starting ones, and which services it offers."""
     data = raw if isinstance(raw, dict) else {}
     try:
         rates = check_rates(data.get("rates"))
         saved = bool(data.get("saved"))
     except DesignerError:
         rates, saved = json.loads(json.dumps(DEFAULT_RATES)), False
-    return {"rates": rates, "saved": saved}
+    return {"rates": rates, "saved": saved, "services": services_from(data.get("services"))}
 
 
 async def settings_for(db: AsyncSession, tenant_id: Any) -> dict[str, Any]:
@@ -162,12 +201,23 @@ async def settings_for(db: AsyncSession, tenant_id: Any) -> dict[str, Any]:
         return settings_from(None)
 
 
-async def save_rates(db: AsyncSession, tenant_id: Any, rates: Any) -> dict[str, Any]:
+async def save_settings(db: AsyncSession, tenant_id: Any, *, rates: Any = None,
+                        services: Any = None) -> dict[str, Any]:
+    """Save the prices, the services, or both; what is not sent stays as it was.
+    Only saving prices marks them as the shop's own (the set-up list)."""
     from app.core.tenant_settings import set_setting
 
-    clean = check_rates(rates)
-    await set_setting(db, SETTINGS_KEY, json.dumps({"rates": clean, "saved": True}), tenant_id=tenant_id)
-    return {"rates": clean, "saved": True}
+    out = await settings_for(db, tenant_id)
+    if rates is not None:
+        out["rates"], out["saved"] = check_rates(rates), True
+    if services is not None:
+        out["services"] = check_services(services)
+    await set_setting(db, SETTINGS_KEY, json.dumps(out), tenant_id=tenant_id)
+    return out
+
+
+async def save_rates(db: AsyncSession, tenant_id: Any, rates: Any) -> dict[str, Any]:
+    return await save_settings(db, tenant_id, rates=rates)
 
 
 async def active(db: AsyncSession, tenant_id: Any) -> bool:
@@ -253,9 +303,10 @@ async def designer_products(db: AsyncSession, *, only_ids: list[Any] | None = No
 async def catalog(db: AsyncSession, tenant_id: Any) -> dict[str, Any]:
     """What the designer opens with: the products it designs, and the prices."""
     if not await active(db, tenant_id):
-        return {"available": False, "garments": [], "rates": None}
+        return {"available": False, "garments": [], "rates": None, "services": None}
     garments = [g for g in (garment_of(p) for p in await designer_products(db)) if g]
-    return {"available": True, "garments": garments, "rates": (await settings_for(db, tenant_id))["rates"]}
+    s = await settings_for(db, tenant_id)
+    return {"available": True, "garments": garments, "rates": s["rates"], "services": s["services"]}
 
 
 # ── What a design costs ──────────────────────────────────────────────────────
@@ -263,6 +314,45 @@ async def catalog(db: AsyncSession, tenant_id: Any) -> dict[str, Any]:
 def _sides(design: Any) -> list[str]:
     design = design if isinstance(design, dict) else {}
     return [v for v in VIEWS if isinstance(design.get(v), list) and len(design[v]) > 0]
+
+
+_TEXT_TYPES = {"text", "textbox", "itext", "i-text"}
+
+
+def service_of(obj: Any) -> str | None:
+    """Which service put this object on the shirt (the designer tags each one:
+    frontend components/designer/controller.ts). A name or number placeholder
+    is names and numbers; an untagged object is read from its type."""
+    if not isinstance(obj, dict):
+        return None
+    if obj.get("nn") in ("name", "number"):
+        return "names"
+    kind = obj.get("kind")
+    if kind in ("image", "text", "graphic"):
+        return {"image": "upload", "text": "text", "graphic": "graphics"}[kind]
+    t = str(obj.get("type") or "").lower()
+    if t in _TEXT_TYPES:
+        return "text"
+    return "upload" if t == "image" else "graphics"
+
+
+def side_services(objects: Any) -> list[str]:
+    """The services on one side, in SERVICES order."""
+    found = {service_of(o) for o in (objects if isinstance(objects, list) else [])}
+    return [s for s in SERVICES if s in found]
+
+
+def side_price(services: list[str], tier: dict[str, Any]) -> tuple[Decimal, str | None]:
+    """One side at this quantity break: the dearest of the services priced per
+    side that are on it, and which one that is. Names and numbers alone add
+    nothing here (they are priced per shirt)."""
+    best: tuple[Decimal, str | None] = (Decimal("0"), None)
+    for s in services:
+        if s in SIDE_SERVICES:
+            p = _money(tier.get(s, tier.get("per_side", 0)))
+            if best[1] is None or p > best[0]:
+                best = (p, s)
+    return best
 
 
 def _tier(tiers: list[dict[str, Any]], qty: int) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -276,14 +366,17 @@ def _count(n: Any) -> int:
     return int(n) if isinstance(n, (int, float)) and not isinstance(n, bool) and n > 0 else 0
 
 
-def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[str, Any]) -> dict[str, Any]:
+def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[str, Any],
+          services: dict[str, bool] | None = None) -> dict[str, Any]:
     """What the design costs, line by line, and what stops it being ordered.
 
     The same rules as the designer's own price (lib/designer/pricing.ts quote):
-    each piece is its garment's price in that colour and size, plus the price
-    per side for every side of that shirt with art on it, at the break the
-    whole design's quantity reaches; names and numbers are per shirt on the
-    roster. Nothing is charged while a problem stands.
+    each piece is its garment's price in that colour and size, plus, for every
+    side of that shirt with art on it, that side's price at the break the whole
+    design's quantity reaches: the dearest of uploaded artwork, text and
+    graphics on it. Names and numbers are per shirt on the roster. `services`
+    are the ones the shop offers: a design using another cannot be ordered.
+    Nothing is charged while a problem stands.
     """
     method = doc.get("method") if doc.get("method") in ("print", "embroidery") else "print"
     designs = doc.get("designs") if isinstance(doc.get("designs"), dict) else {}
@@ -295,6 +388,15 @@ def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[
 
     def sides_of(line: str) -> list[str]:
         return sides_by_line.get(line, all_sides)
+
+    def services_on(line: str, view: str) -> list[str]:
+        design = designs.get(line)
+        if line in sides_by_line and isinstance(design, dict):
+            return side_services(design.get(view))
+        # Sizes for a shirt with no design of its own: what any shirt has there.
+        found = {s for k in keys for s in side_services((designs.get(k) or {}).get(view))
+                 if isinstance(designs.get(k), dict)}
+        return [s for s in SERVICES if s in found]
 
     roster = [r for r in (doc.get("roster") or []) if isinstance(r, dict)]
     quantities: dict[str, dict[str, int]] = {}
@@ -335,6 +437,15 @@ def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[
     tiers = rates["embroidery"] if method == "embroidery" else rates["print"]
     tier, nxt = _tier(tiers, total_qty)
     per_side = _money(tier["per_side"])
+
+    def decoration(line: str, at: dict[str, Any]) -> tuple[Decimal, list[dict[str, Any]]]:
+        """One piece of this shirt's decoration at a quantity break, and each side's part."""
+        parts = []
+        for view in sides_of(line):
+            price, service = side_price(services_on(line, view), at)
+            parts.append({"view": view, "service": service, "price": float(price)})
+        return sum((Decimal(str(p["price"])) for p in parts), Decimal("0")), parts
+
     lines: list[dict[str, Any]] = []
     for gid, cid, z, qty in pending:
         g = garments[gid]
@@ -344,10 +455,12 @@ def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[
             problems.append(f"{g['name']} in {colour}, size {z}, is not on sale. Remove it from your sizes.")
             continue
         sides = sides_of(f"{gid}:{cid}")
-        unit = cents(_money(base) + per_side * len(sides))
+        deco, parts = decoration(f"{gid}:{cid}", tier)
+        unit = cents(_money(base) + deco)
         lines.append({"garment_id": gid, "color_id": cid, "colour": colour, "size": z, "qty": qty,
                       "variant_id": g["variants"].get(f"{cid}|{z}"), "unit": float(unit),
-                      "subtotal": float(cents(unit * qty)), "sides": sides})
+                      "subtotal": float(cents(unit * qty)), "sides": sides,
+                      "decoration": float(cents(deco)), "side_prices": parts})
 
     counted = {k for k in quantities if k.partition(":")[0] in garments}
     personal = Decimal("0")
@@ -380,12 +493,22 @@ def quote(doc: dict[str, Any], garments: dict[str, dict[str, Any]], rates: dict[
         if line.partition(":")[0] not in garments and any(n > 0 for n in quantities[line].values()):
             problems.append("A product in this design is no longer offered. Remove it and choose another.")
             break
+    # What the shirts being ordered use, against what the shop offers.
+    offered = services or {s: True for s in SERVICES}
+    used = {s for line in line_order for view in sides_of(line) for s in services_on(line, view)}
+    if any(str(r.get("name") or "").strip() or str(r.get("number") or "").strip()
+           for r in roster if str(r.get("line")) in line_order):
+        used.add("names")
+    for s in SERVICES:
+        if s in used and offered.get(s) is False:
+            problems.append(f"{SERVICES[s]} is not offered on this shop's shirts. Remove it from your design to order.")
 
     ready = not problems
     total = cents(sum((Decimal(str(x["subtotal"])) for x in lines), Decimal("0")) + personal) if ready else Decimal("0")
     return {
         "method": method,
         "total_qty": total_qty,
+        # The dearest side price at this break, for older readers of a quote.
         "per_side": float(per_side),
         "lines": lines,
         "personalization": float(personal),
@@ -407,8 +530,8 @@ async def priced(db: AsyncSession, tenant_id: Any, doc: dict[str, Any]) -> tuple
             continue
     found = await designer_products(db, only_ids=ids) if ids else []
     garments = {g["id"]: g for g in (garment_of(p) for p in found) if g}
-    rates = (await settings_for(db, tenant_id))["rates"]
-    return quote(doc, garments, rates), garments
+    s = await settings_for(db, tenant_id)
+    return quote(doc, garments, s["rates"], s["services"]), garments
 
 
 async def price_design(db: AsyncSession, tenant_id: Any, doc: dict[str, Any]) -> dict[str, Any]:
@@ -473,6 +596,7 @@ def snapshot(design: Any, q: dict[str, Any], garments: dict[str, Any]) -> dict[s
             "unit": x["unit"],
             "subtotal": x["subtotal"],
             "sides": x.get("sides") or [],
+            "side_prices": x.get("side_prices") or [],
         } for x in q["lines"]],
     }
 
@@ -570,6 +694,7 @@ async def order_items(db: AsyncSession, snap: dict[str, Any]) -> list[dict[str, 
             "unit_price": _money(x["unit"]),
             "line_total": _money(x["subtotal"]),
             "configuration": {"tshirt_design": {**about, "sides": list(x.get("sides") or []),
+                                                "side_prices": list(x.get("side_prices") or []),
                                                 "per_side": snap.get("per_side")}},
         })
     personal = _money(snap.get("personalization") or 0)

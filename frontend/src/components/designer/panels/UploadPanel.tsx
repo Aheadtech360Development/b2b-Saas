@@ -14,6 +14,11 @@ import { Section, ArrangeSection } from "../ui";
 export async function addImageFile(file: File, ctrl: ReturnType<typeof useCtrl>) {
   const { show } = useNotice.getState();
   if (!ctrl) return;
+  // A pasted or dropped picture, at a shop that does not take uploaded artwork.
+  if (!useDesigner.getState().rates.offered.upload) {
+    show("This shop doesn't print uploaded artwork. Use the tools beside the shirt instead.", "error");
+    return;
+  }
   try {
     const img = await prepareImage(file);
     useUploads.getState().add(img);

@@ -99,12 +99,14 @@ type RawGarment = Omit<Garment, "colors"> & { colors: { id: string; name: string
  *  without a swatch of its own is drawn from its name, as on the product page. */
 export async function loadCatalog(): Promise<ShopCatalog> {
   try {
-    const r = await apiClient.get<{ available: boolean; garments: RawGarment[]; rates: Parameters<typeof ratesFrom>[0] | null }>(
-      "/api/v1/tshirt-designs/catalog");
+    const r = await apiClient.get<{
+      available: boolean; garments: RawGarment[]; rates: Parameters<typeof ratesFrom>[0] | null;
+      services?: Parameters<typeof ratesFrom>[1];
+    }>("/api/v1/tshirt-designs/catalog");
     return {
       available: !!r.available,
       garments: (r.garments ?? []).map((g) => ({ ...g, colors: g.colors.map((c) => ({ ...c, hex: colorHex(c.name, c.hex) })) })),
-      rates: r.rates ? ratesFrom(r.rates) : DEMO_RATES,
+      rates: r.rates ? ratesFrom(r.rates, r.services) : DEMO_RATES,
     };
   } catch (e) {
     // The designer switched off for the shop (403) reads the same as none offered.

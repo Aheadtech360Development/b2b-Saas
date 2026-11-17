@@ -5,12 +5,33 @@
  *
  * Every piece in the order counts towards the quantity break, across products
  * and colours, which is how print shops quote a run.
+ *
+ * Each side is priced by what is on it: the shop sets a price per side for
+ * uploaded artwork, for text and for graphics. A side with more than one of
+ * them is one print, charged at the dearest. Names and numbers are priced per
+ * shirt on the roster and add nothing to a side. The same rules as the server
+ * (backend services/tshirt_designer.quote).
  */
-import type { DecorationMethod, Garment, Quantities, RosterRow, SizeKey, ViewKey } from "./types";
+import type { DecorationMethod, Garment, Quantities, RosterRow, SizeKey, ViewKey, ViewObjects } from "./types";
+
+/** What a buyer can put on a shirt, each switched on or off by the shop. */
+export type Service = "upload" | "text" | "graphics" | "names";
+export const SERVICES: Service[] = ["upload", "text", "graphics", "names"];
+/** The ones priced per side. */
+export type SideService = Exclude<Service, "names">;
+export const SIDE_SERVICES: SideService[] = ["upload", "text", "graphics"];
+export const SERVICE_LABEL: Record<Service, string> = {
+  upload: "Upload your own artwork",
+  text: "Text",
+  graphics: "Graphics",
+  names: "Names and numbers",
+};
 
 export interface Tier {
   min: number;
-  perSide: number;
+  upload: number;
+  text: number;
+  graphics: number;
 }
 
 export interface PriceRates {
@@ -20,31 +41,57 @@ export interface PriceRates {
   sizeUpcharge: Partial<Record<SizeKey, number>>;
   name: number;
   number: number;
+  /** Which services the shop offers. */
+  offered: Record<Service, boolean>;
 }
+
+export const ALL_OFFERED: Record<Service, boolean> = { upload: true, text: true, graphics: true, names: true };
+const same = (min: number, price: number): Tier => ({ min, upload: price, text: price, graphics: price });
 
 /**
  * Demo rates. Placeholders until the shop sets its own in admin: they are not
  * any shop's real prices.
  */
 export const DEMO_RATES: PriceRates = {
-  print: [
-    { min: 1, perSide: 8 },
-    { min: 12, perSide: 5.5 },
-    { min: 24, perSide: 4.25 },
-    { min: 48, perSide: 3.5 },
-    { min: 100, perSide: 2.75 },
-  ],
-  embroidery: [
-    { min: 12, perSide: 9 },
-    { min: 24, perSide: 7.5 },
-    { min: 48, perSide: 6.25 },
-    { min: 100, perSide: 5 },
-  ],
+  print: [same(1, 8), same(12, 5.5), same(24, 4.25), same(48, 3.5), same(100, 2.75)],
+  embroidery: [same(12, 9), same(24, 7.5), same(48, 6.25), same(100, 5)],
   embroideryMinimum: 12,
   sizeUpcharge: { "2XL": 2, "3XL": 3, "4XL": 4 },
   name: 4,
   number: 3,
+  offered: ALL_OFFERED,
 };
+
+const TEXT_TYPES = new Set(["text", "textbox", "itext", "i-text"]);
+
+/** Which service put an object on the shirt (the designer tags each one). */
+export function serviceOf(o: Record<string, unknown>): Service {
+  if (o.nn === "name" || o.nn === "number") return "names";
+  if (o.kind === "image") return "upload";
+  if (o.kind === "text") return "text";
+  if (o.kind === "graphic") return "graphics";
+  const t = String(o.type ?? "").toLowerCase();
+  if (TEXT_TYPES.has(t)) return "text";
+  return t === "image" ? "upload" : "graphics";
+}
+
+/** The services on one side, in SERVICES order. */
+export function sideServices(objects: ViewObjects | undefined): Service[] {
+  const found = new Set((objects ?? []).map(serviceOf));
+  return SERVICES.filter((s) => found.has(s));
+}
+
+/** One side at this break: the dearest per-side service on it, and which.
+ *  Without a list (an older caller), every per-side service counts. */
+export function sidePrice(services: Service[] | undefined, tier: Tier): { price: number; service: SideService | null } {
+  const list = services ?? SIDE_SERVICES;
+  let best: { price: number; service: SideService | null } = { price: 0, service: null };
+  for (const s of list) {
+    if (s === "names") continue;
+    if (best.service === null || tier[s] > best.price) best = { price: tier[s], service: s };
+  }
+  return best;
+}
 
 export interface QuoteLine {
   garmentId: string;
@@ -55,9 +102,21 @@ export interface QuoteLine {
   subtotal: number;
 }
 
+export interface SidePriceLine {
+  line: string;
+  view: ViewKey;
+  service: SideService | null;
+  price: number;
+}
+
 export interface Quote {
   totalQty: number;
+  /** The dearest side price at this break. */
   perSide: number;
+  /** Each shirt's decoration for one piece, by `garmentId:colorId`. */
+  decorationByLine: Record<string, number>;
+  /** Every printed side of every shirt being ordered, and its price. */
+  sidePrices: SidePriceLine[];
   lines: QuoteLine[];
   personalization: number;
   total: number;
@@ -79,6 +138,9 @@ export interface QuoteInput {
    * shirt is charged for `sides`.
    */
   sidesByLine?: Record<string, ViewKey[]>;
+  /** What is on each side of each shirt, by `garmentId:colorId` then view.
+   *  Without it, a side is charged at its dearest service. */
+  servicesByLine?: Record<string, Partial<Record<ViewKey, Service[]>>>;
   quantities: Quantities;
   roster: RosterRow[];
 }
@@ -92,18 +154,28 @@ export function piecePrice(g: Garment, colorId: string, size: SizeKey, rates: Pr
 }
 
 /** The shop's decoration prices as its API sends them (snake_case), for the designer. */
+export interface RawTier { min: number; per_side?: number; upload?: number; text?: number; graphics?: number }
+
 export function ratesFrom(raw: {
-  print: { min: number; per_side: number }[];
-  embroidery: { min: number; per_side: number }[];
+  print: RawTier[];
+  embroidery: RawTier[];
   embroidery_minimum: number;
   name: number;
   number: number;
-}): PriceRates {
-  const tiers = (t: { min: number; per_side: number }[]) => t.map((x) => ({ min: x.min, perSide: x.per_side }));
+}, services?: Partial<Record<Service, boolean>> | null): PriceRates {
+  // A row saved before each service had its own price gives all three the one.
+  const tiers = (t: RawTier[]) => t.map((x) => ({
+    min: x.min,
+    upload: x.upload ?? x.per_side ?? 0,
+    text: x.text ?? x.per_side ?? 0,
+    graphics: x.graphics ?? x.per_side ?? 0,
+  }));
+  const offered = { ...ALL_OFFERED };
+  for (const s of SERVICES) if (services?.[s] === false) offered[s] = false;
   return {
     print: tiers(raw.print), embroidery: tiers(raw.embroidery), embroideryMinimum: raw.embroidery_minimum,
     // A shop's sizes carry their own prices: nothing is added for a size.
-    sizeUpcharge: {}, name: raw.name, number: raw.number,
+    sizeUpcharge: {}, name: raw.name, number: raw.number, offered,
   };
 }
 
@@ -132,8 +204,20 @@ export function effectiveQuantities(quantities: Quantities, roster: RosterRow[])
 }
 
 export function quote(input: QuoteInput): Quote {
-  const { garments, rates, method, sides, sidesByLine, roster } = input;
+  const { garments, rates, method, sides, sidesByLine, servicesByLine, roster } = input;
   const sidesOf = (line: string) => sidesByLine?.[line] ?? sides;
+  const servicesOn = (line: string, view: ViewKey): Service[] | undefined => {
+    if (!servicesByLine) return undefined;
+    if (servicesByLine[line]) return servicesByLine[line]![view] ?? [];
+    // Sizes for a shirt with no design of its own: what any shirt has there.
+    const found = new Set(Object.values(servicesByLine).flatMap((v) => v[view] ?? []));
+    return SERVICES.filter((s) => found.has(s));
+  };
+  /** One piece of a shirt's decoration at a break, and each side's part. */
+  const decoration = (line: string, at: Tier) => {
+    const parts = sidesOf(line).map((view) => ({ line, view, ...sidePrice(servicesOn(line, view), at) }));
+    return { total: parts.reduce((n, p) => n + p.price, 0), parts };
+  };
   const quantities = effectiveQuantities(input.quantities, roster);
 
   const pending: Omit<QuoteLine, "unit" | "subtotal">[] = [];
@@ -156,6 +240,13 @@ export function quote(input: QuoteInput): Quote {
   const problems: string[] = [];
   const colourName = (g: Garment, cid: string) => g.colors.find((c) => c.id === cid)?.name ?? cid;
   const lines: QuoteLine[] = [];
+  const decorationByLine: Record<string, number> = {};
+  const sidePrices: SidePriceLine[] = [];
+  for (const line of lineOrder) {
+    const d = decoration(line, tier);
+    decorationByLine[line] = cents(d.total);
+    sidePrices.push(...d.parts);
+  }
   for (const l of pending) {
     const g = garments[l.garmentId]!;
     const base = piecePrice(g, l.colorId, l.size, rates);
@@ -164,8 +255,7 @@ export function quote(input: QuoteInput): Quote {
       problems.push(`${g.name} in ${colourName(g, l.colorId)}, size ${l.size}, is not on sale. Remove it from your sizes.`);
       continue;
     }
-    const decoration = sidesOf(`${l.garmentId}:${l.colorId}`).length * tier.perSide;
-    const unit = cents(base + decoration);
+    const unit = cents(base + (decorationByLine[`${l.garmentId}:${l.colorId}`] ?? 0));
     lines.push({ ...l, unit, subtotal: cents(unit * l.qty) });
   }
 
@@ -197,25 +287,39 @@ export function quote(input: QuoteInput): Quote {
       && Object.values(sizes).some((n) => (n ?? 0) > 0))) {
     problems.push("A product in this design is no longer offered. Remove it and choose another.");
   }
+  // What the shirts being ordered use, against what the shop offers.
+  const used = new Set<Service>();
+  for (const line of lineOrder) for (const v of sidesOf(line)) for (const s of servicesOn(line, v) ?? []) used.add(s);
+  if (roster.some((r) => lineOrder.includes(r.line) && (r.name.trim() || r.number.trim()))) used.add("names");
+  for (const s of SERVICES) {
+    if (used.has(s) && rates.offered?.[s] === false) {
+      problems.push(`${SERVICE_LABEL[s]} is not offered on this shop's shirts. Remove it from your design to order.`);
+    }
+  }
 
   // The same rule as the server's: nothing is priced while a problem stands.
   const ready = problems.length === 0;
   const total = ready ? cents(lines.reduce((s, l) => s + l.subtotal, 0) + personalization) : 0;
 
+  // What the next break takes off the decoration, on average per piece.
+  const decorationAt = (at: Tier) =>
+    pending.reduce((n, l) => n + l.qty * decoration(`${l.garmentId}:${l.colorId}`, at).total, 0);
+  const oneSideSaving = (at: Tier, nxt: Tier) => sidePrice(undefined, at).price - sidePrice(undefined, nxt).price;
   return {
     totalQty,
-    perSide: tier.perSide,
+    perSide: Math.max(tier.upload, tier.text, tier.graphics),
+    decorationByLine,
+    sidePrices,
     lines,
     personalization,
     total,
     average: ready ? cents(total / totalQty) : 0,
-    // Shirts print different numbers of sides: the saving is the average per piece.
     nextBreak: next && sides.length
       ? {
         qty: next.min,
-        savingPerPiece: cents((tier.perSide - next.perSide) * (totalQty
-          ? pending.reduce((n, l) => n + l.qty * sidesOf(`${l.garmentId}:${l.colorId}`).length, 0) / totalQty
-          : sides.length)),
+        savingPerPiece: cents(totalQty
+          ? (decorationAt(tier) - decorationAt(next)) / totalQty
+          : oneSideSaving(tier, next) * sides.length),
       }
       : null,
     problems,

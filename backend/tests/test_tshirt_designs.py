@@ -17,6 +17,7 @@ from app.api.v1.tshirt_designs import (
     check_output,
     output_folder,
     output_name,
+    player_of,
     read_png,
     summarise_document,
 )
@@ -103,3 +104,21 @@ def test_the_designer_is_open_to_guests_but_a_buyers_list_is_not():
     assert public("/api/v1/tshirt-designs")
     assert public("/api/v1/tshirt-designs/0b6c0b8e-3a2f-4a8e-9b1e-2f6a1c9d0e11/outputs")
     assert not public("/api/v1/tshirt-designs/mine")
+
+
+def test_a_player_gets_a_print_file_of_their_own_only_on_their_shirt():
+    shirts = ["classic-tee:white", "classic-tee:navy"]
+    doc = {"roster": [{"id": "r-1", "line": "classic-tee:white", "name": "SMITH", "number": "7", "size": "M"}]}
+    check_output("classic-tee:white", "back", "print", shirts, "r-1", doc)
+    with pytest.raises(ValueError, match="roster"):
+        check_output("classic-tee:navy", "back", "print", shirts, "r-1", doc)
+    with pytest.raises(ValueError, match="roster"):
+        check_output("classic-tee:white", "back", "print", shirts, "r-2", doc)
+    with pytest.raises(ValueError, match="player"):
+        check_output("classic-tee:white", "back", "preview", shirts, "r-1", doc)
+    with pytest.raises(ValueError, match="player"):
+        check_output("classic-tee:white", "back", "print", shirts, "../x", doc)
+    name = output_name("classic-tee:white", "back", "print", "r-1")
+    assert name == "classic-tee-white-back-print-p-r-1.png"
+    assert player_of(name) == "r-1"
+    assert player_of(output_name("classic-tee:white", "back", "print")) is None

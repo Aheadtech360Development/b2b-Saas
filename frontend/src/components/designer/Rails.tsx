@@ -8,7 +8,7 @@
 import { Copy, Hash, Shapes, Share2, Sparkles, Type, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
 import { VIEW_KEYS, VIEW_LABEL, type Silhouette, type ViewKey } from "@/lib/designer/types";
-import { ART_TOOLS, shirtKeys, shirtSides, useDesigner, type ArtTool, type Tab } from "@/stores/designer.store";
+import { offeredTools, shirtKeys, shirtSides, useDesigner, type ArtTool, type Tab } from "@/stores/designer.store";
 import { useActiveGarment, useGarmentUrl, useQuote, useShirt } from "./context";
 import s from "./designer.module.css";
 
@@ -165,9 +165,10 @@ export function CopyDesign() {
 export function ArtTools() {
   const panel = useDesigner((st) => st.panel);
   const setPanel = useDesigner((st) => st.setPanel);
+  const rates = useDesigner((st) => st.rates);
   return (
     <div className={s.artTools} role="toolbar" aria-label="Add artwork">
-      {ART_TOOLS.map((k) => {
+      {offeredTools(rates).map((k) => {
         const { label, Icon } = TOOL[k];
         return (
           <button key={k} type="button" aria-pressed={panel === k}

@@ -8,6 +8,8 @@ export interface TShirtOutput {
   view: ViewKey;
   /** preview: the garment with the design on it. print: the artwork alone at 300 DPI. */
   kind: "preview" | "print";
+  /** Names and numbers: the roster row this print file is for (one per player). */
+  player?: string | null;
   file_url: string;
   file_name: string;
   width_px: number;
@@ -65,12 +67,13 @@ export const tshirtDesignsService = {
   mine: () => apiClient.get<TShirtDesignRecord[]>("/api/v1/tshirt-designs/mine"),
 
   /** One finished file. Sending the same shirt, side and kind again replaces it. */
-  uploadOutput: (id: string, file: Blob, meta: { shirt_key: string; view: ViewKey; kind: TShirtOutput["kind"] }) => {
+  uploadOutput: (id: string, file: Blob, meta: { shirt_key: string; view: ViewKey; kind: TShirtOutput["kind"]; player?: string }) => {
     const fd = new FormData();
     fd.append("file", file, `${meta.shirt_key.replace(":", "-")}-${meta.view}-${meta.kind}.png`);
     fd.append("shirt_key", meta.shirt_key);
     fd.append("view", meta.view);
     fd.append("kind", meta.kind);
+    if (meta.player) fd.append("player", meta.player);
     return apiClient.postForm<TShirtOutput>(`/api/v1/tshirt-designs/${id}/outputs`, fd);
   },
 
@@ -103,7 +106,12 @@ export interface DesignerProduct {
   problem: string | null;
 }
 
-export interface DesignerTier { min: number; per_side: number }
+/** One quantity break: a price per side for each kind of artwork. `per_side`
+ *  (the dearest) comes back for older readers and is never sent. */
+export interface DesignerTier { min: number; upload: number; text: number; graphics: number; per_side?: number }
+
+/** What customers can put on a shirt, each on or off. */
+export type DesignerService = "upload" | "text" | "graphics" | "names";
 
 export interface DesignerRates {
   print: DesignerTier[];
@@ -115,6 +123,7 @@ export interface DesignerRates {
 
 export interface DesignerSettings {
   rates: DesignerRates;
+  services: Record<DesignerService, boolean>;
   /** The shop has saved its own prices (else they are the starting ones). */
   saved: boolean;
   silhouettes: { key: string; label: string }[];
@@ -131,7 +140,14 @@ const D = "/api/v1/admin/tshirt-designer";
 
 export const tshirtDesignerService = {
   settings: () => apiClient.get<DesignerSettings>(`${D}/settings`),
-  saveRates: (rates: DesignerRates) => apiClient.put<DesignerSettings>(`${D}/settings`, { rates }),
+  saveRates: (rates: DesignerRates) => {
+    const clean = (t: DesignerTier[]) => t.map(({ min, upload, text, graphics }) => ({ min, upload, text, graphics }));
+    return apiClient.put<DesignerSettings>(`${D}/settings`, {
+      rates: { ...rates, print: clean(rates.print), embroidery: clean(rates.embroidery) },
+    });
+  },
+  saveServices: (services: Record<DesignerService, boolean>) =>
+    apiClient.put<DesignerSettings>(`${D}/settings`, { services }),
   products: () => apiClient.get<{ items: DesignerProduct[] }>(`${D}/products`),
   /** Products that could be added: the shop's others sold by colour and size. */
   pickable: (q: string) => apiClient.get<{ items: DesignerProduct[] }>(`${D}/products?pick=true&q=${encodeURIComponent(q)}`),

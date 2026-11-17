@@ -5,7 +5,7 @@ import { Download, Minus, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { effectiveQuantities, money, piecePrice } from "@/lib/designer/pricing";
 import { lineKey, VIEW_KEYS, VIEW_LABEL, type Garment, type SizeKey, type ViewKey } from "@/lib/designer/types";
-import { designOf, shirtSides, useDesigner } from "@/stores/designer.store";
+import { designOf, useDesigner } from "@/stores/designer.store";
 import { PriceBreakdown } from "./Chrome";
 import { useQuote } from "./context";
 import s from "./designer.module.css";
@@ -76,14 +76,14 @@ export function SizesTab() {
   const picked = doc.products[productIndex]?.colorIds ?? [];
   const more = line.garment.colors.filter((c) => !picked.includes(c.id));
   const canAddGarment = catalog.some((g) => !doc.products.some((p) => p.garmentId === g.id));
+  const sides = Object.values(designOf(doc, line.key)).filter((v) => v.length > 0).length;
   const count = (key: string) => Object.values(effective[key] ?? {}).reduce<number>((n, q) => n + (q ?? 0), 0);
-  const sides = shirtSides(doc, line.key).length;
   // What one blank piece of each size costs in this colour (null: not sold
   // in this colour), and the dearest sizes' extra over the cheapest.
   const blank = (size: SizeKey) => piecePrice(line.garment, line.colorId, size, rates);
   const cheapest = Math.min(...line.garment.sizes.map(blank).filter((n): n is number => n !== null));
   // What one piece of each size costs at the order's current quantity break.
-  const each = (size: SizeKey) => (blank(size) ?? 0) + sides * quote.perSide;
+  const each = (size: SizeKey) => (blank(size) ?? 0) + (quote.decorationByLine[line.key] ?? 0);
   const row = doc.quantities[line.key] ?? {};
   const eff = effective[line.key] ?? {};
   const pieces = count(line.key);
