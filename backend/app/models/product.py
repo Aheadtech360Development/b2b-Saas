@@ -123,6 +123,9 @@ class Product(TenantMixin, BaseModel):
     # wholesale order form, up to 10 colours at once with a quantity for every
     # size, instead of one colour and one size at a time.
     bulk_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    # Sold by quote: no price and no Add to cart, a "Request a quote" button
+    # instead (migration 0081; dev fix list, item 14).
+    quote_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     # What that form's colour cards show: "pictures" (the colour's own picture,
     # its swatch when it has none) or "swatches" (the colour alone).
     bulk_cards: Mapped[str] = mapped_column(String(10), default="pictures", nullable=False, server_default="pictures")

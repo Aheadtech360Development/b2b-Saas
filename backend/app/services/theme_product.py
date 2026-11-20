@@ -202,6 +202,8 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "size_chart": product.size_chart_data or [],
         "gang_sheet": bool(product.gang_sheet_enabled),
         "design_upload": bool(getattr(product, "allow_design_upload", False)),
+        # Sold by quote: the buy box asks for a quote instead (dev fix list, item 14).
+        "quote_only": bool(getattr(product, "quote_only", False)),
         "gang_sheet_type": product.gang_sheet_type or "gang_sheet",
         "gang_sheet_config": product.gang_sheet_config or None,
         "designer": designer,

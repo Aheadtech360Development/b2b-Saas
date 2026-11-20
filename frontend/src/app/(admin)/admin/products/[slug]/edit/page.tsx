@@ -1,6 +1,6 @@
 // frontend/src/app/(admin)/admin/products/[slug]/edit/page.tsx
 "use client";
-import { ask, tell } from "@/lib/dialog";
+import { ask, askText, tell } from "@/lib/dialog";
 import { colorHex } from "@/lib/colors";
 import { ColorSwatchPicker } from "@/components/admin/ColorSwatchPicker";
 
@@ -381,6 +381,23 @@ function ProductEditor() {
     e.target.value = "";
   }
 
+  async function addImageByUrl() {
+    if (!product) return;
+    const raw = await askText("The picture's web address", "", { ok: "Add picture", placeholder: "https://…" });
+    const url = (raw ?? "").trim();
+    if (!url) return;
+    if (!/^https:\/\/[^\s]+$/i.test(url)) {
+      await tell("Use the picture's full web address, starting with https://");
+      return;
+    }
+    try {
+      await adminService.addImageFromUrl(product.id, url, undefined, (product.images ?? []).length === 0);
+      await load();
+    } catch (e) {
+      await tell(e instanceof Error && e.message ? `Not added: ${e.message}` : "Not added. Check the address and try again.");
+    }
+  }
+
   async function handleDeleteImage(imageId: string) {
     if (!product) return;
     await adminService.deleteImage(product.id, imageId);
@@ -530,7 +547,7 @@ function ProductEditor() {
   /** Save these few fields now, on their own (the switches that say "Saved at
    *  once"): the Wholesale bulk switch and its cards, and the upload switch
    *  (dev fix list, items 4 and 22). */
-  async function saveAtOnce(fields: Partial<Record<"allow_design_upload" | "bulk_order" | "bulk_cards", unknown>>) {
+  async function saveAtOnce(fields: Partial<Record<"allow_design_upload" | "bulk_order" | "bulk_cards" | "quote_only", unknown>>) {
     if (!product) return;
     const before = Object.fromEntries(Object.keys(fields).map((k) => [k, (product as unknown as Record<string, unknown>)[k]]));
     setUploadSaving(true);
@@ -949,6 +966,11 @@ function ProductEditor() {
               <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
               <span style={{ fontSize: "13px", color: "#7A7880" }}>Add media</span>
             </div>
+            {/* A picture already online (a supplier's, the shop's own site): its
+                address, as the CSV import takes it (dev fix list, item 19). */}
+            <button type="button" className="pc-link" onClick={() => void addImageByUrl()} style={{ marginTop: "8px" }} data-add-image-url>
+              Add from a web address
+            </button>
             <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImageUpload} />
           </div>
           {/* Marketing Flyer */}
@@ -1657,6 +1679,21 @@ function ProductEditor() {
               </div>
             )}
           </section>
+
+          {/* Sold by quote: no price and no Add to cart on the store, a
+              "Request a quote" button instead (dev fix list, item 14). */}
+          {!sheetKind && (
+            <section className="pc-card pc-pad" aria-label="Quote only" data-quote-only-setting>
+              <div className="pc-switch-row">
+                <span>
+                  Quote only
+                  <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>No price and no Add to cart on your store: buyers press Request a quote and tell you what they need. Saved at once.</span>
+                </span>
+                <button type="button" role="switch" aria-checked={!!product.quote_only} aria-label="Quote only" className="pc-switch"
+                  disabled={uploadSaving} onClick={() => void saveAtOnce({ quote_only: !product.quote_only })} data-on={product.quote_only ? "" : undefined} />
+              </div>
+            </section>
+          )}
 
           {stocked && (
             <DesignerCard productId={product.id} status={product.status} enabled={!!product.designer_enabled} config={product.designer_config} />

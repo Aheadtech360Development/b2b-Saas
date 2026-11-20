@@ -54,6 +54,13 @@ function message(err: unknown, fallback: string): string {
   return err instanceof ApiClientError && err.message ? err.message : fallback;
 }
 
+
+/** Whether this node, or anything inside it, is of this type. */
+function hasType(n: BuilderNode, type: string): boolean {
+  if (n.type === type) return true;
+  return (n.children ?? []).some((c) => hasType(c, type));
+}
+
 export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref?: string }) {
   const [state, setState] = useState<BuilderState | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -316,18 +323,32 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     commit(setTreeAt(d, t, updateNode(tree, id, change)));
   }, [commit]);
 
-  const remove = useCallback(() => {
+  const remove = useCallback(async () => {
     const d = docRef.current;
     if (!d || !selected) return;
     const loc = locate(d, selected);
     const tree = loc ? treeAt(d, loc) : null;
     if (!loc || !tree || tree.id === selected) return;
     const parent = parentOf(tree, selected);
-    const label = labelOf(findNode(tree, selected)!);
+    const gone = findNode(tree, selected)!;
+    const label = labelOf(gone);
+    // Deleting from a template while working on something else (a page that
+    // uses it) changes every page that uses it: asked first. Deleting the
+    // template's "Page content" left every page showing the same block, and
+    // nothing said so (dev fix list, item 26).
+    const elsewhere = loc.kind !== target.kind || JSON.stringify(loc) !== JSON.stringify(target);
+    const holdsContent = hasType(gone, "page_content");
+    if (loc.kind === "template" && (elsewhere || holdsContent)) {
+      const what = targetLabel(d, loc);
+      const ok = await confirmAction(holdsContent
+        ? `This deletes where each page's own content goes, from ${what}. Every page that uses it would show only the template. Delete it anyway?`
+        : `${label} is part of ${what}: deleting it changes every page that uses it. Delete it anyway?`);
+      if (!ok) return;
+    }
     commit(setTreeAt(d, loc, removeAndClose(tree, selected)));
     setSelected(parent && parent.parent.id !== tree.id ? parent.parent.id : null);
     say.note(`${label} deleted. Ctrl Z brings it back.`);
-  }, [selected, commit]);
+  }, [selected, commit, target]);
 
   const duplicate = useCallback(() => {
     const d = docRef.current;

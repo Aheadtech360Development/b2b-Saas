@@ -80,7 +80,8 @@ def on_sale(product: Any) -> bool:
 
 
 def _product_card(product: Product, sheet_from: float | None = None) -> dict[str, Any]:
-    prices = selling_prices(product, sheet_from)
+    # Sold by quote: no price to show, and no "From $0.00" (dev fix list, item 14).
+    prices = [] if getattr(product, "quote_only", False) else selling_prices(product, sheet_from)
     image = None
     images = sorted(product.images or [], key=lambda i: (not getattr(i, "is_primary", False),))
     if images:
@@ -89,8 +90,9 @@ def _product_card(product: Product, sheet_from: float | None = None) -> dict[str
         "title": product.name,
         "url": f"/products/{product.slug}",
         "image": image or "",
-        "price": f"From {_money(min(prices))}" if prices else "",
-        "badge": "Sale" if on_sale(product) else "",
+        "price": "Request a quote" if getattr(product, "quote_only", False)
+        else f"From {_money(min(prices))}" if prices else "",
+        "badge": "" if getattr(product, "quote_only", False) else "Sale" if on_sale(product) else "",
         "text": product.short_description or "",
     }
 

@@ -72,11 +72,8 @@ export function Footer() {
         <div style={{ fontSize: "13px", color: "#6B6B6B", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
           © {new Date().getFullYear()} {branding.store_name}. All rights reserved.
         </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          {["VISA", "MC", "AMEX", "ACH", "NET 30"].map(m => (
-            <span key={m} style={{ background: "#F8F8F6", color: "#6B6B6B", padding: "4px 10px", fontSize: "11px", fontWeight: 500, border: "1px solid #E2E2DE", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)", letterSpacing: ".03em" }}>{m}</span>
-          ))}
-        </div>
+        {/* No payment badges: the same five on every shop said VISA, ACH and
+            NET 30 whether or not the shop took them (dev fix list, item 18). */}
       </div>
       <div style={{ borderTop: "1px solid #E2E2DE" }}><PoweredBy /></div>
     </footer>

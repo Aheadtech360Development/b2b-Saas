@@ -68,6 +68,8 @@ export interface ThemeProductData {
   gang_sheet: boolean;
   /** Printed from a file the buyer supplies, so the page offers an upload. */
   design_upload?: boolean;
+  /** Sold by quote: nothing to buy here (the builder draws a quote button). */
+  quote_only?: boolean;
   gang_sheet_type?: string;
   gang_sheet_config?: ProductDetail["gang_sheet_config"];
   sheets?: ThemeSheet[];
@@ -146,7 +148,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     // The bulk order form buys for itself, and the price line keeps the
     // "from" price it was drawn with: one size's price there would read as
     // the price of all of them.
-    if (product.bulk) return;
+    if (product.bulk || product.quote_only) return;
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);
     if (!root) return;
 

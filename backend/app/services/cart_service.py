@@ -1,6 +1,7 @@
 """CartService — manages CartItem records and validates MOQ/MOV requirements."""
 import logging
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
@@ -72,6 +73,7 @@ class CartService:
             variant = variant_result.scalar_one_or_none()
             if not variant:
                 raise NotFoundError(f"Variant {add_item.variant_id} not found")
+            await self._not_quote_only(variant.product_id)
 
             effective_price = await self._effective_price(
                 variant, discount_percent, group_id
@@ -329,6 +331,7 @@ class CartService:
             raise NotFoundError("Product not found")
         if (getattr(product, "pricing_mode", "variant") or "variant") != "configurable":
             raise ValidationError("This product is not configurable")
+        await self._not_quote_only(product.id)
         minimum = int(getattr(product, "moq", 1) or 1)
         if quantity < minimum:
             raise ValidationError(f"The minimum order for {product.name} is {minimum}.")
@@ -555,6 +558,9 @@ class CartService:
             if not variant:
                 invalid.append({"sku": sku, "quantity": qty, "status": "not_found"})
                 continue
+            if await self._is_quote_only(variant.product_id):
+                invalid.append({"sku": sku, "quantity": qty, "status": "quote_only"})
+                continue
 
             # The shop's one stock rule (inventory_service.sellable_stock): a
             # product that does not count its stock sells without a limit.
@@ -625,6 +631,17 @@ class CartService:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _is_quote_only(self, product_id: Any) -> bool:
+        """Sold by quote (products.quote_only): never a cart line."""
+        from app.models.product import Product
+
+        return bool((await self.db.execute(
+            select(Product.quote_only).where(Product.id == product_id))).scalar())
+
+    async def _not_quote_only(self, product_id: Any) -> None:
+        if await self._is_quote_only(product_id):
+            raise ValidationError("This product is sold by quote. Use Request a quote on its page.")
 
     async def _effective_price(
         self,

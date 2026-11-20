@@ -870,7 +870,11 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   );
   const priceBlock = (showFrom: boolean) => (
     <>
-      {showFrom && fromPrice && (
+      {/* Sold by quote: no price, a quote button in the buy area. */}
+      {product.quote_only && (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 600, color: "#1A1A1A", marginBottom: "16px" }}>Price on request</div>
+      )}
+      {showFrom && fromPrice && !product.quote_only && (
         <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px", fontWeight: 600, color: "#1A1A1A", marginBottom: "16px" }}>
           {(product.variants?.length ?? 0) > 1 ? <span style={{ fontSize: "13px", fontWeight: 500, color: "#6B6B6B", marginRight: "6px" }}>From</span> : null}
           {fromPrice}
@@ -888,7 +892,18 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             )}
     </>
   );
-  const buyBlock = (
+  const buyBlock = product.quote_only ? (
+    // Sold by quote: the shop's quote form, with this product named (dev fix list, item 14).
+    <div style={{ marginBottom: "24px" }} data-quote-only>
+      <Link href={`/quote?product=${encodeURIComponent(product.name)}`} data-request-quote
+        style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "15px", background: "var(--brand-primary, #1C3557)", color: "#fff", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700 }}>
+        Request a quote
+      </Link>
+      <p style={{ textAlign: "center", marginTop: "8px", fontSize: "12px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>
+        Tell us what you need and we send you a price.
+      </p>
+    </div>
+  ) : (
     <>
             {/* The t-shirt designer: the shop lets customers design this
                 product, so it leads the buy area, above the sizes table. */}

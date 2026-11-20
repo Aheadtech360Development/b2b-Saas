@@ -517,7 +517,14 @@ export function Canvas(props: CanvasProps) {
           <div key={epoch} style={{ minHeight: 480 }}>
             {parts.announcement && <div className="bsite" data-part="announcement"><div className="bsite-in"><Tree tree={parts.announcement} ctx={ctx} /></div></div>}
             {parts.header && <div className="bsite" data-part="header"><div className="bsite-in"><Tree tree={parts.header} ctx={ctx} /></div></div>}
-            <div className="bsite" data-route={ctx.route} style={{ minHeight: 360 }}>
+            <div className="bsite" data-route={ctx.route} data-editing-page={target.kind === "page" ? "" : undefined} style={{ minHeight: 360 }}>
+              {/* Working on a page inside its template: the page's own content
+                  is marked, so it no longer looks the same as the template
+                  around it (dev fix list, item 26). */}
+              {target.kind === "page" && (
+                <style>{`.sbe-frame [data-editing-page] .b-page{outline:2px dashed #3B82F6;outline-offset:4px;position:relative;min-height:48px}
+.sbe-frame [data-editing-page] .b-page::before{content:"This page's content";position:absolute;top:-22px;left:0;font:600 11px/1 system-ui,sans-serif;color:#1D4ED8;background:#EFF6FF;padding:3px 6px;border-radius:4px;z-index:2}`}</style>
+              )}
               <div className="bsite-in">
                 {body.tree ? <Tree tree={body.tree} ctx={ctx} /> : <div className="b-note" style={{ margin: 24 }}>This template is empty.</div>}
               </div>

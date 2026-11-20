@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
-import { ask } from "@/lib/dialog";
+import { ask, askText } from "@/lib/dialog";
 import { adminService } from "@/services/admin.service";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 
@@ -359,6 +359,14 @@ export default function CollectionEditorPage() {
                   ? <img src={form.image_url} alt="" style={{ width: "64px", height: "64px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--pc-line)" }} />
                   : <span className="pc-sub-line" style={{ margin: 0 }}>No picture.</span>}
                 <button type="button" className="pc-btn" disabled={!!busy} onClick={() => fileRef.current?.click()}>{busy === "image" ? "Uploading…" : form.image_url ? "Replace picture" : "Add a picture"}</button>
+                {/* Or a picture already online, by its address (dev fix list, item 19). */}
+                <button type="button" className="pc-btn" disabled={!!busy} data-collection-image-url onClick={async () => {
+                  const raw = await askText("The picture's web address", form.image_url.startsWith("https://") ? form.image_url : "", { ok: "Use picture", placeholder: "https://…" });
+                  const url = (raw ?? "").trim();
+                  if (!url) return;
+                  if (!/^https:\/\/\S+$/i.test(url)) { setFlash({ text: "Use the picture's full web address, starting with https://", bad: true }); return; }
+                  set({ image_url: url });
+                }}>From a web address</button>
                 {form.image_url && <button type="button" className="pc-btn" onClick={() => set({ image_url: "" })}>Remove</button>}
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
               </div>

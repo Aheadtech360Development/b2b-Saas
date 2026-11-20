@@ -42,10 +42,13 @@ class Facts:
     min_size_price: float | None = None
     tiers: int = 0
     min_tier_price: float | None = None
+    quote_only: bool = False
 
 
 def price_from(f: Facts) -> dict | None:
     """The least it sells from, and per what. None: no price set yet."""
+    if f.quote_only:
+        return None
     if f.kind == "stocked":
         return {"amount": f.min_variant_price, "per": "item"} if f.min_variant_price else None
     if f.kind == "made":
@@ -57,6 +60,8 @@ def price_from(f: Facts) -> dict | None:
 
 def stock(f: Facts) -> dict:
     """Stock is counted for stocked items only; the rest are made when ordered."""
+    if f.quote_only:
+        return {"label": "Quote only", "tone": ""}
     if f.kind != "stocked":
         return {"label": "Not tracked", "tone": ""}
     if f.variants == 0:
@@ -71,7 +76,7 @@ def attention(f: Facts) -> list[str]:
     out: list[str] = []
     if f.status == "draft":
         out.append("Draft")
-    if f.kind == "stocked":
+    if f.kind == "stocked" and not f.quote_only:
         if f.variants == 0:
             out.append("No variants")
         elif f.stock <= 0:
@@ -80,7 +85,8 @@ def attention(f: Facts) -> list[str]:
         out.append("No sheet sizes")
     if f.kind == "upload_by_size" and f.tiers == 0:
         out.append("No pricing")
-    if price_from(f) is None and not any(x in out for x in ("No variants", "No sheet sizes", "No pricing")):
+    if price_from(f) is None and not f.quote_only \
+            and not any(x in out for x in ("No variants", "No sheet sizes", "No pricing")):
         out.append("No price")
     if f.images == 0:
         out.append("No image")
@@ -209,6 +215,7 @@ async def load_catalog(db, *, q: str | None = None, kind: str | None = None) -> 
             base_price=_f(p.base_price), options=options.get(p.id, 0),
             sizes=len(own), min_size_price=min((x for x in own if x > 0), default=None),
             tiers=len(tiers), min_tier_price=min((_f(t["price_per_sqin"]) for t in tiers), default=None),
+            quote_only=bool(getattr(p, "quote_only", False)),
         )
         out.append(row(p, f, first.get(p.id)))
     return out

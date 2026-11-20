@@ -104,6 +104,8 @@ export interface ProductDetail {
   theme_page?: string | null;
   /** Printed from a file the buyer supplies, so the page offers an upload. */
   allow_design_upload?: boolean;
+  /** Sold by quote: no price and no cart, a "Request a quote" button (0081). */
+  quote_only?: boolean;
   gang_sheet_type?: "gang_sheet" | "upload_by_size" | "upload_own" | null;
   gang_sheet_config?: {
     printer_width?: number;

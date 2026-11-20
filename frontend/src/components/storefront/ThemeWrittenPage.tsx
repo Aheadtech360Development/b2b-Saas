@@ -10,7 +10,7 @@
  * footer. So they inherit the shop's type, spacing and colours without
  * anything being restyled here.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { trackLead } from "@/lib/tracking";
 
@@ -135,6 +135,12 @@ function fieldsFor(form: string) {
 
 function EnquiryForm({ page, builder }: { page: WrittenPage; builder?: boolean }) {
   const fields = fieldsFor(page.form);
+  // A product's "Request a quote" names it (?product=): the form starts with it.
+  const [named, setNamed] = useState("");
+  useEffect(() => {
+    try { setNamed(new URLSearchParams(window.location.search).get("product")?.slice(0, 200) ?? ""); } catch { /* none */ }
+  }, []);
+  const start = (name: string) => (name === "product" && named ? named : undefined);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +196,7 @@ function EnquiryForm({ page, builder }: { page: WrittenPage; builder?: boolean }
               <label className="b-form-label" htmlFor={`f-${f.name}`}>
                 {f.label}{f.required ? <span className="b-form-req" aria-hidden="true">*</span> : <span className="b-form-opt"> (optional)</span>}
               </label>
-              <input id={`f-${f.name}`} name={f.name} type={f.type} required={f.required} className="b-form-in" />
+              <input id={`f-${f.name}`} name={f.name} type={f.type} required={f.required} className="b-form-in" defaultValue={start(f.name)} key={`${f.name}-${named}`} />
             </div>
           ))}
           <div className="b-form-field">
@@ -217,7 +223,7 @@ function EnquiryForm({ page, builder }: { page: WrittenPage; builder?: boolean }
             <label style={LABEL} htmlFor={`f-${f.name}`}>
               {f.label}{f.required ? "" : <span style={{ fontWeight: 400, opacity: 0.6 }}> (optional)</span>}
             </label>
-            <input id={`f-${f.name}`} name={f.name} type={f.type} required={f.required} style={FIELD} />
+            <input id={`f-${f.name}`} name={f.name} type={f.type} required={f.required} style={FIELD} defaultValue={start(f.name)} key={`${f.name}-${named}`} />
           </div>
         ))}
       </div>

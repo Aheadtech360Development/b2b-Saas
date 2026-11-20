@@ -251,7 +251,11 @@ async def add_image_from_url(
     )
     position = count_result.scalar_one() or 0
 
-    url = str(payload.get("url", ""))
+    url = str(payload.get("url", "")).strip()
+    # A picture's own web address only: https, one line, a sensible length.
+    if not url.lower().startswith("https://") or len(url) > 1000 or any(c.isspace() for c in url):
+        from app.core.exceptions import ValidationError as _Invalid
+        raise _Invalid("Use the picture's full web address, starting with https://")
     image = ProductImage(
         product_id=product_id,
         url_thumbnail=url,

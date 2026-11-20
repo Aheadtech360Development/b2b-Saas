@@ -16,6 +16,7 @@
  * tree; an element whose data is not there (a deleted menu, a product taken
  * off sale) draws nothing on the storefront, and says why in the editor.
  */
+import { cardImage } from "@/lib/cardImage";
 import type { CSSProperties, ReactNode } from "react";
 import { isLightColor, knownColor, normalizeHex, resolveColor } from "@/lib/colors";
 import {
@@ -157,7 +158,7 @@ function ProductCards({ id, cards, ctx, empty }: { id: string; cards: ProductCar
       {cards.map((c, i) => (
         <a key={`${c.url}-${i}`} className="b-card" href={safeHref(c.url) || "#"}>
           <div className="b-card-img">
-            {safeSrc(c.image) && <img src={c.image} alt={c.title} loading="lazy" />}
+            {safeSrc(c.image) && <img {...cardImage(c.image)} alt={c.title} loading="lazy" decoding="async" />}
             {c.badge && <span className="b-badge">{c.badge}</span>}
           </div>
           <div className="b-card-title">{c.title}</div>
@@ -215,7 +216,7 @@ function CollectionCards({ id, cards, ctx }: { id: string; cards: CollectionCard
     <div data-b={id || undefined} className="b-grid">
       {cards.map((c, i) => (
         <a key={`${c.url}-${i}`} className="b-card b-ccard" href={safeHref(c.url) || "#"}>
-          <div className="b-card-img">{safeSrc(c.image) && <img src={c.image} alt={c.title} loading="lazy" />}</div>
+          <div className="b-card-img">{safeSrc(c.image) && <img {...cardImage(c.image)} alt={c.title} loading="lazy" decoding="async" />}</div>
           <div className="b-card-title">{c.title}</div>
           {c.count && <div className="b-card-meta">{c.count}</div>}
         </a>
@@ -227,6 +228,8 @@ function CollectionCards({ id, cards, ctx }: { id: string; cards: CollectionCard
 interface BuyProduct {
   id: string; slug: string; name: string; from_price: number | null; pricing_mode: string; gang_sheet: boolean;
   design_upload?: boolean; gang_sheet_type?: string;
+  /** Sold by quote: a "Request a quote" button, no price and no cart. */
+  quote_only?: boolean;
   images: { url: string; alt: string; thumb?: string }[];
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
@@ -247,7 +250,21 @@ interface BuyProduct {
  * and prices. (Its name, and the marks', are from the imported themes it was
  * first written for.)
  */
+/** Where a buyer asks for a price: the shop's quote form, with the product named. */
+export function quoteHref(product: { name: string }): string {
+  return `/quote?product=${encodeURIComponent(product.name)}`;
+}
+
 function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct }) {
+  // Sold by quote: one button to the shop's quote form (dev fix list, item 14).
+  if (product.quote_only) {
+    return (
+      <div data-b={id} className="b-buy" data-quote-only="">
+        <a className="b-btn b-btn-solid" href={quoteHref(product)} data-request-quote>Request a quote</a>
+        <p className="b-note-text" style={{ margin: "10px 0 0" }}>Tell us what you need and we send you a price.</p>
+      </div>
+    );
+  }
   // A product sold by the case: colour cards and a quantity for every size,
   // all added at once (BulkOrderPicker), in place of the controls below.
   if (product.bulk && product.variants?.length) {
@@ -625,6 +642,8 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     case "product_price":
       if (!product) return note(ctx, id, "The product's price shows here.");
       // On the bulk order form every size has its own price, shown in its grid: the line here is where they start.
+      // Sold by quote: no price, not "$0.00" (dev fix list, item 14).
+      if ((product as { quote_only?: boolean }).quote_only) return <div data-b={id} className="b-price" data-quote-only="">Price on request</div>;
       return <div data-b={id} className="b-price" data-theme-price="1">{product.bulk && product.from_price != null && <span className="from">From </span>}{money(product.from_price)}</div>;
     case "product_description": {
       if (!product) return note(ctx, id, "The product's description shows here.");

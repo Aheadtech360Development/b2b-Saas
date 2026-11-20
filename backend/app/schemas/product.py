@@ -171,6 +171,8 @@ class ProductDetail(BaseModel):
     # colour cards showing "pictures" or "swatches".
     bulk_order: bool = False
     bulk_cards: str = "pictures"
+    # Sold by quote: no price, a "Request a quote" button (migration 0081).
+    quote_only: bool = False
     base_price: float | None = None
     # Which product template this product uses (None → the brand's default),
     # and the data its templates can print.
@@ -274,6 +276,8 @@ class ProductUpdate(BaseModel):
     # Sell it on the bulk order form, and what its colour cards show.
     bulk_order: bool | None = None
     bulk_cards: Literal["pictures", "swatches"] | None = None
+    # Sold by quote, with no price on the store.
+    quote_only: bool | None = None
 
 
 class ImageUploadResponse(BaseModel):

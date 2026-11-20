@@ -501,7 +501,7 @@ class ProductService:
 
         update_data = data.model_dump(exclude_unset=True, exclude={"category_ids"})
         # Neither can be empty: a null sent for one leaves it as it is.
-        for field in ("bulk_order", "bulk_cards"):
+        for field in ("bulk_order", "bulk_cards", "quote_only"):
             if field in update_data and update_data[field] is None:
                 update_data.pop(field)
         for field, value in update_data.items():
@@ -722,7 +722,7 @@ def _product_to_dict(product: Product) -> dict:
         "metafields": getattr(product, "metafields", None) or {},
         "theme_page": getattr(product, "theme_page", None),
         "allow_design_upload": bool(getattr(product, "allow_design_upload", False)),
-        "allow_design_upload": bool(getattr(product, "allow_design_upload", False)),
+        "quote_only": bool(getattr(product, "quote_only", False)),
     }
 
 
