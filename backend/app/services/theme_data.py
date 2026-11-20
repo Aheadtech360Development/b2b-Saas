@@ -36,7 +36,19 @@ def _money(value: Decimal | float | None) -> str:
     return f"${float(value):,.2f}"
 
 
-def _product_card(product: Product, sheet_from: float | None = None) -> dict[str, Any]:
+def made_to_order(product: Any) -> bool:
+    """Priced from its base price and the buyer's choices (Pricing and options),
+    not from variants. Any variants it kept from before (a CSV import, the
+    product's life as a stocked item) are not what it sells at."""
+    return (getattr(product, "pricing_mode", None) or "variant") == "configurable" \
+        and getattr(product, "base_price", None) is not None
+
+
+def selling_prices(product: Any, sheet_from: float | None = None) -> list[float]:
+    """What the product sells from: a made-to-order product its base price;
+    a stocked one its active variants; a gang sheet its cheapest sheet."""
+    if made_to_order(product):
+        return [float(product.base_price)]
     prices = [
         float(v.retail_price)
         for v in (product.variants or [])
@@ -46,18 +58,39 @@ def _product_card(product: Product, sheet_from: float | None = None) -> dict[str
         prices = [float(product.base_price)]
     if not prices and sheet_from:
         prices = [sheet_from]  # a gang sheet is priced by its cheapest sheet
+    return prices
+
+
+def on_sale(product: Any) -> bool:
+    """A variant the shop sells below its own compare-at price. A compare-at
+    that is only the supplier's suggested retail price (the same as the
+    variant's MSRP, as a supplier import fills both) is not a sale: the
+    product page shows no "was" price for it, and every supplier product
+    read "Sale" on the grids (dev fix list, item 12)."""
+    if made_to_order(product):
+        return False
+    for v in product.variants or []:
+        if v.status != "active" or v.retail_price is None or not v.compare_price:
+            continue
+        compare, price = float(v.compare_price), float(v.retail_price)
+        msrp = getattr(v, "msrp", None)
+        if compare > price and (msrp is None or abs(float(msrp) - compare) >= 0.005):
+            return True
+    return False
+
+
+def _product_card(product: Product, sheet_from: float | None = None) -> dict[str, Any]:
+    prices = selling_prices(product, sheet_from)
     image = None
     images = sorted(product.images or [], key=lambda i: (not getattr(i, "is_primary", False),))
     if images:
         image = getattr(images[0], "url_medium", None) or getattr(images[0], "url_large", None)
-    compare = [float(v.compare_price) for v in (product.variants or []) if v.compare_price]
-    on_sale = bool(compare and prices and min(compare) > min(prices))
     return {
         "title": product.name,
         "url": f"/products/{product.slug}",
         "image": image or "",
         "price": f"From {_money(min(prices))}" if prices else "",
-        "badge": "Sale" if on_sale else "",
+        "badge": "Sale" if on_sale(product) else "",
         "text": product.short_description or "",
     }
 

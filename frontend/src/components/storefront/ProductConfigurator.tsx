@@ -31,7 +31,7 @@ interface Opt {
   help_text?: string | null; values: OptValue[];
 }
 interface Config {
-  pricing_mode: string; base_price: number | null;
+  pricing_mode: string; base_price: number | null; moq?: number;
   options: Opt[]; qty_tiers: { min_qty: number; unit_price: number }[];
   rules?: OptionRule[];
   default_selections: Record<string, string>;
@@ -57,6 +57,19 @@ function chosenQuantity(cfg: Config | null, sel: Record<string, string | string[
   return m ? Number(m[1]!.replace(/,/g, "")) : null;
 }
 
+/** The quantities offered: each price break at or above the minimum order,
+ *  and the minimum itself when it falls between breaks. */
+function choicesOfQty(cfg: Config): { min_qty: number; unit_price: number }[] {
+  const least = Math.max(1, cfg.moq ?? 1);
+  const out = cfg.qty_tiers.filter((t) => t.min_qty >= least);
+  if (least > 1 && !out.some((t) => t.min_qty === least)) {
+    const below = cfg.qty_tiers.filter((t) => t.min_qty <= least).pop();
+    const unit = below ? below.unit_price : (cfg.base_price ?? 0);
+    out.unshift({ min_qty: least, unit_price: unit });
+  }
+  return out;
+}
+
 export function ProductConfigurator({ productId, productName }: { productId: string; productName: string }) {
   const { isAuthenticated } = useAuthStore();
   const [cfg, setCfg] = useState<Config | null>(null);
@@ -77,8 +90,9 @@ export function ProductConfigurator({ productId, productName }: { productId: str
         const kept = readDraft<{ sel?: Record<string, string | string[]>; qty?: number }>(draftKey);
         setSel(kept?.sel ?? c.default_selections ?? {});
         const firstTier = c.qty_tiers?.[0]?.min_qty;
-        if (kept?.qty) setQty(kept.qty);
-        else if (firstTier) setQty(firstTier);
+        const least = Math.max(1, c.moq ?? 1);
+        if (kept?.qty) setQty(Math.max(least, kept.qty));
+        else setQty(Math.max(least, firstTier ?? 1));
       })
       .catch(() => setError("Could not load this product's options."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -310,12 +324,12 @@ export function ProductConfigurator({ productId, productName }: { productId: str
             <label style={LABEL}>Quantity</label>
             {cfg.qty_tiers.length > 0 ? (
               <select value={qty} onChange={(e) => setQty(Number(e.target.value))} style={SELECT}>
-                {cfg.qty_tiers.map((t) => (
+                {choicesOfQty(cfg).map((t) => (
                   <option key={t.min_qty} value={t.min_qty}>{t.min_qty.toLocaleString()} — ${t.unit_price.toFixed(2)} ea</option>
                 ))}
               </select>
             ) : (
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={SELECT} />
+              <input type="number" min={cfg.moq ?? 1} value={qty} onChange={(e) => setQty(Math.max(cfg.moq ?? 1, Number(e.target.value) || 1))} style={SELECT} />
             )}
           </div>
         )}

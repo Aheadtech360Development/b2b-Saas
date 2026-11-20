@@ -248,7 +248,7 @@ const CSS = `
   .ck-offer{grid-template-columns:56px minmax(0,1fr);gap:12px}
   .ck-offer > :last-child{grid-column:1/-1;width:100%}
   .ck-offer .ck-pic{width:56px;height:56px}
-  .ck-sum .ck-checkout{display:none}
+  .ck:not(.ck-in) .ck-sum .ck-checkout{display:none}
   .ck-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;gap:14px;align-items:center;justify-content:space-between;background:#fff;border-top:1px solid var(--ui-line,#E3E6EA);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
   .ck-sticky .ck-btn{width:auto;flex:1;max-width:260px}
   .ck-sticky small{display:block;font-size:13px;color:var(--ui-muted,#5A6472)}
@@ -528,7 +528,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
   const checkoutLabel = isGuest ? "Create an account to check out" : look.checkoutText;
 
   return (
-    <div className={`ck${embedded ? "" : " ui-page"}`} style={{ ...vars, ...(embedded ? {} : { padding: "36px 0 72px" }) }}>
+    <div className={`ck${embedded ? " ck-in" : " ui-page"}`} style={{ ...vars, ...(embedded ? {} : { padding: "36px 0 72px" }) }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className={embedded ? undefined : "ui-wrap"}>
         {!embedded && (

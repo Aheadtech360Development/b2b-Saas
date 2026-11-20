@@ -129,6 +129,7 @@ function ProductEditor() {
   const setTab = (key: TabKey) => router.replace(`${pathname}?tab=${key}`, { scroll: false });
   // What the server last sent for the fields the Save bar saves.
   const [snapshot, setSnapshot] = useState("");
+  const [uploadSaving, setUploadSaving] = useState(false);
   const dirtyRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Import on this product: a products file, this product's rows only.
@@ -513,6 +514,38 @@ function ProductEditor() {
       setSaveMsg(e instanceof Error && e.message ? `Not saved — ${e.message}` : "Not saved — please try again.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  /**
+   * The upload switch saves the moment it is pressed, on its own. Kept for
+   * the page's Save it was lost when another part of the page (the pricing
+   * and options Save) read the product again, and a later Save then wrote
+   * the old value back (dev fix list, item 4).
+   */
+  async function saveAllowUpload(next: boolean) {
+    await saveAtOnce({ allow_design_upload: next });
+  }
+
+  /** Save these few fields now, on their own (the switches that say "Saved at
+   *  once"): the Wholesale bulk switch and its cards, and the upload switch
+   *  (dev fix list, items 4 and 22). */
+  async function saveAtOnce(fields: Partial<Record<"allow_design_upload" | "bulk_order" | "bulk_cards", unknown>>) {
+    if (!product) return;
+    const before = Object.fromEntries(Object.keys(fields).map((k) => [k, (product as unknown as Record<string, unknown>)[k]]));
+    setUploadSaving(true);
+    setProduct(p => p ? { ...p, ...fields } as ProductDetail : p);
+    try {
+      await adminService.updateProduct(product.id, fields);
+      // What the server holds now: the Save bar does not count it as a change.
+      setSnapshot(prev => {
+        try { const o = JSON.parse(prev); Object.assign(o, fields); return JSON.stringify(o); } catch { return prev; }
+      });
+    } catch (e) {
+      setProduct(p => p ? { ...p, ...before } as ProductDetail : p);
+      await tell(e instanceof Error && e.message ? `Not saved: ${e.message}` : "Not saved. Please try again.");
+    } finally {
+      setUploadSaving(false);
     }
   }
 
@@ -1594,10 +1627,10 @@ function ProductEditor() {
                 <div className="pc-switch-row" style={{ marginTop: "16px" }}>
                   <span>
                     {BULK_CHOICE.title}
-                    <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>The product page becomes the bulk order form: buyers pick up to 10 colours and type a quantity for every size.</span>
+                    <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>The product page becomes the bulk order form: buyers pick up to 10 colours and type a quantity for every size. Saved at once.</span>
                   </span>
                   <button type="button" role="switch" aria-checked={bulkOn} aria-label={BULK_CHOICE.title} className="pc-switch"
-                    onClick={() => setProduct(p => p ? { ...p, bulk_order: !bulkOn } : p)} data-on={bulkOn ? "" : undefined} />
+                    disabled={uploadSaving} onClick={() => void saveAtOnce({ bulk_order: !bulkOn })} data-on={bulkOn ? "" : undefined} />
                 </div>
                 {bulkOn && (
                   <div role="radiogroup" aria-label="Colour cards show" style={{ marginTop: "10px", display: "grid", gap: "6px" }}>
@@ -1605,7 +1638,7 @@ function ProductEditor() {
                     {BULK_CARDS.map((c) => (
                       <label key={c.value} style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13.5px", cursor: "pointer" }}>
                         <input type="radio" name="bulk-cards" value={c.value} checked={cards === c.value} style={{ marginTop: "3px" }}
-                          onChange={() => setProduct(p => p ? { ...p, bulk_cards: c.value } : p)} />
+                          onChange={() => void saveAtOnce({ bulk_cards: c.value })} />
                         <span>{c.title}<span className="pc-sub-line" style={{ display: "block", fontSize: "12px", margin: 0 }}>{c.value === "pictures" ? <>From each picture&apos;s Color on the <button type="button" className="pc-link" style={{ fontSize: "inherit" }} onClick={() => setTab("media")}>Media</button> tab. A colour without one shows its swatch.</> : c.blurb}</span></span>
                       </label>
                     ))}
@@ -1617,10 +1650,10 @@ function ProductEditor() {
               <div className="pc-switch-row" style={{ marginTop: "16px" }}>
                 <span>
                   Buyers can upload their own design
-                  <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>Adds an Upload Artwork &amp; Order button to the product page.</span>
+                  <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>Adds an Upload Artwork &amp; Order button to the product page. Saved at once.</span>
                 </span>
                 <button type="button" role="switch" aria-checked={allowUpload} aria-label="Buyers can upload their own design" className="pc-switch"
-                  onClick={() => setProduct(p => p ? { ...p, allow_design_upload: !allowUpload } as any : p)} data-on={allowUpload ? "" : undefined} />
+                  disabled={uploadSaving} onClick={() => void saveAllowUpload(!allowUpload)} data-on={allowUpload ? "" : undefined} />
               </div>
             )}
           </section>

@@ -16,6 +16,7 @@ import { Search, X } from "lucide-react";
 import { ask, tell } from "@/lib/dialog";
 import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
+import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
 import { DuplicateProductModal } from "@/components/admin/products/DuplicateProductModal";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
@@ -75,6 +76,11 @@ function ProductsList() {
   // Duplicate, on one product ticked: the copy opens once it is made.
   const [duplicating, setDuplicating] = useState<Row | null>(null);
   const [editing, setEditing] = useState<Record<string, { status: string; vendor: string; product_type: string }> | null>(null);
+  // For every product picked at once: its page template and the Wholesale
+  // bulk form. "" leaves each as it is (dev fix list, item 21).
+  const [allTemplate, setAllTemplate] = useState("");
+  const [allBulk, setAllBulk] = useState<"" | "on" | "off">("");
+  const [templates, setTemplates] = useState<ProductTemplateRow[]>([]);
   const seq = useRef(0);
 
   const setParams = useCallback((next: Record<string, string | null>) => {
@@ -170,6 +176,9 @@ function ProductsList() {
 
   function openEdit() {
     setEditing(Object.fromEntries(chosen.map((r) => [r.id, { status: r.status, vendor: "", product_type: "" }])));
+    setAllTemplate("");
+    setAllBulk("");
+    productTemplatesService.list().then(setTemplates).catch(() => setTemplates([]));
     // Vendor and type are not on the list: read them for the rows picked.
     void Promise.all(chosen.map((r) => adminService.getProduct(r.slug).then((p) => [r.id, p] as const).catch(() => null)))
       .then((found) => setEditing((cur) => {
@@ -184,7 +193,14 @@ function ProductsList() {
     if (!editing) return;
     setWorking("Saving…");
     try {
-      await Promise.all(Object.entries(editing).map(([id, v]) => adminService.updateProduct(id, { status: v.status, vendor: v.vendor || null, product_type: v.product_type || null })));
+      const together: Record<string, unknown> = {};
+      if (allTemplate) together.template_id = allTemplate === "default" ? null : allTemplate;
+      const stockedIds = new Set(chosen.filter((r) => r.kind === "stocked").map((r) => r.id));
+      await Promise.all(Object.entries(editing).map(([id, v]) => adminService.updateProduct(id, {
+        status: v.status, vendor: v.vendor || null, product_type: v.product_type || null, ...together,
+        // The bulk form is for stocked colour × size products only.
+        ...(allBulk && stockedIds.has(id) ? { bulk_order: allBulk === "on" } : {}),
+      })));
       setFlash({ text: "Saved." });
       setEditing(null);
       setPicked(new Set());
@@ -392,6 +408,25 @@ function ProductsList() {
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="pc-form2" style={{ padding: "16px 20px 0" }} data-bulk-all>
+              <label className="pc-formfield">
+                <span className="pc-label">Page template, for all of them</span>
+                <select className="pc-input" value={allTemplate} onChange={(e) => setAllTemplate(e.target.value)}>
+                  <option value="">Leave as it is</option>
+                  <option value="default">Default product page</option>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </label>
+              <label className="pc-formfield">
+                <span className="pc-label">Wholesale bulk, for all of them</span>
+                <select className="pc-input" value={allBulk} onChange={(e) => setAllBulk(e.target.value as "" | "on" | "off")}>
+                  <option value="">Leave as it is</option>
+                  <option value="on">On: the bulk order form</option>
+                  <option value="off">Off: the usual buy box</option>
+                </select>
+                <span className="pc-sub-line" style={{ fontSize: "12px" }}>Products sold by colour and size only.</span>
+              </label>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", padding: "16px 20px" }}>
               <button type="button" className="pc-btn" onClick={() => setEditing(null)} disabled={!!working}>Cancel</button>

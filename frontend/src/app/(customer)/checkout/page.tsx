@@ -46,6 +46,22 @@ interface SavedAddress {
   city: string; state: string; postal_code: string; country: string; phone: string | null; is_default: boolean;
 }
 interface Coupon { code: string; discount_type: string; discount_amount: number }
+/** /account/profile/full, the parts the checkout reads. */
+interface AccountProfile {
+  web_user?: { first_name?: string | null; last_name?: string | null; email?: string | null };
+  company?: {
+    name?: string | null; phone?: string | null; address_line1?: string | null; address_line2?: string | null;
+    city?: string | null; state_province?: string | null; postal_code?: string | null;
+  } | null;
+}
+
+/** A state as the form's list has it: "TX", or "Texas" read as "TX". */
+function stateCode(raw: string | null | undefined): string {
+  const v = (raw ?? "").trim();
+  if (!v) return "";
+  if (US_STATES.includes(v.toUpperCase())) return v.toUpperCase();
+  return STATE_NAMES[v.toLowerCase()] ?? "";
+}
 
 const US_STATES = [
   "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
@@ -53,6 +69,18 @@ const US_STATES = [
   "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
   "VA", "WA", "WV", "WI", "WY",
 ];
+const STATE_NAMES: Record<string, string> = Object.fromEntries(([
+  ["alabama", "AL"], ["alaska", "AK"], ["arizona", "AZ"], ["arkansas", "AR"], ["california", "CA"], ["colorado", "CO"],
+  ["connecticut", "CT"], ["delaware", "DE"], ["florida", "FL"], ["georgia", "GA"], ["hawaii", "HI"], ["idaho", "ID"],
+  ["illinois", "IL"], ["indiana", "IN"], ["iowa", "IA"], ["kansas", "KS"], ["kentucky", "KY"], ["louisiana", "LA"],
+  ["maine", "ME"], ["maryland", "MD"], ["massachusetts", "MA"], ["michigan", "MI"], ["minnesota", "MN"],
+  ["mississippi", "MS"], ["missouri", "MO"], ["montana", "MT"], ["nebraska", "NE"], ["nevada", "NV"],
+  ["new hampshire", "NH"], ["new jersey", "NJ"], ["new mexico", "NM"], ["new york", "NY"], ["north carolina", "NC"],
+  ["north dakota", "ND"], ["ohio", "OH"], ["oklahoma", "OK"], ["oregon", "OR"], ["pennsylvania", "PA"],
+  ["rhode island", "RI"], ["south carolina", "SC"], ["south dakota", "SD"], ["tennessee", "TN"], ["texas", "TX"],
+  ["utah", "UT"], ["vermont", "VT"], ["virginia", "VA"], ["washington", "WA"], ["west virginia", "WV"],
+  ["wisconsin", "WI"], ["wyoming", "WY"],
+] as const).map(([n, c]) => [n, c]));
 
 const PAY_LABELS: Record<string, string> = { card: "card", cod: "cod", net_30: "net_30" };
 
@@ -245,6 +273,7 @@ export default function CheckoutPage() {
     setForm((f) => ({ ...f, street: a.street || f.street, city: a.city || f.city, state: a.state || f.state, zip: a.zipCode || f.zip }));
   }, []);
   const streetRef = useAddressAutocomplete(onAutofill);
+  const [accountEmail, setAccountEmail] = useState("");
 
   // ── Loading what the page needs ────────────────────────────────────────────
   useEffect(() => {
@@ -268,6 +297,24 @@ export default function CheckoutPage() {
         setUseNew(false);
       } else setUseNew(true);
     }).catch(() => setUseNew(true));
+    // The account's email, and the details its owner gave when it was made,
+    // for a buyer with no saved address yet (dev fix list, item 9).
+    apiClient.get<AccountProfile>("/api/v1/account/profile/full").then((pr) => {
+      setAccountEmail(pr.web_user?.email ?? "");
+      const c = pr.company;
+      setForm((f) => ({
+        ...f,
+        first: f.first || pr.web_user?.first_name || "",
+        last: f.last || pr.web_user?.last_name || "",
+        company: f.company || c?.name || "",
+        street: f.street || c?.address_line1 || "",
+        line2: f.line2 || c?.address_line2 || "",
+        city: f.city || c?.city || "",
+        state: f.state || stateCode(c?.state_province),
+        zip: f.zip || c?.postal_code || "",
+        phone: f.phone || c?.phone || "",
+      }));
+    }).catch(() => { /* typed in by hand, as before */ });
     apiClient.get<{ shipping_type: string }>("/api/v1/shipping/shipping-type")
       .then((r) => setShippingTypeState(r.shipping_type || "store_default"))
       .catch(() => setShippingTypeState("store_default"));
@@ -680,7 +727,7 @@ export default function CheckoutPage() {
             <section className="co-card" aria-labelledby="co-contact-h">
               <h2 className="co-h" id="co-contact-h"><span className="co-n">1</span>Contact</h2>
               <Field label="Email">
-                <input value={user?.email ?? ""} readOnly aria-readonly="true" />
+                <input value={user?.email || accountEmail} readOnly aria-readonly="true" />
               </Field>
               <p className="co-small">Your order confirmation and updates go to this address.</p>
             </section>
@@ -768,6 +815,14 @@ export default function CheckoutPage() {
                   {payOptions.includes("card") && <Option checked={paymentMethod === "card"} onPick={() => setPaymentMethod("card")} title="Credit or debit card" disabled={placing} />}
                   {payOptions.includes("cod") && <Option checked={paymentMethod === "cod"} onPick={() => setPaymentMethod("cod")} title="Cash on delivery" hint={`Pay ${formatCurrency(total)} in cash when your order arrives.`} disabled={placing} />}
                   {payOptions.includes("net_30") && <Option checked={paymentMethod === "net_30"} onPick={() => setPaymentMethod("net_30")} title="Pay on invoice (Net 30)" hint="For your approved trade account. We send the invoice; it is due in 30 days." disabled={placing} />}
+                </div>
+              )}
+
+              {!paidIntentId && payOptions.length === 1 && payOptions[0] !== "card" && (
+                <div className="co-stack" style={{ marginBottom: "14px" }} data-only-way>
+                  {payOptions[0] === "net_30"
+                    ? <Option checked onPick={() => {}} title="Pay by invoice (Net 30)" hint="For your approved trade account. We send the invoice; it is due in 30 days." disabled={placing} />
+                    : <Option checked onPick={() => {}} title="Cash on delivery" hint={`Pay ${formatCurrency(total)} in cash when your order arrives.`} disabled={placing} />}
                 </div>
               )}
 

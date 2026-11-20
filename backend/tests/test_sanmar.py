@@ -206,7 +206,8 @@ def test_a_sanmar_row_becomes_a_variant_by_the_brand_s_rules(files):
     assert values["cost_per_item"] == 4.12 and values["msrp"] == 6.24
     assert values["weight_grams"] == 149.69
     product = mapping.apply(mapping.DEFAULT_FIELDS, style, row, level="product", price_fn=lambda c: c)
-    assert product["name"] == "Jerzees 29M" and product["vendor"] == "Jerzees"
+    # Brand, style number and the style's title (dev fix list, item 24).
+    assert product["name"] == "Jerzees 29M Dri-Power 50/50 Cotton/Poly T-Shirt" and product["vendor"] == "Jerzees"
     assert product["short_description"] == "Dri-Power 50/50 Cotton/Poly T-Shirt"
 
 

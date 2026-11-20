@@ -329,6 +329,9 @@ class CartService:
             raise NotFoundError("Product not found")
         if (getattr(product, "pricing_mode", "variant") or "variant") != "configurable":
             raise ValidationError("This product is not configurable")
+        minimum = int(getattr(product, "moq", 1) or 1)
+        if quantity < minimum:
+            raise ValidationError(f"The minimum order for {product.name} is {minimum}.")
 
         try:
             priced = await price_configuration(self.db, product_id, selections, quantity)
@@ -629,38 +632,9 @@ class CartService:
         discount_percent: Decimal,
         group_id: str | None,
     ) -> Decimal:
-        """Return price: VariantLevelPricingOverride > product-level VariantPricingOverride > tier discount."""
-        from decimal import ROUND_HALF_UP
-        if group_id:
-            from app.models.discount_group import VariantLevelPricingOverride, VariantPricingOverride
-
-            # Step 1: per-variant override (highest priority)
-            vlp_result = await self.db.execute(
-                select(VariantLevelPricingOverride).where(
-                    VariantLevelPricingOverride.variant_id == str(variant.id),
-                    VariantLevelPricingOverride.group_id == group_id,
-                )
-            )
-            vlp = vlp_result.scalar_one_or_none()
-            if vlp and vlp.price is not None:
-                return Decimal(str(vlp.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            # Step 2: product-level override (tier_id stores group_id per existing convention)
-            ov_result = await self.db.execute(
-                select(VariantPricingOverride).where(
-                    VariantPricingOverride.product_id == str(variant.product_id),
-                    VariantPricingOverride.tier_id == group_id,
-                )
-            )
-            ov = ov_result.scalar_one_or_none()
-            if ov is not None and ov.price is not None:
-                return Decimal(str(ov.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if ov is not None and ov.discount_percent is not None:
-                multiplier = Decimal("1") - (Decimal(str(ov.discount_percent)) / Decimal("100"))
-                return (variant.retail_price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-        from app.services.pricing_service import PricingService
-        return PricingService(self.db).calculate_effective_price(variant.retail_price, discount_percent)
+        """The buyer's price: services/group_pricing (one rule for cart, order and product pages)."""
+        from app.services.group_pricing import unit_price
+        return await unit_price(self.db, variant, discount_percent, group_id)
 
     async def _load_cart_items(
         self,
@@ -688,6 +662,7 @@ class CartService:
                 unit_price = Decimal(str(item.unit_price or 0))
                 fees = Decimal(str(cfg.get("setup_fees") or 0))
                 product_name, product_slug, product_image = "Configured item", "", None
+                line_moq = 0
                 if item.product_id:
                     prod = (await self.db.execute(
                         select(Product).where(Product.id == item.product_id)
@@ -695,6 +670,9 @@ class CartService:
                     if prod:
                         product_name = getattr(item, "label", None) or prod.name
                         product_slug = prod.slug or ""
+                        # Fewer than its minimum (a cart from before the
+                        # minimum was set) is held at checkout like any line.
+                        line_moq = int(getattr(prod, "moq", 1) or 1)
                         img = (await self.db.execute(
                             select(ProductImage)
                             .where(ProductImage.product_id == prod.id)
@@ -722,8 +700,8 @@ class CartService:
                         retail_price=unit_price,
                         unit_price=unit_price,
                         line_total=unit_price * item.quantity + fees,
-                        moq=0,
-                        moq_satisfied=True,
+                        moq=line_moq if line_moq > 1 else 0,
+                        moq_satisfied=item.quantity >= line_moq,
                         stock_quantity=item.quantity,
                         item_type="configured",
                         setup_fees=fees,

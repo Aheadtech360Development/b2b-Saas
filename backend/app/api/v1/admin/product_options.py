@@ -99,6 +99,8 @@ class RuleIn(BaseModel):
 class ConfigIn(BaseModel):
     pricing_mode: str = "variant"          # 'variant' | 'configurable'
     base_price: Optional[Decimal] = None
+    # The fewest a buyer may order (products.moq). None leaves it as it is.
+    moq: Optional[int] = Field(None, ge=1, le=1_000_000)
     options: list[OptionIn] = Field(default_factory=list)
     qty_tiers: list[TierIn] = Field(default_factory=list)
     rules: list[RuleIn] = Field(default_factory=list)
@@ -225,6 +227,7 @@ async def get_product_config(
         "product_id": str(product.id),
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
         "base_price": float(product.base_price) if product.base_price is not None else None,
+        "moq": int(getattr(product, "moq", 1) or 1),
         "options": [_option_row(o) for o in sorted(product.options or [], key=lambda x: x.position)],
         "qty_tiers": [
             {"id": str(t.id), "min_qty": int(t.min_qty), "unit_price": float(t.unit_price)}
@@ -262,6 +265,8 @@ async def save_product_config(
     product = await _load_product(db, product_id)
     product.pricing_mode = payload.pricing_mode
     product.base_price = payload.base_price
+    if payload.moq is not None:
+        product.moq = payload.moq
 
     # ── Options (and their values) ────────────────────────────────────────────
     existing_opts = {str(o.id): o for o in (product.options or [])}

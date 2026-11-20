@@ -28,6 +28,8 @@ interface DiscountGroup {
   applies_to_ids: string[];
   min_req_type: "none" | "amount" | "quantity";
   min_req_value: number;
+  /** The group's own percent off the list price (null: none). */
+  discount_percent: number | null;
   shipping_type: "store_default" | "flat_rate" | "live_shippo";
   shipping_amount: number;
   shipping_calc_type: "units" | "order_value";
@@ -62,6 +64,7 @@ const EMPTY_GROUP_FORM: Omit<DiscountGroup, "id" | "created_at" | "applies_to_id
   applies_to: "store",
   min_req_type: "none",
   min_req_value: 0,
+  discount_percent: null,
   shipping_type: "store_default" as "store_default" | "flat_rate" | "live_shippo",
   shipping_amount: 0,
   status: "enabled",
@@ -387,6 +390,7 @@ function DiscountGroupsPage() {
       applies_to: g.applies_to,
       min_req_type: g.min_req_type,
       min_req_value: g.min_req_value,
+      discount_percent: g.discount_percent ?? null,
       shipping_type: ((g.shipping_type as string) === "custom_brackets" ? "flat_rate" : g.shipping_type) as "store_default" | "flat_rate" | "live_shippo",
       shipping_amount: g.shipping_amount,
       status: g.status,
@@ -448,6 +452,8 @@ function DiscountGroupsPage() {
 
   async function handleSaveGroup() {
     if (!groupForm.title.trim()) { showToast("Title is required", false); return; }
+    const pct = groupForm.discount_percent;
+    if (pct != null && (Number.isNaN(pct) || pct < 0 || pct > 100)) { showToast("Discount is a percent from 0 to 100", false); return; }
     setSavingGroup(true);
     try {
       const payload = {
@@ -613,7 +619,7 @@ function DiscountGroupsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
                   <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-                    {["Title", "Customer Tag", "Applies To", "Min Requirement", "Shipping", "Status", ""].map(h => (
+                    {["Title", "Discount", "Customer Tag", "Applies To", "Min Requirement", "Shipping", "Status", ""].map(h => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                     ))}
                   </tr>
@@ -622,6 +628,9 @@ function DiscountGroupsPage() {
                   {filteredGroups.map((g, i) => (
                     <tr key={g.id} style={{ borderBottom: i < filteredGroups.length - 1 ? "1px solid #F0EDE8" : "none" }}>
                       <td style={{ padding: "13px 16px", fontWeight: 700, color: "#2A2830" }}>{g.title}</td>
+                      <td style={{ padding: "13px 16px", color: g.discount_percent ? "#059669" : "#7A7880", fontWeight: 600 }}>
+                        {g.discount_percent ? `${g.discount_percent}% off` : "List price"}
+                      </td>
                       <td style={{ padding: "13px 16px" }}>
                         <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 600 }}>{g.customer_tag || "—"}</span>
                       </td>
@@ -662,7 +671,7 @@ function DiscountGroupsPage() {
         <div>
           <div style={{ display: "flex", gap: "10px", marginBottom: "16px", alignItems: "center" }}>
             <input value={vpSearch} onChange={e => setVpSearch(e.target.value)} placeholder="Search products…" style={{ ...inputStyle, maxWidth: "320px" }} />
-            <span style={{ fontSize: "12px", color: "#7A7880" }}>Set per-group prices or discounts; leave blank to use group default</span>
+            <span style={{ fontSize: "12px", color: "#7A7880" }}>Product row: an amount off each piece. Variant row: the price itself. Leave blank to use the group&apos;s own discount.</span>
           </div>
 
           {vpLoading ? (
@@ -833,8 +842,14 @@ function DiscountGroupsPage() {
                                                   value={variantPrice}
                                                   onChange={e => updateVPVariantOverride(v.id, g.id, e.target.value)}
                                                   placeholder={(() => {
+                                                    // What this group pays without a price of its own here: the
+                                                    // product's amount off, else the group's percent (services/group_pricing).
                                                     const gOv = vpOverrides[product.id]?.[g.id] ?? { price: "", discount: "" };
-                                                    return gOv.price || "0.00";
+                                                    if (v.retail_price == null) return "0.00";
+                                                    const off = gOv.price ? parseFloat(gOv.price) : NaN;
+                                                    if (!Number.isNaN(off)) return Math.max(0, v.retail_price - off).toFixed(2);
+                                                    const pct = g.discount_percent ?? 0;
+                                                    return (v.retail_price * (1 - pct / 100)).toFixed(2);
                                                   })()}
                                                   style={{ width: "70px", padding: "4px 6px", border: `1px solid ${variantPrice ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "6px", fontSize: "12px", textAlign: "center", background: variantPrice ? "rgba(26,26,26,.04)" : "#fff" }}
                                                 />
@@ -988,6 +1003,23 @@ function DiscountGroupsPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* The group's own discount */}
+            <div style={sectionBox} data-group-discount>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "12px" }}>Discount</div>
+              <label style={labelStyle} htmlFor="group-discount">Percent off the list price</label>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input id="group-discount" type="number" min={0} max={100} step="0.01" placeholder="0"
+                  value={groupForm.discount_percent ?? ""}
+                  onChange={e => setGroupForm(f => ({ ...f, discount_percent: e.target.value === "" ? null : Number(e.target.value) }))}
+                  style={{ ...inputStyle, maxWidth: "120px" }} />
+                <span style={{ fontSize: "13px", color: "#7A7880" }}>% off</span>
+              </div>
+              <div style={{ fontSize: "12px", color: "#7A7880", marginTop: "6px" }}>
+                Buyers with this group&apos;s tag pay this much less on what the group applies to (below). A price set in
+                Individual Variant Pricing for a product or a variant comes first.
               </div>
             </div>
 

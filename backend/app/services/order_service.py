@@ -27,6 +27,31 @@ class OrderService:
         self.db = db
 
     # ------------------------------------------------------------------
+    # Who ordered (for jobs made before the buyer signed in)
+    # ------------------------------------------------------------------
+
+    async def _buyer_of(self, order: "Order") -> tuple[str | None, str | None]:
+        """The order's buyer as a name and an email: the guest's own, else the
+        company and the person who placed it."""
+        name = getattr(order, "guest_name", None) or None
+        email = getattr(order, "guest_email", None) or None
+        try:
+            if not name and order.company_id:
+                from app.models.company import Company
+                name = (await self.db.execute(
+                    select(Company.name).where(Company.id == order.company_id))).scalar()
+            if getattr(order, "placed_by_id", None) and (not name or not email):
+                from app.models.user import User
+                row = (await self.db.execute(select(User.first_name, User.last_name, User.email)
+                                             .where(User.id == order.placed_by_id))).first()
+                if row:
+                    name = name or " ".join(x for x in (row[0], row[1]) if x).strip() or None
+                    email = email or row[2]
+        except Exception:  # noqa: BLE001  (a contact is nice to have, never worth an order)
+            pass
+        return name, email
+
+    # ------------------------------------------------------------------
     # Price snapshot helper
     # ------------------------------------------------------------------
 
@@ -36,38 +61,9 @@ class OrderService:
         discount_percent: Decimal,
         group_id: str | None,
     ) -> Decimal:
-        """Return unit price: VariantLevelPricingOverride > product-level VariantPricingOverride > tier discount."""
-        from decimal import ROUND_HALF_UP
-        if group_id:
-            from app.models.discount_group import VariantLevelPricingOverride, VariantPricingOverride
-
-            # Step 1: per-variant override (highest priority)
-            vlp_result = await self.db.execute(
-                select(VariantLevelPricingOverride).where(
-                    VariantLevelPricingOverride.variant_id == str(variant.id),
-                    VariantLevelPricingOverride.group_id == group_id,
-                )
-            )
-            vlp = vlp_result.scalar_one_or_none()
-            if vlp and vlp.price is not None:
-                return Decimal(str(vlp.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            # Step 2: product-level override (tier_id stores group_id per existing convention)
-            ov_result = await self.db.execute(
-                select(VariantPricingOverride).where(
-                    VariantPricingOverride.product_id == str(variant.product_id),
-                    VariantPricingOverride.tier_id == group_id,
-                )
-            )
-            ov = ov_result.scalar_one_or_none()
-            if ov is not None and ov.price is not None:
-                return Decimal(str(ov.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if ov is not None and ov.discount_percent is not None:
-                multiplier = Decimal("1") - (Decimal(str(ov.discount_percent)) / Decimal("100"))
-                return (variant.retail_price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-        from app.services.pricing_service import PricingService
-        return PricingService(self.db).calculate_effective_price(variant.retail_price, discount_percent)
+        """The buyer's price: services/group_pricing (one rule for cart, order and product pages)."""
+        from app.services.group_pricing import unit_price
+        return await unit_price(self.db, variant, discount_percent, group_id)
 
     # ------------------------------------------------------------------
     # Create order (US-6)
@@ -441,10 +437,22 @@ class OrderService:
             )
             _is_paid = order.payment_status == "paid"
             _entered_review: list = []
+            # A sheet made as a guest (the shop does not require a sign-in to
+            # build) belongs to the account that ordered it, and the shop
+            # reaches that buyer about the artwork.
+            _who = await self._buyer_of(order)
             for _gsid in gang_sheet_ids:
                 _gs = (await self.db.execute(select(_GSOrder).where(_GSOrder.id == _gsid))).scalar_one_or_none()
                 if _gs is not None:
                     _gs.order_id = order.id
+                    if _gs.company_id is None and order.company_id is not None:
+                        _gs.company_id = order.company_id
+                    if _gs.user_id is None and getattr(order, "placed_by_id", None) is not None:
+                        _gs.user_id = order.placed_by_id
+                    if not _gs.contact_name and _who[0]:
+                        _gs.contact_name = str(_who[0])[:255]
+                    if not _gs.contact_email and _who[1]:
+                        _gs.contact_email = str(_who[1])[:255]
                     if _is_paid:
                         _gs.paid_at = _dt.now(_tz.utc)
                     if _gs.status == _GS_SUBMITTED:

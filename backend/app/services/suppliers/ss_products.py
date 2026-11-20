@@ -260,6 +260,12 @@ async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: d
         status=(cfg.get("product") or {}).get("status", "active"),
         **{k: v for k, v in pvals.items() if k != "name" and v not in (None, [])},
     )
+    # Sold on the bulk order form, when the shop asked for it and the style has
+    # colours and sizes to cross.
+    if (cfg.get("product") or {}).get("bulk_order") is True:
+        colours = {r.get("colorName") for r in skus if r.get("colorName")}
+        sizes = {r.get("sizeName") for r in skus if r.get("sizeName")}
+        product.bulk_order = len(colours) >= 1 and len(sizes) >= 2
     if not product.vendor:
         product.vendor = style.get("brandName") or ("SanMar" if supplier == "sanmar" else "S&S Activewear")
     db.add(product)

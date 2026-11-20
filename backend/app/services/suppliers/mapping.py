@@ -78,18 +78,25 @@ PRICE_TARGETS = {"retail_price", "compare_price", "msrp", "cost_per_item"}
 REQUIRED_TARGETS = {"sku", "retail_price"}
 
 DEFAULT_FIELDS: list[dict] = [
-    {"source": "styleName", "target": "name", "modify": "{{ style.brandName }} {{ style.styleName }}"},
+    # Brand, style number and the style's own title: "Gildan 5000 Heavy Cotton
+    # T-Shirt", as buyers search for it (dev fix list, item 24).
+    {"source": "styleName", "target": "name", "modify": "{{ style.brandName }} {{ style.styleName }} {{ style.title }}"},
     {"source": "description", "target": "description", "modify": ""},
     {"source": "title", "target": "short_description", "modify": ""},
     {"source": "brandName", "target": "vendor", "modify": ""},
     {"source": "baseCategory", "target": "product_type", "modify": ""},
     {"source": "baseCategory", "target": "tags", "modify": ""},
     {"source": "sku", "target": "sku", "modify": ""},
-    # A price with no Modify is priced by the brand's markup rules.
-    {"source": "customerPrice", "target": "retail_price", "modify": ""},
+    # A price with no Modify is priced by the brand's markup rules. The selling
+    # price starts from S&S's piece price, not customerPrice: that is the
+    # shop's own cost, and with no markup set it sold at cost (dev fix list,
+    # item 23). customerPrice is the cost.
+    {"source": "piecePrice", "target": "retail_price", "modify": ""},
     {"source": "customerPrice", "target": "cost_per_item", "modify": ""},
     {"source": "retailPrice", "target": "msrp", "modify": ""},
-    {"source": "retailPrice", "target": "compare_price", "modify": ""},
+    # No compare-at from the supplier: its suggested retail price as "compare
+    # at" put "Sale" on every supplier product (dev fix list, item 12). A shop
+    # that wants it adds the row in its mapping.
     {"source": "unitWeight", "target": "weight_grams", "modify": "{{ value | times: 453.592 | round: 2 }}"},
     {"source": "countryOfOrigin", "target": "country_of_origin", "modify": ""},
 ]

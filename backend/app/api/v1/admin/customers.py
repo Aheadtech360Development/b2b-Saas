@@ -54,6 +54,13 @@ async def list_wholesale_applications(
     per_page: int = 50,
     db: AsyncSession = Depends(get_db),
 ) -> list[WholesaleApplicationOut]:
+    # "all" (Customers → Applications → All) is every status. The column is a
+    # database enum, so any other word was a 500 from Postgres, not an empty
+    # list (dev fix list, item 27).
+    if status in (None, "", "all"):
+        status = None
+    elif status not in ("pending", "approved", "rejected"):
+        raise HTTPException(status_code=422, detail="status is pending, approved, rejected or all")
     service = WholesaleService(db)
     applications, _ = await service.list_applications(status=status, page=page, per_page=per_page)
     return [WholesaleApplicationOut.model_validate(a) for a in applications]

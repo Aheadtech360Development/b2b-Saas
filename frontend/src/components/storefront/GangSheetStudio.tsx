@@ -38,6 +38,7 @@ import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd, trackSignUp } from "@/lib/tracking";
 import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
+import { signInNeeded, useGangSheetSettings } from "@/lib/gangSheetSettings";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { establishSession } from "@/lib/session";
@@ -282,6 +283,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // Who to send this job's updates to, when there is no account behind it.
   const [guest, setGuest] = useState({ name: contactName ?? "", email: contactEmail ?? "" });
   const [askingWho, setAskingWho] = useState<null | { toCart: boolean }>(null);
+  // The shop's colours for its builder (Gang sheet setup → Appearance).
+  const gsSettings = useGangSheetSettings();
+  const themeVars = useMemo(() => {
+    const out: Record<string, string> = {};
+    const hex = /^#[0-9a-f]{3,8}$/i;
+    if (gsSettings?.theme_primary && hex.test(gsSettings.theme_primary)) out["--gs-go"] = gsSettings.theme_primary;
+    if (gsSettings?.theme_text && hex.test(gsSettings.theme_text)) out["--gs-on-go"] = gsSettings.theme_text;
+    return out as React.CSSProperties;
+  }, [gsSettings]);
   // Opening an account from inside the builder, rather than sending somebody
   // to a sign-up page and losing the sheet they just spent ten minutes on.
   const [mode, setMode] = useState<"join" | "signin">("join");
@@ -2378,7 +2388,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // signedIn is still false — and that put the form straight back up, so the
     // sheet never reached the cart.
     const authed = useAuthStore.getState().isAuthenticated();
-    if (!authed) { setAskingWho({ toCart }); return; }
+    // Only when the shop asks for it (Gang sheet setup → Require customer
+    // login). Otherwise a guest's sheet goes into the guest cart like any
+    // other line, and the account is made at checkout.
+    if (await signInNeeded(authed)) { setAskingWho({ toCart }); return; }
     setSaving(true);
     try {
       // Each sheet is its own order (its own review + print job); adding them all
@@ -3010,7 +3023,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // wheel listener attached to a node that had been thrown away: that is why
   // pinch-to-zoom on the trackpad stopped working at all.
   return (
-    <div ref={rootRef} data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
+    <div ref={rootRef} data-gs-root style={{ ...(viewportH ? { ...S.root, height: `${viewportH}px` } : S.root), ...themeVars }}>
       <style>{PHONE_CSS}</style>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div className="gs-topbar" style={S.topbar}>
@@ -3345,7 +3358,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <Layers size={19} strokeWidth={mobileSheet === "right" ? 2.3 : 2} />
             <span style={{ fontSize: "10.5px", marginTop: "5px", fontWeight: mobileSheet === "right" ? 700 : 600 }}>Sheets</span>
           </button>
-          <div className="gs-rail-foot" style={{ marginTop: "auto", fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".06em" }}>AT360<br/>APPS</div>
+          <div className="gs-rail-foot" style={{ marginTop: "auto" }} aria-hidden />
         </div>
 
         {/* ── Left panel ────────────────────────────────────────────────────── */}
@@ -3363,7 +3376,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 onClick={() => fileRef.current?.click()}
                 style={{ ...S.dropzone, borderColor: dropActive ? C.go : "#D4D8DE", background: dropActive ? C.goTint : "#FBFCFD" }}
               >
-                <UploadCloud size={30} strokeWidth={1.9} color={C.go} />
+                <UploadCloud size={30} strokeWidth={1.9} style={{ color: C.go }} />
                 <div style={{ fontSize: "13.5px", fontWeight: 700, marginTop: "8px", color: C.ink }}>
                   {uploadStep
                     ? `Uploading ${uploadStep.done + 1} of ${uploadStep.total}…`
@@ -4036,11 +4049,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </button>
 
           <div style={S.tipBox}>
-            <Lightbulb size={15} strokeWidth={2} color={C.goDark} style={{ flexShrink: 0, marginTop: "1px" }} />
+            <Lightbulb size={15} strokeWidth={2} style={{ color: C.goDark, flexShrink: 0, marginTop: "1px" }} />
             <span>Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.</span>
-          </div>
-          <div style={{ fontSize: "11px", color: C.inkFaint, textAlign: "center", paddingTop: "12px", borderTop: `1px solid ${C.lineSoft}` }}>
-            Powered by <strong style={{ color: C.inkSoft }}>AT360 APPS</strong>
           </div>
         </div>
       </div>
@@ -4165,9 +4175,12 @@ const C = {
   ink: "#1F2430",
   inkSoft: "#5B6170",
   inkFaint: "#848A96",
-  go: "#16A34A",
-  goDark: "#15803D",
-  goTint: "#E9F7EF",
+  // The shop's colour (Gang sheet setup → Appearance → primary colour), set on
+  // the builder's root as --gs-go; green when the shop has not chosen one. The
+  // builder stayed green whatever the shop set (dev fix list, item 32).
+  go: "var(--gs-go, #16A34A)",
+  goDark: "color-mix(in srgb, var(--gs-go, #16A34A) 82%, #000)",
+  goTint: "color-mix(in srgb, var(--gs-go, #16A34A) 10%, #fff)",
   stop: "#DC2626",
   stopTint: "#FEF2F2",
   radius: "10px",
@@ -4262,7 +4275,7 @@ const S: Record<string, React.CSSProperties> = {
   logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
   logoSub: { fontSize: "9.5px", fontWeight: 700, letterSpacing: ".13em", color: C.inkFaint, textTransform: "uppercase", marginTop: "2px" },
-  primaryBtn: { background: C.go, color: "#fff", border: "none", padding: "10px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
+  primaryBtn: { background: C.go, color: "var(--gs-on-go, #fff)", border: "none", padding: "10px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
   ghostBtn: { background: C.card, color: C.ink, border: `1px solid ${C.line}`, padding: "10px 15px", borderRadius: "9px", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
   closeBtn: { background: C.card, color: C.stop, border: `1px solid ${C.line}`, padding: "10px 15px", borderRadius: "9px", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
   priceLabel: { fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textTransform: "uppercase", letterSpacing: ".11em" },

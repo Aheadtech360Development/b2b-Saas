@@ -85,7 +85,8 @@ export interface SupplierConfig {
   filters: Filters;
   pricing: { rules: PriceRule[]; round_to: number | null };
   inventory: { sync: boolean; safety_stock: number; locations: Record<string, string> };
-  product: { status: "active" | "draft"; images: "all" | "front"; fields: FieldMap[] };
+  /** bulk_order: imported colour × size products sell on the bulk order form. */
+  product: { status: "active" | "draft"; images: "all" | "front"; bulk_order?: boolean; fields: FieldMap[] };
   automatic_sync: AutoSync;
   orders: OrderSettings;
   last_sync_at: string | null;

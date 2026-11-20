@@ -205,6 +205,8 @@ const RULE_ACTION_LABEL: Record<RuleAction, string> = {
 export function ProductOptionsBuilder({ productId }: { productId: string }) {
   const [mode, setMode] = useState<"variant" | "configurable">("variant");
   const [basePrice, setBasePrice] = useState<string>("");
+  // The fewest a buyer may order (products.moq): the product page starts there.
+  const [moq, setMoq] = useState<string>("1");
   const [options, setOptions] = useState<Opt[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -232,22 +234,23 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
     setLoading(true);
     try {
       const cfg = await apiClient.get<{
-        pricing_mode: "variant" | "configurable"; base_price: number | null;
+        pricing_mode: "variant" | "configurable"; base_price: number | null; moq?: number;
         options: Opt[]; qty_tiers: Tier[]; rules?: Rule[];
       }>(`/api/v1/admin/products/${productId}/options`);
       setMode(cfg.pricing_mode ?? "variant");
       setBasePrice(cfg.base_price != null ? String(cfg.base_price) : "");
+      setMoq(String(cfg.moq ?? 1));
       setOptions(cfg.options ?? []);
       setDirtySinceLoad(false);
       setTiers(cfg.qty_tiers ?? []);
       setRules(cfg.rules ?? []);
       setSnapshot(JSON.stringify({ mode: cfg.pricing_mode ?? "variant", basePrice: cfg.base_price != null ? String(cfg.base_price) : "",
-        options: cfg.options ?? [], tiers: cfg.qty_tiers ?? [], rules: cfg.rules ?? [] }));
+        moq: String(cfg.moq ?? 1), options: cfg.options ?? [], tiers: cfg.qty_tiers ?? [], rules: cfg.rules ?? [] }));
     } catch (e) {
       // A product with nothing configured yet 404s, which is normal. Anything
       // else means the page is showing blank state that isn't real, so say so.
       const err = e as { status?: number; message?: string };
-      if (err?.status === 404) setSnapshot(JSON.stringify({ mode: "variant", basePrice: "", options: [], tiers: [], rules: [] }));
+      if (err?.status === 404) setSnapshot(JSON.stringify({ mode: "variant", basePrice: "", moq: "1", options: [], tiers: [], rules: [] }));
       if (err?.status && err.status !== 404) {
         setMsg({ ok: false, text: `Could not load this product's options — ${err.message ?? "please reload"}` });
       }
@@ -424,6 +427,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       await apiClient.put(`/api/v1/admin/products/${productId}/options`, {
         pricing_mode: mode,
         base_price: basePrice.trim() === "" ? null : num(basePrice),
+        moq: Math.max(1, Math.floor(num(moq, 1))),
         options: payloadOptions,
         qty_tiers: tiers.filter(t => t.min_qty > 0),
         rules: payloadRules,
@@ -443,7 +447,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
     setSaving(false);
   }
 
-  const shape = () => JSON.stringify({ mode, basePrice, options, tiers, rules });
+  const shape = () => JSON.stringify({ mode, basePrice, moq, options, tiers, rules });
 
   if (loading) {
     return <div className="pc-card pc-pad">{[60, 85, 50].map((w, i) => (
@@ -485,6 +489,15 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           <label><span className="pc-label">Base price per item</span>
             <input className="pc-input" type="number" step="0.0001" min="0" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="0.00" /></label>
           <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: "4px 0 12px" }}>Before any options.</p>
+          <label><span className="pc-label">Minimum order quantity</span>
+            <input className="pc-input" type="number" step="1" min="1" value={moq} onChange={e => setMoq(e.target.value)}
+              placeholder="1" style={{ maxWidth: "160px" }} data-moq /></label>
+          <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: "4px 0 12px" }}>
+            The product page starts at this many, and nobody can order fewer.
+            {tiers.some(t => t.min_qty > 1) && Number(moq) < Math.min(...tiers.filter(t => t.min_qty > 0).map(t => t.min_qty))
+              ? ` Your first price break is at ${Math.min(...tiers.filter(t => t.min_qty > 0).map(t => t.min_qty))}: set that here if you don't sell fewer.`
+              : ""}
+          </p>
           <div className="pc-note" data-tone="blue" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }} data-price-check>
             <span>Price check:</span>
             <input className="pc-input" type="number" min={1} value={previewQty} aria-label="Items to price"

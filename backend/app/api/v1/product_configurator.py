@@ -94,6 +94,8 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
         "product_id": str(product.id),
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
         "base_price": float(product.base_price) if product.base_price is not None else None,
+        # The fewest a buyer may order: the quantity starts here.
+        "moq": int(getattr(product, "moq", 1) or 1),
         "options": options,
         "qty_tiers": [{"min_qty": int(t.min_qty), "unit_price": float(t.unit_price)} for t in tiers],
         "rules": rules,

@@ -62,6 +62,12 @@ function CustomerView() {
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async () => {
+    // Not a customer's id (a mistyped or old address): say so plainly rather
+    // than show the server's "valid UUID" error (dev fix list, item 28).
+    if (!isGuest && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id ?? "")) {
+      setLoadError("There is no customer at this address. Open the customer from Customers.");
+      return;
+    }
     try {
       const p = isGuest ? await customersService.guest(email) : await customersService.account(id);
       setC(p);

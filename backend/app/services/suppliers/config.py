@@ -75,7 +75,10 @@ def _default(supplier: str) -> dict:
         # No locations saved = the first active location gets "all_except_ds".
         "inventory": {"sync": True, "safety_stock": 0, "locations": {}},
         # Products: what an import creates, and from which supplier fields.
-        "product": {"status": "active", "images": "all", "fields": deepcopy(mapping.DEFAULT_FIELDS)},
+        # bulk_order: imported colour × size products sell on the bulk order
+        # form ("Wholesale bulk") from the start (dev fix list, item 22).
+        "product": {"status": "active", "images": "all", "bulk_order": False,
+                    "fields": deepcopy(mapping.DEFAULT_FIELDS)},
         # Schedule, and what a scheduled sync is allowed to change.
         "automatic_sync": {
             "enabled": False, "every_hours": 24,
@@ -236,6 +239,7 @@ def clean_product(raw: dict | None) -> dict:
     return {
         "status": _pick(raw.get("status"), ("active", "draft"), "active"),
         "images": _pick(raw.get("images"), ("all", "front"), "all"),
+        "bulk_order": raw.get("bulk_order") is True,
         "fields": mapping.clean_fields(fields if fields is not None else mapping.DEFAULT_FIELDS),
     }
 

@@ -152,9 +152,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
     // ── What the shopper has chosen so far ──
     const chosen: Record<string, string> = {};   // option id → value id
+    // A question that is an optional tick box: it can be left unticked.
+    const addOns = new Set(product.options.filter((o) => o.input_type === "checkbox" && !o.required).map((o) => o.id));
+    const isAddOn = (optionId: string) => addOns.has(optionId);
     let colour = product.colours[0]?.label ?? "";
     let size = product.sizes[0]?.label ?? "";
-    let quantity = 1;
+    // The fewest the product may be ordered in (its minimum order quantity).
+    const least = Math.max(1, Math.floor(product.moq ?? 1));
+    let quantity = least;
 
     // A gang sheet is chosen by the sheet, not by a variant: these are the
     // sizes the brand set up for this product, in the order it set them.
@@ -361,7 +366,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           });
 
           const before = chosen[optionId];
-          if (hidden.has(optionId) || fieldNote) {
+          if (!before && isAddOn(optionId)) {
+            // An optional tick box left unticked stays unticked.
+          } else if (before && isAddOn(optionId) && (disabledValues.has(before) || !offered(onlyValues, optionId, before))) {
+            // A tick a rule now forbids is taken off, not moved to another choice.
+            items.forEach((i) => i.classList.remove("selected"));
+            delete chosen[optionId];
+            showChoiceOf.get(group)?.("");
+          } else if (hidden.has(optionId) || fieldNote) {
             // Left out of the price and the order. The choice stays marked, so
             // the field comes back with it when the rule lets go.
             delete chosen[optionId];
@@ -406,6 +418,17 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         const onClick = (e: Event) => {
           e.preventDefault();
           if (item.hasAttribute("data-rule-off") || item.hasAttribute("data-rule-gone")) return;
+          // Pressed again, an optional tick box is unticked, and its cost
+          // leaves the price.
+          if (optionId && isAddOn(optionId) && item.classList.contains("selected")) {
+            item.classList.remove("selected");
+            delete chosen[optionId];
+            showChoice("");
+            setMessage(null);
+            settleRules();
+            refresh();
+            return;
+          }
           items.forEach((other) => other.classList.remove("selected"));
           item.classList.add("selected");
           if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
@@ -429,7 +452,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     if (qtyBox) {
       const buttons = Array.from(qtyBox.querySelectorAll("button"));
       const setQty = (next: number) => {
-        quantity = Math.max(1, next);
+        quantity = Math.max(least, next);
         if (qtyValue) {
           if (qtyValue instanceof HTMLInputElement) qtyValue.value = String(quantity);
           else qtyValue.textContent = String(quantity);
@@ -442,8 +465,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         button.addEventListener("click", onClick);
         cleanups.push(() => button.removeEventListener("click", onClick));
       });
+      // The box starts at the minimum, and says so.
+      if (least > 1) {
+        if (qtyValue instanceof HTMLInputElement) { qtyValue.value = String(least); qtyValue.min = String(least); }
+        else if (qtyValue) qtyValue.textContent = String(least);
+        qtyBox.title = `Minimum order: ${least}`;
+      }
       if (qtyValue instanceof HTMLInputElement) {
-        const onInput = () => setQty(parseInt(qtyValue.value, 10) || 1);
+        const onInput = () => setQty(parseInt(qtyValue.value, 10) || least);
         qtyValue.addEventListener("input", onInput);
         cleanups.push(() => qtyValue.removeEventListener("input", onInput));
       }

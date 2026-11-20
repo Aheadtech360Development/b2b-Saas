@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -697,6 +697,39 @@ def _validate_layout(
 
 # ── Customer-facing router ────────────────────────────────────────────────────
 public_router = APIRouter(prefix="/gang-sheets", tags=["gang-sheets"])
+
+
+# What the shop's builder settings say to a buyer: only these leave the admin.
+PUBLIC_SETTING_KEYS = (
+    "require_login", "disable_text", "enable_flip", "min_resolution",
+    "welcome_popup", "welcome_message", "theme_primary", "theme_text",
+    "show_gallery", "allow_reorder",
+)
+
+
+def public_settings(blob: Any) -> dict:
+    """The builder's settings as the storefront reads them. Login is not
+    required unless the shop switched it on (Products → Gang sheet setup →
+    Settings → "Require customer login")."""
+    data = blob if isinstance(blob, dict) else {}
+    out = {k: data.get(k) for k in PUBLIC_SETTING_KEYS if k in data}
+    out["require_login"] = data.get("require_login") is True
+    return out
+
+
+@public_router.get("/settings")
+async def get_public_settings(db: AsyncSession = Depends(get_db)) -> dict:
+    """The shop's builder settings a buyer's builder needs (whether a sign-in
+    is needed to add a sheet to the cart, the text tool, the colours)."""
+    import json as _json
+    from app.core.tenant_settings import get_setting
+
+    raw = await get_setting(db, "gs_settings")
+    try:
+        blob = _json.loads(raw) if raw else {}
+    except Exception:  # noqa: BLE001
+        blob = {}
+    return public_settings(blob)
 
 
 @public_router.get("/sizes")

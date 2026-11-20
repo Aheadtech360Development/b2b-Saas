@@ -38,6 +38,11 @@ export const GOOGLE_FONTS: CatalogFont[] = [
   { family: "Source Sans 3", category: "sans-serif", weights: [300, 400, 600, 700], italic: true },
   { family: "Mulish", category: "sans-serif", weights: [300, 400, 600, 700, 800], italic: true },
   { family: "Barlow", category: "sans-serif", weights: [300, 400, 500, 600, 700, 800], italic: true },
+  // Asked for while building the demo stores (dev fix list, items 29 and 35).
+  { family: "Barlow Condensed", category: "sans-serif", weights: [300, 400, 500, 600, 700, 800], italic: true },
+  { family: "Barlow Semi Condensed", category: "sans-serif", weights: [300, 400, 500, 600, 700, 800], italic: true },
+  { family: "IBM Plex Sans", category: "sans-serif", weights: [300, 400, 500, 600, 700], italic: true },
+  { family: "IBM Plex Sans Condensed", category: "sans-serif", weights: [300, 400, 500, 600, 700], italic: true },
   { family: "Archivo", category: "sans-serif", weights: [300, 400, 500, 600, 700, 800], italic: true },
   { family: "Figtree", category: "sans-serif", weights: [300, 400, 500, 600, 700, 800] },
   { family: "Space Grotesk", category: "sans-serif", weights: [300, 400, 500, 600, 700] },
@@ -77,6 +82,7 @@ export const GOOGLE_FONTS: CatalogFont[] = [
   { family: "Kalam", category: "handwriting", weights: [300, 400, 700] },
   { family: "Shadows Into Light", category: "handwriting", weights: [400] },
   { family: "JetBrains Mono", category: "monospace", weights: [300, 400, 500, 600, 700, 800], italic: true },
+  { family: "IBM Plex Serif", category: "serif", weights: [300, 400, 500, 600, 700], italic: true },
   { family: "IBM Plex Mono", category: "monospace", weights: [300, 400, 500, 600, 700], italic: true },
   { family: "Space Mono", category: "monospace", weights: [400, 700], italic: true },
 ];

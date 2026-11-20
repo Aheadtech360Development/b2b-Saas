@@ -11,6 +11,10 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { apiClient, isPlatformHost } from "@/lib/api-client";
 import type { PageSection } from "@/components/storefront/SectionRenderer";
 
+
+/** The title a page had before the shop was known. */
+const FALLBACK_TITLE = "Wholesale Store";
+
 export interface MenuItem {
   label: string;
   href: string;
@@ -260,9 +264,13 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
           // and icon (app/layout.tsx) were being replaced by "Wholesale Store"
           // and a drawn letter.
           if (typeof document !== "undefined" && !isPlatformHost(window.location.hostname)) {
-            document.title = merged.store_name && merged.store_name !== "Store"
-              ? merged.store_name
-              : "Wholesale Store";
+            // Only a page with no title of its own: the server already titled
+            // the page with the shop's name or the page's own (a product, a
+            // collection), and replacing it lost that.
+            const own = document.title.trim();
+            if ((!own || own === FALLBACK_TITLE) && merged.store_name && merged.store_name !== "Store") {
+              document.title = merged.store_name;
+            }
             applyFavicon(merged);
           }
         })

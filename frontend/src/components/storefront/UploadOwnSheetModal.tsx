@@ -22,6 +22,8 @@ import { Check, Contrast, Loader2, RotateCw, Sparkles, Undo2, UploadCloud, Wand2
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd } from "@/lib/tracking";
 import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
+import { signInNeeded } from "@/lib/gangSheetSettings";
+import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
 import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { applyTool, type Pixels, type Tool } from "@/lib/imageTools";
@@ -208,7 +210,9 @@ export function UploadOwnSheetModal({
     if (!size) { setError("Pick a sheet size first."); return; }
     setAdding(true);
     setError(null);
-    if (!isAuthenticated) {
+    // A sign-in first only when the shop asks for one (Gang sheet setup →
+    // Require customer login); otherwise the guest cart takes the sheet.
+    if (await signInNeeded(isAuthenticated)) {
       // The sheet goes up now, so it can come back once the account is made:
       // the file itself is too big to keep in the browser.
       try {
@@ -243,7 +247,8 @@ export function UploadOwnSheetModal({
           quantity: 1,
         }],
       });
-      await cartService.addGangSheet(order.id);
+      if (isAuthenticated) await cartService.addGangSheet(order.id);
+      else addToGuestCart(gangSheetLine(order));
       trackSheetAdd(order, { navigating: true });
       dropDraft(draftKey);
       window.location.href = "/cart";

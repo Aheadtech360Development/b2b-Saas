@@ -12,7 +12,7 @@
  */
 import { useBranding } from "@/components/providers/BrandingProvider";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -98,6 +98,15 @@ function Received({ company, email }: { company: string; email: string }) {
 
 function WholesaleRegisterForm() {
   const router = useRouter();
+  // Only the countries the shop sells to (Settings, Markets), home first: a
+  // US and Canada shop listed 70 and more (dev fix list, item 31).
+  const { ship_countries } = useBranding();
+  const countries = useMemo(() => {
+    const sold = (ship_countries ?? []).map((c) => c.toUpperCase());
+    if (!sold.length) return COUNTRIES;
+    const known = sold.map((code) => COUNTRIES.find((c) => c.code === code) ?? { code, name: countryName(code) });
+    return known;
+  }, [ship_countries]);
   const { isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
   const captchaEnabled = RECAPTCHA_SITE_KEY.length > 0;
@@ -132,6 +141,12 @@ function WholesaleRegisterForm() {
     how_heard: "",
   });
 
+  // A shop that does not sell to the United States starts on its own country.
+  useEffect(() => {
+    if (countries.length && !countries.some((c) => c.code === form.country)) {
+      setForm((f) => ({ ...f, country: countries[0]!.code }));
+    }
+  }, [countries, form.country]);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
   const short = passwordTooShort(form.password);
@@ -269,7 +284,7 @@ function WholesaleRegisterForm() {
             <div className={ui.field}>
               <label htmlFor="country" className={ui.label}>Country</label>
               <select id="country" value={form.country} onChange={set("country")} className={ui.input} autoComplete="country">
-                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
               </select>
             </div>
             <div className={ui.field}>

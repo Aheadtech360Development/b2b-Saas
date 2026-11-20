@@ -21,6 +21,8 @@ import {
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd, type SheetJobLike } from "@/lib/tracking";
 import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
+import { signInNeeded, useGangSheetSettings } from "@/lib/gangSheetSettings";
+import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
 import { useAuthStore } from "@/stores/auth.store";
 import { Crop, Eraser, Grip, ImageUpscale, Palette } from "lucide-react";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
@@ -92,6 +94,7 @@ function dpiBand(dpi: number) {
 
 export function UploadBySizeModal({ product, onClose, revise = null, onRevised }: Props) {
   const { isAuthenticated } = useAuthStore();
+  const gsSettings = useGangSheetSettings();
   const config = product.gang_sheet_config ?? null;
   const maxW = Number(config?.printer_width) || 22;
   const maxH = Number(config?.max_height) || 200;
@@ -334,7 +337,10 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
 
   async function addToCart() {
     if (!items.length) { setError("Upload a design first."); return; }
-    if (!isAuthenticated()) {
+    const signedIn = isAuthenticated();
+    // A sign-in first only when the shop asks for one; otherwise each design
+    // goes into the guest cart and the account is made at checkout.
+    if (await signInNeeded(signedIn)) {
       // The files are already uploaded; the sizes and quantities are kept here,
       // and the buyer comes back to this builder once the account is made.
       keepDraft(draftKey, { items, bgKey });
@@ -361,7 +367,8 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
           file_name: it.file_name,
           file_type: it.file_type,
         });
-        await cartService.addGangSheet(order.id);
+        if (signedIn) await cartService.addGangSheet(order.id);
+        else addToGuestCart(gangSheetLine(order));
         jobs.push(order);
       }
       trackSheetAdd(jobs, { navigating: true });
@@ -749,7 +756,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
               style={{ ...S.cta, ...(items.length ? null : S.ctaOff) }}
             >
               {items.length > 0 && <span style={S.ctaCount}>{items.length}</span>}
-              {adding ? "Adding…" : isAuthenticated() ? "Add To Cart" : "Sign in to order"}
+              {adding ? "Adding…" : isAuthenticated() || gsSettings?.require_login !== true ? "Add To Cart" : "Sign in to order"}
             </button>
           )}
         </div>

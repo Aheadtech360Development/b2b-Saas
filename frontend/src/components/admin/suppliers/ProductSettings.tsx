@@ -81,6 +81,18 @@ export function ProductSettings({ id, meta, product, pricing, onProduct, onPrici
         </div>
       </section>
 
+      <section data-import-bulk>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Wholesale bulk</div>
+        <p style={MUTED}>
+          Imported products with colours and sizes open as the bulk order form: buyers pick up to 10 colours and type a
+          quantity for every size. Each product keeps its own switch afterwards.
+        </p>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", marginTop: 10, fontSize: 13 }}>
+          <input type="checkbox" checked={product.bulk_order === true} onChange={(e) => onProduct({ ...product, bulk_order: e.target.checked })} />
+          Turn on Wholesale bulk for products I import
+        </label>
+      </section>
+
       <section>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ flex: "1 1 320px" }}>

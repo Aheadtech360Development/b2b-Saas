@@ -177,13 +177,30 @@ async def _run(tenant_id: str, supplier: str, kind: str, trigger: str, token: st
         pass
 
 
+def _skip_words(reason: str) -> str:
+    """A skip reason, short, for the run's one-line summary."""
+    if reason.startswith("has "):
+        return "over your variant limit"
+    if "no variants" in reason:
+        return "with no variants from the supplier"
+    return reason
+
+
 def _message(summary: dict) -> str:
     parts = []
     if "import" in summary:
         i = summary["import"]
         bits = [f"{i['imported']} imported"]
         if i.get("skipped"):
-            bits.append(f"{i['skipped']} skipped (variant limit)")
+            # Each reason as it is, not "variant limit" for all of them: styles
+            # S&S returned no variants for read as the limit, and changing the
+            # limit changed nothing (dev fix list, item 25).
+            reasons = i.get("skip_reasons") or {}
+            if reasons:
+                why = "; ".join(f"{n} {_skip_words(r)}" for r, n in sorted(reasons.items(), key=lambda x: -x[1]))
+                bits.append(f"{i['skipped']} skipped ({why})")
+            else:
+                bits.append(f"{i['skipped']} skipped")
         if i["failed"]:
             bits.append(f"{i['failed']} failed")
         if i["remaining"]:
@@ -247,6 +264,10 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
     created: list[str] = []
     errors: list[str] = []
 
+    # Why styles were left out, counted: the variant limit is one reason of
+    # several (a style S&S returned no variants for is another).
+    skip_reasons: dict[str, int] = {}
+
     def err(s, text):
         if len(errors) < 5:
             errors.append(f"{s['brand']} {s['style_name']}: {text}")
@@ -274,7 +295,9 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
                 except ss_products.SkipProduct as exc:
                     await db.rollback()
                     skipped += 1
-                    err(s, str(exc))
+                    why = str(exc)
+                    skip_reasons[why.split(",")[0] if why.startswith("has ") else why] =                         skip_reasons.get(why.split(",")[0] if why.startswith("has ") else why, 0) + 1
+                    err(s, why)
                 except IntegrityError:
                     await db.rollback()
                     failed += 1
@@ -286,6 +309,7 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
                     err(s, type(exc).__name__)
     await step(len(batch_all), len(batch_all), "Import finished")
     return {"matched": len(wanted), "already_imported": len(have), "imported": imported, "skipped": skipped,
+            "skip_reasons": skip_reasons,
             "failed": failed, "remaining": remaining, "errors": errors, "created": created}
 
 

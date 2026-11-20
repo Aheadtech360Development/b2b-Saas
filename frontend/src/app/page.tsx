@@ -3,20 +3,25 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function generateMetadata(): Promise<Metadata> {
-  if (!(await loadStore()).brand) return siteMetadata("home");
+  const store = await loadStore();
+  if (!store.brand) return siteMetadata("home");
+  // The shop's own name until its SEO says otherwise. The SEO was read with no
+  // shop named on the request, so every shop's home page opened titled
+  // "Wholesale Store" before the browser put the name in (dev fix list, item 33).
+  const name = store.title || store.brand;
   try {
-    const seo = await fetch(`${_API}/api/v1/pages-seo/home`, { next: { revalidate: 300 } }).then(r => r.json());
+    const seo = await apiClient.get<{ meta_title?: string | null; meta_description?: string | null; keywords?: string | null; og_image_url?: string | null }>(
+      "/api/v1/pages-seo/home", { skipAuth: true });
     return {
-      title: seo.meta_title ?? "Wholesale Store",
-      description: seo.meta_description ?? "B2B wholesale storefront.",
-      keywords: seo.keywords ?? undefined,
-      openGraph: seo.og_image_url ? { images: [{ url: seo.og_image_url }] } : undefined,
+      title: seo?.meta_title || name,
+      description: seo?.meta_description || `${store.brand}. Order online.`,
+      keywords: seo?.keywords ?? undefined,
+      openGraph: seo?.og_image_url ? { images: [{ url: seo.og_image_url }] } : undefined,
     };
   } catch {
-    return { title: "Wholesale Store" };
+    return { title: name };
   }
 }
 import { Footer } from "@/components/layout/Footer";

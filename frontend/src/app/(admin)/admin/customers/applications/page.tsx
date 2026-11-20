@@ -114,7 +114,8 @@ function ApplicationList({ onChanged, tiersOk }: { onChanged: () => void; tiersO
 
   const load = useCallback(async () => {
     try {
-      setApps(await adminService.listApplications(status || undefined) as Application[]);
+      // "all" asks for every status: no filter (the server refuses other words).
+      setApps(await adminService.listApplications(status && status !== "all" ? status : undefined) as Application[]);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "The applications could not be loaded.");

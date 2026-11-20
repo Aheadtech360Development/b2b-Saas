@@ -163,7 +163,10 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     if (!isAuthenticated()) {
       redirectTimer.current = setTimeout(() => {
         if (!useAuthStore.getState().isAuthenticated()) {
-          router.replace("/login");
+          // Back to this very page once signed in: Quick order, an invoice,
+          // a design (dev fix list, item 11). Its own path only.
+          const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/account";
+          router.replace(`/login?next=${encodeURIComponent(here.startsWith("/account") ? here : "/account")}`);
         }
       }, 300);
     }

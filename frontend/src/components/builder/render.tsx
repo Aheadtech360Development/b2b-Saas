@@ -265,12 +265,16 @@ function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct 
   } else if (product.pricing_mode === "configurable" || product.options?.length) {
     for (const o of product.options ?? []) {
       const hasDefault = o.values.some((v) => v.default);
+      // An optional tick box ("Add lamination") opens unticked: ticked, its
+      // cost was in the price before the buyer chose it (dev fix list, item 7).
+      const meta = o as { input_type?: string; required?: boolean };
+      const addOn = meta.input_type === "checkbox" && !meta.required;
       groups.push({
         name: o.name, optionId: o.id, swatch: o.values.some((v) => v.hex),
         // In a question answered with swatches, a choice left without a colour is drawn from its name.
         items: o.values.map((v, i) => ({ label: v.label, valueId: v.id,
           hex: v.hex || (o.values.some((x) => x.hex) ? knownColor(v.label) ?? undefined : undefined),
-          selected: hasDefault ? !!v.default : i === 0 })),
+          selected: hasDefault ? !!v.default : !addOn && i === 0 })),
       });
     }
   } else {

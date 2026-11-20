@@ -2,7 +2,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +29,8 @@ class DiscountGroupIn(BaseModel):
     applies_to_ids: list[str] = []
     min_req_type: str = "none"
     min_req_value: float | None = None
+    # Percent off the list price for the group's buyers, 0 to 100 (None: none).
+    discount_percent: float | None = Field(default=None, ge=0, le=100)
     shipping_type: str = "store_default"
     shipping_amount: float = 0
     shipping_calc_type: str = "order_value"
@@ -58,6 +60,7 @@ def _group_out(g: DiscountGroup) -> dict:
         "customer_tag": g.customer_tag or "",
         "applies_to": g.applies_to,
         "applies_to_ids": applies_to_ids,
+        "discount_percent": float(g.discount_percent) if g.discount_percent is not None else None,
         "min_req_type": g.min_req_type,
         "min_req_value": float(g.min_req_value) if g.min_req_value is not None else 0,
         "shipping_type": g.shipping_type,
@@ -86,6 +89,7 @@ async def create_discount_group(body: DiscountGroupIn, db: AsyncSession = Depend
         customer_tag=body.customer_tag,
         applies_to=body.applies_to,
         applies_to_ids=json.dumps(body.applies_to_ids) if body.applies_to_ids else None,
+        discount_percent=body.discount_percent,
         min_req_type=body.min_req_type,
         min_req_value=body.min_req_value,
         shipping_type=body.shipping_type,
@@ -98,6 +102,7 @@ async def create_discount_group(body: DiscountGroupIn, db: AsyncSession = Depend
     db.add(g)
     await db.commit()
     await db.refresh(g)
+    await _bust_prices()
     return _group_out(g)
 
 
@@ -118,7 +123,19 @@ async def update_discount_group(
         setattr(g, field, val)
     await db.commit()
     await db.refresh(g)
+    await _bust_prices()
     return _group_out(g)
+
+
+async def _bust_prices() -> None:
+    """A group's percent or scope changes what its buyers see on every
+    product: clear the shop's cached product pages and grids."""
+    try:
+        from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
+        await _rdp(_tk("products:detail:*"))
+        await _rdp(_tk("products:list:*"))
+    except Exception:  # noqa: BLE001  (the cache runs out by itself)
+        pass
 
 
 @router.delete("/discount-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -128,6 +145,7 @@ async def delete_discount_group(group_id: UUID, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=404, detail="Group not found")
     await db.delete(g)
     await db.commit()
+    await _bust_prices()
 
 
 # ── Variant Pricing Overrides ─────────────────────────────────────────────────

@@ -74,7 +74,12 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
                  and (product.pricing_mode or "variant") == "variant" and not product.gang_sheet_enabled)
     variants = sort_variants([v for v in (product.variants or [])
                               if v.status == "active" or (bulk_form and v.status == "out_of_stock")])
-    prices = [float(v.retail_price) for v in variants if v.retail_price is not None and v.status == "active"]
+    # A made-to-order product sells from its base price, not from variants it
+    # kept from before (theme_data.selling_prices; dev fix list, item 5).
+    from app.services.theme_data import made_to_order
+
+    prices = ([float(product.base_price)] if made_to_order(product)
+              else [float(v.retail_price) for v in variants if v.retail_price is not None and v.status == "active"])
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
 

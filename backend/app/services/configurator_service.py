@@ -482,7 +482,13 @@ def default_selections(product: Product) -> dict:
         values = [v for v in sorted(option.values, key=lambda v: v.position) if v.enabled]
         if not values:
             continue
-        chosen = next((v for v in values if v.is_default), values[0])
+        default = next((v for v in values if v.is_default), None)
+        # An optional tick box ("Add lamination") opens unticked unless the
+        # shop made one of its choices the default: ticked, its cost was in
+        # the opening price (dev fix list, item 7).
+        if default is None and option.input_type == "checkbox" and not option.required:
+            continue
+        chosen = default or values[0]
         out[str(option.id)] = str(chosen.id)
 
     rules = getattr(product, "option_rules", None)

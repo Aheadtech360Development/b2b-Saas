@@ -414,6 +414,11 @@ class ProductService:
             for row in vlp_result.scalars().all():
                 vlp_map[row.variant_id] = row
 
+        # The group's own percent off, on the products it applies to.
+        from app.services.group_pricing import group_of, price_for, scope_of
+        group = await group_of(self.db, discount_group_id) if discount_group_id and not is_guest else None
+        in_scope = await scope_of(self.db, group, [str(p.id) for p in products]) if group else set()
+
         for product in products:
             ov = override_map.get(str(product.id))
             for variant in product.variants:
@@ -426,28 +431,16 @@ class ProductService:
                         if msrp is not None
                         else Decimal(str(variant.retail_price))
                     )
-                elif vlp is not None and vlp.price is not None:
-                    # Per-variant price override has highest priority
-                    variant.effective_price = Decimal(str(vlp.price)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                elif ov is not None and ov.price is not None:
-                    # Absolute product-level price override
-                    variant.effective_price = Decimal(str(ov.price)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                elif ov is not None and ov.discount_percent is not None:
-                    # Per-group discount % applied to each variant's retail price
-                    multiplier = Decimal("1") - (
-                        Decimal(str(ov.discount_percent)) / Decimal("100")
-                    )
-                    variant.effective_price = (variant.retail_price * multiplier).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
                 else:
-                    # Fall back to flat tier discount
-                    variant.effective_price = pricing_svc.calculate_effective_price(
-                        variant.retail_price, discount_percent
+                    # The same rule as the cart and the order (services/group_pricing).
+                    variant.effective_price = price_for(
+                        variant.retail_price,
+                        variant_price=vlp.price if vlp is not None else None,
+                        amount_off=ov.price if ov is not None else None,
+                        product_percent=ov.discount_percent if ov is not None else None,
+                        group_percent=(group or {}).get("percent"),
+                        in_scope=str(product.id) in in_scope,
+                        tier_percent=discount_percent,
                     )
                 # Stock counts only for a product that tracks it (its own switch,
                 # migration 0063): what its records hold, 0 when it has none.

@@ -1,7 +1,7 @@
 """Wholesale application service."""
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
@@ -30,12 +30,12 @@ class WholesaleService:
         result = await self.db.execute(query.offset((page - 1) * per_page).limit(per_page))
         applications = list(result.scalars().all())
 
-        count_result = await self.db.execute(
-            select(WholesaleApplication).where(
-                WholesaleApplication.status == status if status else True
-            )
-        )
-        total = len(list(count_result.scalars().all()))
+        # "All" has no status. `.where(True)` is refused by SQLAlchemy 2, which
+        # made Customers → Applications → All fail (dev fix list, item 27).
+        count_q = select(func.count()).select_from(WholesaleApplication)
+        if status:
+            count_q = count_q.where(WholesaleApplication.status == status)
+        total = int((await self.db.execute(count_q)).scalar() or 0)
 
         return applications, total
 

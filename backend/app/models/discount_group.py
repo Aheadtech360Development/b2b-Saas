@@ -20,6 +20,9 @@ class DiscountGroup(TenantMixin, BaseModel):
     shipping_cutoff_time: Mapped[str | None] = mapped_column(String(50), nullable=True)
     shipping_brackets_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="enabled")
+    # The group's own percent off the list price, on what it applies to
+    # (services/group_pricing). None: no discount of its own (migration 0080).
+    discount_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
 
 
 class VariantPricingOverride(TenantMixin, BaseModel):

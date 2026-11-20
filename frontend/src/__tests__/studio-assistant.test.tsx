@@ -52,6 +52,17 @@ vi.mock("@/lib/backgroundRemoval", () => ({
 vi.stubGlobal("fetch", () => Promise.resolve({ blob: () => Promise.resolve(new Blob(["img"], { type: "image/jpeg" })) }));
 // Signed out until establishSession runs, as with the real store.
 const auth = vi.hoisted(() => ({ on: false, cart: [] as string[] }));
+// The shop's "Require customer login" (Gang sheet setup → Settings). On here,
+// as these tests were written for; off, a guest's sheet goes to the guest cart.
+const shop = vi.hoisted(() => ({ requireLogin: true, guestCart: [] as string[] }));
+vi.mock("@/lib/gangSheetSettings", () => ({
+  signInNeeded: async (signedIn: boolean) => !signedIn && shop.requireLogin,
+  useGangSheetSettings: () => ({ require_login: shop.requireLogin }),
+}));
+vi.mock("@/lib/guestCart", () => ({
+  addToGuestCart: (line: { gang_sheet_order_id?: string }) => { shop.guestCart.push(line.gang_sheet_order_id ?? ""); },
+  gangSheetLine: (o: { id: string }) => ({ gang_sheet_order_id: o.id }),
+}));
 vi.mock("@/stores/auth.store", () => ({
   useAuthStore: Object.assign(
     (pick: (s: { isAuthenticated: () => boolean }) => unknown) => pick({ isAuthenticated: () => auth.on }),
@@ -463,13 +474,28 @@ describe("signing in to add the sheet to the cart", () => {
   it("carries on after signing in: the form closes and the sheet goes into the cart", async () => {
     render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Save & Add to Cart/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Already have an account? Sign in" }));
+    // The form opens once the shop's setting is read (lib/gangSheetSettings).
+    fireEvent.click(await screen.findByRole("button", { name: "Already have an account? Sign in" }));
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: "buyer@shop.test" } });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="password"]')!, { target: { value: "secret123" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in & add to cart" }));
 
     await waitFor(() => expect(auth.cart).toEqual(["o1"]), { timeout: 4000 });
     expect(screen.queryByRole("button", { name: "Sign in & add to cart" })).toBeNull();
+  });
+
+  it("asks nobody to sign in when the shop does not require it: the sheet goes into the guest cart", async () => {
+    shop.requireLogin = false;
+    shop.guestCart = [];
+    try {
+      render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+      fireEvent.click(screen.getByRole("button", { name: /Save & Add to Cart/ }));
+      await waitFor(() => expect(shop.guestCart).toEqual(["o1"]), { timeout: 4000 });
+      expect(screen.queryByRole("button", { name: /Sign in/ })).toBeNull();
+      expect(screen.queryByText("Create your account")).toBeNull();
+    } finally {
+      shop.requireLogin = true;
+    }
   });
 });
 
