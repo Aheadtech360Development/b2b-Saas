@@ -115,6 +115,14 @@ describe("forgot your password", () => {
 });
 
 describe("the wholesale application", () => {
+  it("lists only the countries the shop sells to (Settings, Markets)", () => {
+    branding = { ship_countries: ["US", "CA"] };
+    onShop(<WholesaleRegisterPage />);
+    const options = Array.from(document.querySelectorAll<HTMLOptionElement>("#country option")).map((o) => o.value);
+    expect(options).toEqual(["US", "CA"]);
+    branding = {};
+  });
+
   it("has the design's four boxes and, once sent, says what happens next", async () => {
     onShop(<WholesaleRegisterPage />);
     for (const box of ["Company", "Contact", "Business address", "About your business"]) {
